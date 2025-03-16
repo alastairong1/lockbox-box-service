@@ -103,6 +103,45 @@ _Other Guardian (Rejection):_
 - **404 Not Found:** Box not found.
 - **500 Internal Server Error:** An error occurred processing the update.
 
+### 4. Get Guardian Boxes
+
+**Endpoint:** `GET /guardianBoxes`
+
+**Headers:**
+- `x-user-id`: Your user identifier
+
+**Description:**
+Returns all boxes where the authenticated user is a guardian (excluding rejected entries). It uses the in-memory store to filter and convert boxes using the guardian conversion logic.
+
+**Response Example:**
+```json
+{
+  "boxes": [
+    {
+      "id": "box_id",
+      "name": "Box Name",
+      "description": "Description",
+      "created_at": "timestamp",
+      "updated_at": "timestamp",
+      "unlock_request": {
+         "id": "unlock_request_id",
+         "requested_at": "timestamp",
+         "status": "pending",
+         "message": "Unlock request message",
+         "initiated_by": "guardian_id",
+         "approved_by": [],
+         "rejected_by": []
+      }
+    }
+  ]
+}
+```
+
+**Response Codes:**
+- **200 OK:** Guardian boxes returned successfully.
+- **401 Unauthorized:** Missing or invalid user authentication.
+- **404 Not Found:** No boxes found for the guardian (if applicable).
+
 ## Running the Service
 
 This service is designed for AWS Lambda. For local testing, configure an AWS Lambda runtime environment with Rust, Cargo, and the AWS Lambda Rust runtime.
