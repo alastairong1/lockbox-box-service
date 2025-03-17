@@ -6,69 +6,55 @@ mod store;
 #[cfg(test)]
 mod tests;
 
-use axum::{extract::Request, response::Response};
-use lambda_runtime::{service_fn, Error, LambdaEvent};
-use serde::{Deserialize, Serialize};
+use axum::{body::Body, extract::Request, response::Response};
+use lambda_http::{run, service_fn, Error, Request as LambdaRequest, Response as LambdaResponse, Body as LambdaBody};
 use tower::ServiceExt;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
-// This is the lambda request type
-#[derive(Deserialize)]
-struct LambdaRequest {
-    #[serde(flatten)]
-    event: serde_json::Value,
-}
-
-// This is the lambda response type
-#[derive(Serialize)]
-struct LambdaResponse {
-    #[serde(flatten)]
-    body: serde_json::Value,
-}
-
 // The Lambda handler function
-async fn function_handler(event: LambdaEvent<LambdaRequest>) -> Result<LambdaResponse, Error> {
+async fn function_handler(event: LambdaRequest) -> Result<LambdaResponse<LambdaBody>, Error> {
     // Get router
     let app = routes::create_router();
-
-    // Convert the Lambda event to an HTTP request
-    let (event, _context) = event.into_parts();
-    let http_request: Request = serde_json::from_value(event.event)?;
+    
+    // Convert the Lambda event to an HTTP request for Axum
+    let (parts, body) = event.into_parts();
+    let body = match body {
+        LambdaBody::Empty => Body::empty(),
+        LambdaBody::Text(text) => Body::from(text),
+        LambdaBody::Binary(data) => Body::from(data),
+    };
+    
+    let http_request = Request::from_parts(parts, body);
 
     // Process the request through Axum
     let response = app.oneshot(http_request).await?;
-
+    
     // Convert Axum's response to Lambda's response
-    let body = response_to_lambda(response).await?;
-
-    Ok(LambdaResponse { body })
+    let lambda_response = response_to_lambda(response).await?;
+    
+    Ok(lambda_response)
 }
 
 // Convert the Axum response to a format suitable for Lambda
-async fn response_to_lambda(response: Response) -> Result<serde_json::Value, Error> {
+async fn response_to_lambda(response: Response) -> Result<LambdaResponse<LambdaBody>, Error> {
     let (parts, body) = response.into_parts();
-    let bytes = hyper::body::to_bytes(body).await?;
-    let body_str = String::from_utf8(bytes.to_vec())?;
-
-    let mut response_json = serde_json::json!({
-        "statusCode": parts.status.as_u16(),
-        "headers": {},
-        "body": body_str,
-        "isBase64Encoded": false
+    let bytes = axum::body::to_bytes(body, usize::MAX).await?;
+    
+    let builder = LambdaResponse::builder()
+        .status(parts.status);
+    
+    // Add response headers
+    let builder_with_headers = parts.headers.iter().fold(builder, |builder, (name, value)| {
+        builder.header(name.as_str(), value.as_bytes())
     });
-
-    // Add headers
-    let headers_obj = response_json["headers"].as_object_mut().unwrap();
-    for (key, value) in parts.headers.iter() {
-        if let Ok(value_str) = value.to_str() {
-            headers_obj.insert(
-                key.to_string(),
-                serde_json::Value::String(value_str.to_string()),
-            );
-        }
-    }
-
-    Ok(response_json)
+    
+    let lambda_response = if bytes.is_empty() {
+        builder_with_headers.body(LambdaBody::Empty)?
+    } else {
+        builder_with_headers.body(LambdaBody::Binary(bytes.to_vec()))?
+    };
+    
+    Ok(lambda_response)
 }
 
 #[tokio::main]
@@ -83,6 +69,6 @@ async fn main() -> Result<(), Error> {
 
     // Run as Lambda function
     tracing::info!("Starting AWS Lambda function");
-    lambda_runtime::run(service_fn(function_handler)).await?;
+    run(service_fn(function_handler)).await?;
     Ok(())
 }
