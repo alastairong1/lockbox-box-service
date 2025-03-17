@@ -10,16 +10,16 @@ use thiserror::Error;
 pub enum AppError {
     #[error("Unauthorized: {0}")]
     Unauthorized(String),
-    
+
     #[error("Not found: {0}")]
     NotFound(String),
-    
+
     #[error("Bad request: {0}")]
     BadRequest(String),
-    
+
     #[error("Internal server error: {0}")]
     InternalServerError(String),
-    
+
     #[error("Serialization error: {0}")]
     SerializationError(#[from] serde_json::Error),
 }
