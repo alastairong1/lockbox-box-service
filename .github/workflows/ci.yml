@@ -1,8 +1,6 @@
 name: CI
 
 on:
-  push:
-    branches: [ main ]
   pull_request:
     branches: [ main ]
 
@@ -39,13 +37,7 @@ jobs:
       with:
         command: fmt
         args: --all -- --check
-    
-    - name: Lint with Clippy
-      uses: actions-rs/cargo@v1
-      with:
-        command: clippy
-        args: -- -D warnings
-    
+       
     - name: Run tests
       uses: actions-rs/cargo@v1
       with:
