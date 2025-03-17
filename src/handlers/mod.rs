@@ -2,12 +2,8 @@ pub mod box_handlers;
 pub mod guardian_handlers;
 
 use axum::{
-    extract::FromRequestParts,
-    http::request::Parts,
-    middleware::Next,
-    response::Response,
-    async_trait,
-    extract::Request
+    async_trait, extract::FromRequestParts, extract::Request, http::request::Parts,
+    middleware::Next, response::Response,
 };
 
 use crate::error::AppError;
@@ -24,7 +20,8 @@ where
 
     async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
         if let Some(user_id) = parts.headers.get("x-user-id") {
-            let user_id = user_id.to_str()
+            let user_id = user_id
+                .to_str()
                 .map_err(|_| AppError::Unauthorized("Invalid x-user-id header".into()))?
                 .to_string();
             Ok(UserId(user_id))
@@ -35,20 +32,18 @@ where
 }
 
 // Middleware to extract user_id from header and make it available for handlers
-pub async fn auth_middleware(
-    mut request: Request,
-    next: Next,
-) -> Result<Response, AppError> {
+pub async fn auth_middleware(mut request: Request, next: Next) -> Result<Response, AppError> {
     // Get the user_id from header
-    let user_id = request.headers()
+    let user_id = request
+        .headers()
         .get("x-user-id")
         .and_then(|value| value.to_str().ok())
         .map(|value| value.to_string())
         .ok_or_else(|| AppError::Unauthorized("Unauthorized: Missing x-user-id header".into()))?;
-    
+
     // Store the user_id in the request extensions for later retrieval
     request.extensions_mut().insert(user_id);
-    
+
     // Continue to the handler
     Ok(next.run(request).await)
 }

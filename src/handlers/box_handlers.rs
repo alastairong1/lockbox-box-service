@@ -1,5 +1,5 @@
 use axum::{
-    extract::{Path, State, Extension},
+    extract::{Extension, Path, State},
     http::StatusCode,
     Json,
 };
@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 use crate::{
     error::{AppError, Result},
-    models::{BoxRecord, BoxResponse, CreateBoxRequest, UpdateBoxRequest, now_str},
+    models::{now_str, BoxRecord, BoxResponse, CreateBoxRequest, UpdateBoxRequest},
     store::BoxStore,
 };
 
@@ -16,9 +16,9 @@ pub async fn get_boxes(
     State(store): State<BoxStore>,
     Extension(user_id): Extension<String>,
 ) -> Result<Json<serde_json::Value>> {
-    let boxes_guard = store.lock().map_err(|_| {
-        AppError::InternalServerError("Failed to acquire lock".into())
-    })?;
+    let boxes_guard = store
+        .lock()
+        .map_err(|_| AppError::InternalServerError("Failed to acquire lock".into()))?;
 
     let my_boxes: Vec<_> = boxes_guard
         .iter()
@@ -41,9 +41,9 @@ pub async fn get_box(
     Path(id): Path<String>,
     Extension(user_id): Extension<String>,
 ) -> Result<Json<serde_json::Value>> {
-    let boxes_guard = store.lock().map_err(|_| {
-        AppError::InternalServerError("Failed to acquire lock".into())
-    })?;
+    let boxes_guard = store
+        .lock()
+        .map_err(|_| AppError::InternalServerError("Failed to acquire lock".into()))?;
 
     if let Some(box_rec) = boxes_guard.iter().find(|b| b.id == id) {
         if box_rec.owner_id == user_id {
@@ -60,7 +60,9 @@ pub async fn get_box(
         }
     }
 
-    Err(AppError::Unauthorized("Unauthorized or Box not found".into()))
+    Err(AppError::Unauthorized(
+        "Unauthorized or Box not found".into(),
+    ))
 }
 
 // POST /boxes
@@ -69,9 +71,9 @@ pub async fn create_box(
     Extension(user_id): Extension<String>,
     Json(payload): Json<CreateBoxRequest>,
 ) -> Result<(StatusCode, Json<serde_json::Value>)> {
-    let mut boxes_guard = store.lock().map_err(|_| {
-        AppError::InternalServerError("Failed to acquire lock".into())
-    })?;
+    let mut boxes_guard = store
+        .lock()
+        .map_err(|_| AppError::InternalServerError("Failed to acquire lock".into()))?;
 
     let now = now_str();
     let new_box = BoxRecord {
@@ -100,7 +102,10 @@ pub async fn create_box(
 
     boxes_guard.push(new_box);
 
-    Ok((StatusCode::CREATED, Json(serde_json::json!({ "box": response }))))
+    Ok((
+        StatusCode::CREATED,
+        Json(serde_json::json!({ "box": response })),
+    ))
 }
 
 // PATCH /boxes/:id
@@ -110,11 +115,14 @@ pub async fn update_box(
     Extension(user_id): Extension<String>,
     Json(payload): Json<UpdateBoxRequest>,
 ) -> Result<Json<serde_json::Value>> {
-    let mut boxes_guard = store.lock().map_err(|_| {
-        AppError::InternalServerError("Failed to acquire lock".into())
-    })?;
+    let mut boxes_guard = store
+        .lock()
+        .map_err(|_| AppError::InternalServerError("Failed to acquire lock".into()))?;
 
-    if let Some(box_rec) = boxes_guard.iter_mut().find(|b| b.id == id && b.owner_id == user_id) {
+    if let Some(box_rec) = boxes_guard
+        .iter_mut()
+        .find(|b| b.id == id && b.owner_id == user_id)
+    {
         if let Some(name) = payload.name {
             box_rec.name = name;
         }
@@ -136,7 +144,9 @@ pub async fn update_box(
         return Ok(Json(serde_json::json!({ "box": response })));
     }
 
-    Err(AppError::Unauthorized("Unauthorized or Box not found".into()))
+    Err(AppError::Unauthorized(
+        "Unauthorized or Box not found".into(),
+    ))
 }
 
 // DELETE /boxes/:id
@@ -145,14 +155,21 @@ pub async fn delete_box(
     Path(id): Path<String>,
     Extension(user_id): Extension<String>,
 ) -> Result<Json<serde_json::Value>> {
-    let mut boxes_guard = store.lock().map_err(|_| {
-        AppError::InternalServerError("Failed to acquire lock".into())
-    })?;
+    let mut boxes_guard = store
+        .lock()
+        .map_err(|_| AppError::InternalServerError("Failed to acquire lock".into()))?;
 
-    if let Some(pos) = boxes_guard.iter().position(|b| b.id == id && b.owner_id == user_id) {
+    if let Some(pos) = boxes_guard
+        .iter()
+        .position(|b| b.id == id && b.owner_id == user_id)
+    {
         boxes_guard.remove(pos);
-        return Ok(Json(serde_json::json!({ "message": "Box deleted successfully." })));
+        return Ok(Json(
+            serde_json::json!({ "message": "Box deleted successfully." }),
+        ));
     }
 
-    Err(AppError::Unauthorized("Unauthorized or Box not found".into()))
+    Err(AppError::Unauthorized(
+        "Unauthorized or Box not found".into(),
+    ))
 }
