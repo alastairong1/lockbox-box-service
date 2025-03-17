@@ -157,7 +157,66 @@ Returns all boxes where the authenticated user is a guardian (excluding rejected
 
 ## Running the Service
 
-This service is designed for AWS Lambda. For local testing, configure an AWS Lambda runtime environment with Rust, Cargo, and the AWS Lambda Rust runtime.
+This service is designed exclusively for AWS Lambda and cannot be run as a standalone HTTP server.
+
+## Deployment
+
+This service is automatically deployed to AWS Lambda via GitHub Actions when changes are merged into the main branch. The deployment process includes:
+
+1. Running tests to ensure code quality
+2. Building the Rust code targeting Amazon Linux 2
+3. Packaging the binary for Lambda deployment
+4. Updating the Lambda function code
+
+### Prerequisites for Deployment
+
+To enable automatic deployment, you need to configure the following GitHub secrets:
+
+- `AWS_ACCESS_KEY_ID`: AWS access key with permissions to update Lambda
+- `AWS_SECRET_ACCESS_KEY`: AWS secret key
+- `AWS_REGION`: AWS region where the Lambda function is deployed
+
+### Manual Deployment
+
+If you need to deploy manually, you can use AWS SAM:
+
+```bash
+# Install SAM CLI if you haven't already
+brew install aws-sam-cli
+
+# Build for Lambda
+cargo build --release --target x86_64-unknown-linux-musl
+mkdir -p target/lambda
+cp target/x86_64-unknown-linux-musl/release/lockbox-box-service target/lambda/bootstrap
+cd target/lambda && zip -j bootstrap.zip bootstrap
+
+# Deploy using SAM
+sam deploy --guided
+```
+
+## Testing
+
+For testing the application, you can use:
+
+```bash
+cargo test
+```
+
+This will run all unit and integration tests defined in the codebase.
+
+## CI/CD Pipeline
+
+The service uses GitHub Actions for continuous integration and deployment:
+
+- **CI Pipeline**: Runs on all pull requests and pushes to main
+  - Code formatting check
+  - Linting with Clippy
+  - Unit tests
+
+- **Deployment Pipeline**: Runs only on pushes to main branch after tests pass
+  - Builds the application for Lambda
+  - Packages the binary
+  - Deploys to AWS Lambda
 
 ## Additional Notes
 

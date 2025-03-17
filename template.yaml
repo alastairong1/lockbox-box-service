@@ -1,0 +1,38 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Lockbox Box Service - API Lambda Function
+
+Resources:
+  LockboxBoxServiceFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: lockbox-box-service
+      CodeUri: target/lambda/bootstrap.zip
+      Handler: bootstrap
+      Runtime: provided.al2
+      Architectures:
+        - x86_64
+      MemorySize: 128
+      Timeout: 30
+      Environment:
+        Variables:
+          RUST_LOG: info
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /{proxy+}
+            Method: ANY
+        RootApiEvent:
+          Type: Api
+          Properties:
+            Path: /
+            Method: ANY
+
+Outputs:
+  LockboxBoxServiceFunction:
+    Description: Lockbox Box Service Lambda Function ARN
+    Value: !GetAtt LockboxBoxServiceFunction.Arn
+  LockboxBoxServiceApi:
+    Description: API Gateway endpoint URL for Prod stage for Lockbox Box Service
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/"
