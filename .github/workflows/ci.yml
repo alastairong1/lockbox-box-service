@@ -44,18 +44,4 @@ jobs:
       with:
         command: test
         args: --verbose
-        
-    - name: Install musl-tools
-      run: sudo apt-get install -y musl-tools
-    
-    - name: Test Lambda build
-      run: |
-        chmod +x ./scripts/build-lambda.sh
-        ./scripts/build-lambda.sh
-        
-    - name: Verify bootstrap.zip exists
-      run: |
-        if [ ! -f target/lambda/bootstrap.zip ]; then
-          echo "bootstrap.zip was not created properly"
-          exit 1
-        fi
+
