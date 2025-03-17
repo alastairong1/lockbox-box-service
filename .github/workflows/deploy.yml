@@ -1,79 +1,52 @@
-name: Deploy to AWS Lambda
+name: Deploy
 
 on:
   push:
-    branches: [ main ]
-    paths-ignore:
-      - '**.md'
-      - '.github/workflows/ci.yml'
+    branches:
+      - main
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    needs: build
-    
-    steps:
-    - uses: actions/checkout@v3
-    
-    - name: Download build artifact
-      uses: actions/download-artifact@v3
-      with:
-        name: lambda-package
-        path: ./target/lambda
-    
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v2
-      with:
-        aws-access-key-id: "${{ secrets.AWS_ACCESS_KEY_ID }}"
-        aws-secret-access-key: "${{ secrets.AWS_SECRET_ACCESS_KEY }}"
-        aws-region: "${{ secrets.AWS_REGION }}"
-    
-    - name: Deploy to Lambda
-      run: |
-        aws lambda update-function-code \
-          --function-name lockbox-box-service \
-          --zip-file fileb://target/lambda/bootstrap.zip \
-          --publish
 
-  build:
-    runs-on: ubuntu-latest
-    
     steps:
-    - uses: actions/checkout@v3
-    
-    - name: Install Rust
-      uses: actions-rs/toolchain@v1
-      with:
-        profile: minimal
-        toolchain: stable
-        target: x86_64-unknown-linux-gnu
-        override: true
-    
-    - name: Cache dependencies
-      uses: actions/cache@v3
-      with:
-        path: |
-          ~/.cargo/registry
-          ~/.cargo/git
-          target
-        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-        restore-keys: ${{ runner.os }}-cargo-
-    
-    - name: Install dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y musl-tools
-        rustup target add x86_64-unknown-linux-musl
-    
-    - name: Build Lambda package
-      run: |
-        cargo build --release --target x86_64-unknown-linux-musl
-        mkdir -p target/lambda
-        cp target/x86_64-unknown-linux-musl/release/lockbox-box-service target/lambda/bootstrap
-        cd target/lambda && zip -j bootstrap.zip bootstrap
-    
-    - name: Upload build artifact
-      uses: actions/upload-artifact@v3
-      with:
-        name: lambda-package
-        path: target/lambda/bootstrap.zip
+      - uses: actions/checkout@v3
+
+      - name: Set up Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+
+      - name: Cache cargo registry
+        uses: actions/cache@v3
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-registry-
+
+      - name: Cache cargo build
+        uses: actions/cache@v3
+        with:
+          path: target
+          key: ${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-build-
+
+      - name: Install AWS SAM CLI
+        run: |
+          pip install --user aws-sam-cli
+          echo "$(python -m site --user-base)/bin" >> $GITHUB_PATH
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v3
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Build and deploy
+        run: |
+          sam build
+          sam deploy --no-confirm-changeset --no-fail-on-empty-changeset
