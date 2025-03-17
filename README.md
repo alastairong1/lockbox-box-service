@@ -56,40 +56,53 @@ Allows box owners to update box details such as name and description.
 - **400 Bad Request:** Invalid request payload or missing required fields.
 - **401 Unauthorized:** The user is not the owner or the box is not found.
 
-### 3. Update Box (Guardian Update)
+### 3. Request Unlock (Lead Guardian Only)
 
-**Endpoint:** `PATCH /boxes/guardian/{id}`
+**Endpoint:** `PATCH /boxes/guardian/{id}/request`
 
 **Headers:**
-- `x-user-id`: Your guardian user identifier
+- `x-user-id`: Your lead guardian user identifier
 
 **Description:**
-Allows guardians of a box to update its unlock request. The endpoint validates that the user is a guardian (and not rejected) of the box. Based on their role:
+Allows lead guardians to initiate an unlock request for a box. The endpoint validates that the user is a lead guardian (and not rejected) of the box.
 
-- **Lead Guardians:**
-  - Must include a `message` field in the JSON payload.
-  - Creates or updates an unlock request with the provided message. The unlock request status is set to "pending" and records the initiating lead guardian.
-
-- **Other Guardians:**
-  - Can update an existing unlock request by providing either an `approve` or `reject` boolean field. This adds the guardian's approval or rejection to the unlock request.
-
-**Payload Examples:**
-
-_Lead Guardian:_
+**Payload Example:**
 ```json
 {
   "message": "Unlock request message"
 }
 ```
 
-_Other Guardian (Approval):_
+**Response Codes:**
+- **200 OK:** Unlock request initiated successfully, returning the updated guardian box details.
+- **400 Bad Request:** Invalid payload or missing required fields.
+- **401 Unauthorized:** The user is not an authorized lead guardian.
+- **404 Not Found:** Box not found.
+- **500 Internal Server Error:** An error occurred processing the update.
+
+### 4. Respond to Unlock Request (Guardian Only)
+
+**Endpoint:** `PATCH /boxes/guardian/{id}/respond`
+
+**Headers:**
+- `x-user-id`: Your guardian user identifier
+
+**Description:**
+Allows guardians to respond to an existing unlock request. The endpoint validates that:
+1. The user is a guardian (and not rejected) of the box
+2. There is an active unlock request to respond to
+3. The guardian hasn't already approved/rejected
+
+**Payload Examples:**
+
+_Approval:_
 ```json
 {
   "approve": true
 }
 ```
 
-_Other Guardian (Rejection):_
+_Rejection:_
 ```json
 {
   "reject": true
@@ -97,13 +110,13 @@ _Other Guardian (Rejection):_
 ```
 
 **Response Codes:**
-- **200 OK:** Box updated successfully, returning the updated guardian box details.
-- **400 Bad Request:** Invalid payload or missing required fields.
+- **200 OK:** Response recorded successfully, returning the updated guardian box details.
+- **400 Bad Request:** Invalid payload, missing fields, or no active unlock request.
 - **401 Unauthorized:** The user is not an authorized guardian.
 - **404 Not Found:** Box not found.
-- **500 Internal Server Error:** An error occurred processing the update.
+- **500 Internal Server Error:** An error occurred processing the response.
 
-### 4. Get Guardian Boxes
+### 5. Get Guardian Boxes
 
 **Endpoint:** `GET /guardianBoxes`
 
