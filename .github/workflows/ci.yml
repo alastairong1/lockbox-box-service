@@ -21,6 +21,7 @@ jobs:
         toolchain: stable
         override: true
         components: rustfmt, clippy
+        target: x86_64-unknown-linux-musl
     
     - name: Cache dependencies
       uses: actions/cache@v3
@@ -43,3 +44,4 @@ jobs:
       with:
         command: test
         args: --verbose
+
