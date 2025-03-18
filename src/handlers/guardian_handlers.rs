@@ -3,18 +3,22 @@ use axum::{
     Json,
 };
 use uuid::Uuid;
+use std::sync::Arc;
 
 use crate::{
     error::{AppError, Result},
     models::{now_str, GuardianResponseRequest, LeadGuardianUpdateRequest, UnlockRequest},
-    store::{convert_to_guardian_box, dynamo::DynamoStore, BoxStore},
+    store::{convert_to_guardian_box, BoxStore},
 };
 
 // GET /guardianBoxes
-pub async fn get_guardian_boxes(
-    State(store): State<DynamoStore>,
+pub async fn get_guardian_boxes<S>(
+    State(store): State<Arc<S>>,
     Extension(user_id): Extension<String>,
-) -> Result<Json<serde_json::Value>> {
+) -> Result<Json<serde_json::Value>>
+where
+    S: BoxStore,
+{
     // TODO: For now, we'd need to fetch all boxes and filter on the guardian
     // In a real app, we'd want to add a secondary index in DynamoDB for guardian lookups
     
@@ -30,12 +34,15 @@ pub async fn get_guardian_boxes(
 }
 
 // GET /guardianBoxes/:id
-pub async fn get_guardian_box(
-    State(store): State<DynamoStore>,
+pub async fn get_guardian_box<S>(
+    State(store): State<Arc<S>>,
     Path(id): Path<String>,
     Extension(user_id): Extension<String>,
-) -> Result<Json<serde_json::Value>> {
-    // Fetch the box from DynamoDB
+) -> Result<Json<serde_json::Value>>
+where
+    S: BoxStore,
+{
+    // Fetch the box from store
     let box_rec = store.get_box(&id).await?;
     
     // TODO: query DB with filters instead
@@ -49,13 +56,16 @@ pub async fn get_guardian_box(
 }
 
 // PATCH /boxes/guardian/:id/request - For lead guardian to initiate unlock request
-pub async fn request_unlock(
-    State(store): State<DynamoStore>,
+pub async fn request_unlock<S>(
+    State(store): State<Arc<S>>,
     Path(box_id): Path<String>,
     Extension(user_id): Extension<String>,
     Json(payload): Json<LeadGuardianUpdateRequest>,
-) -> Result<Json<serde_json::Value>> {
-    // Get the box from DynamoDB
+) -> Result<Json<serde_json::Value>>
+where
+    S: BoxStore,
+{
+    // Get the box from store
     let mut box_record = store.get_box(&box_id).await?;
 
     // TODO: query DB with filters instead
@@ -87,7 +97,7 @@ pub async fn request_unlock(
         box_record.unlock_request = Some(new_unlock);
         box_record.updated_at = now_str();
 
-        // Update the box in DynamoDB
+        // Update the box in store
         let updated_box = store.update_box(box_record).await?;
         
         if let Some(guard_box) = convert_to_guardian_box(&updated_box, &user_id) {
@@ -105,13 +115,16 @@ pub async fn request_unlock(
 }
 
 // PATCH /boxes/guardian/:id/respond - For guardians to respond to unlock request
-pub async fn respond_to_unlock_request(
-    State(store): State<DynamoStore>,
+pub async fn respond_to_unlock_request<S>(
+    State(store): State<Arc<S>>,
     Path(box_id): Path<String>,
     Extension(user_id): Extension<String>,
     Json(payload): Json<GuardianResponseRequest>,
-) -> Result<Json<serde_json::Value>> {
-    // Get the box from DynamoDB
+) -> Result<Json<serde_json::Value>>
+where
+    S: BoxStore,
+{
+    // Get the box from store
     let mut box_record = store.get_box(&box_id).await?;
 
     // TODO: query DB with filters instead
@@ -157,7 +170,7 @@ pub async fn respond_to_unlock_request(
 
     box_record.updated_at = now_str();
     
-    // Update the box in DynamoDB
+    // Update the box in store
     let updated_box = store.update_box(box_record).await?;
 
     if let Some(guard_box) = convert_to_guardian_box(&updated_box, &user_id) {
