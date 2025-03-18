@@ -7,12 +7,12 @@ use uuid::Uuid;
 use crate::{
     error::{AppError, Result},
     models::{now_str, GuardianResponseRequest, LeadGuardianUpdateRequest, UnlockRequest},
-    store::{convert_to_guardian_box, BoxStore},
+    store::{convert_to_guardian_box, BoxStore, LegacyBoxStore},
 };
 
 // GET /guardianBoxes
 pub async fn get_guardian_boxes(
-    State(store): State<BoxStore>,
+    State(store): State<LegacyBoxStore>,
     Extension(user_id): Extension<String>,
 ) -> Result<Json<serde_json::Value>> {
     let boxes_guard = store
@@ -29,7 +29,7 @@ pub async fn get_guardian_boxes(
 
 // GET /guardianBoxes/:id
 pub async fn get_guardian_box(
-    State(store): State<BoxStore>,
+    State(store): State<LegacyBoxStore>,
     Path(id): Path<String>,
     Extension(user_id): Extension<String>,
 ) -> Result<Json<serde_json::Value>> {
@@ -50,7 +50,7 @@ pub async fn get_guardian_box(
 
 // PATCH /boxes/guardian/:id/request - For lead guardian to initiate unlock request
 pub async fn request_unlock(
-    State(store): State<BoxStore>,
+    State(store): State<LegacyBoxStore>,
     Path(box_id): Path<String>,
     Extension(user_id): Extension<String>,
     Json(payload): Json<LeadGuardianUpdateRequest>,
@@ -113,7 +113,7 @@ pub async fn request_unlock(
 
 // PATCH /boxes/guardian/:id/respond - For guardians to respond to unlock request
 pub async fn respond_to_unlock_request(
-    State(store): State<BoxStore>,
+    State(store): State<LegacyBoxStore>,
     Path(box_id): Path<String>,
     Extension(user_id): Extension<String>,
     Json(payload): Json<GuardianResponseRequest>,
