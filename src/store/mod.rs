@@ -2,7 +2,31 @@ use once_cell::sync::Lazy;
 use std::sync::{Arc, Mutex};
 use uuid::Uuid;
 
+use crate::error::Result;
 use crate::models::{now_str, BoxRecord, Guardian, GuardianBox};
+
+// Expose the DynamoDB store module
+pub mod dynamo;
+// Add the memory store implementation
+pub mod memory;
+
+/// BoxStore trait defining the interface for box storage implementations
+pub trait BoxStore: Send + Sync + 'static {
+    /// Creates a new box
+    async fn create_box(&self, box_record: BoxRecord) -> Result<BoxRecord>;
+    
+    /// Gets a box by ID
+    async fn get_box(&self, id: &str) -> Result<BoxRecord>;
+    
+    /// Gets all boxes owned by a user
+    async fn get_boxes_by_owner(&self, owner_id: &str) -> Result<Vec<BoxRecord>>;
+    
+    /// Updates a box
+    async fn update_box(&self, box_record: BoxRecord) -> Result<BoxRecord>;
+    
+    /// Deletes a box
+    async fn delete_box(&self, id: &str) -> Result<()>;
+}
 
 // Global in-memory store (for sample purposes only)
 pub static BOXES: Lazy<Mutex<Vec<BoxRecord>>> = Lazy::new(|| {
@@ -31,7 +55,9 @@ pub static BOXES: Lazy<Mutex<Vec<BoxRecord>>> = Lazy::new(|| {
     }])
 });
 
-pub type BoxStore = Arc<Mutex<Vec<BoxRecord>>>;
+// We're keeping BoxStore type for backward compatibility with other routes
+// This type will be deprecated in favor of the BoxStore trait
+pub type LegacyBoxStore = Arc<Mutex<Vec<BoxRecord>>>;
 
 // Store utility functions
 pub fn convert_to_guardian_box(box_rec: &BoxRecord, user_id: &str) -> Option<GuardianBox> {

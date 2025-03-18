@@ -16,8 +16,8 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 // The Lambda handler function
 async fn function_handler(event: LambdaRequest) -> Result<LambdaResponse<LambdaBody>, Error> {
-    // Get router
-    let app = routes::create_router();
+    // Create application state including DynamoDB client
+    let app = routes::create_router().await;
 
     // Convert the Lambda event to an HTTP request for Axum
     let (parts, body) = event.into_parts();

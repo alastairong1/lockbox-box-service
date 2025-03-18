@@ -8,12 +8,12 @@ use uuid::Uuid;
 use crate::{
     error::{AppError, Result},
     models::{now_str, BoxRecord, BoxResponse, CreateBoxRequest, UpdateBoxRequest},
-    store::BoxStore,
+    store::{BoxStore, dynamo::DynamoStore, LegacyBoxStore},
 };
 
 // GET /boxes
 pub async fn get_boxes(
-    State(store): State<BoxStore>,
+    State(store): State<LegacyBoxStore>,
     Extension(user_id): Extension<String>,
 ) -> Result<Json<serde_json::Value>> {
     let boxes_guard = store
@@ -37,7 +37,7 @@ pub async fn get_boxes(
 
 // GET /boxes/:id
 pub async fn get_box(
-    State(store): State<BoxStore>,
+    State(store): State<LegacyBoxStore>,
     Path(id): Path<String>,
     Extension(user_id): Extension<String>,
 ) -> Result<Json<serde_json::Value>> {
@@ -67,14 +67,10 @@ pub async fn get_box(
 
 // POST /boxes
 pub async fn create_box(
-    State(store): State<BoxStore>,
+    State(dynamo_store): State<DynamoStore>,
     Extension(user_id): Extension<String>,
     Json(payload): Json<CreateBoxRequest>,
 ) -> Result<(StatusCode, Json<serde_json::Value>)> {
-    let mut boxes_guard = store
-        .lock()
-        .map_err(|_| AppError::InternalServerError("Failed to acquire lock".into()))?;
-
     let now = now_str();
     let new_box = BoxRecord {
         id: Uuid::new_v4().to_string(),
@@ -92,15 +88,16 @@ pub async fn create_box(
         unlock_request: None,
     };
 
-    let response = BoxResponse {
-        id: new_box.id.clone(),
-        name: new_box.name.clone(),
-        description: new_box.description.clone(),
-        created_at: new_box.created_at.clone(),
-        updated_at: new_box.updated_at.clone(),
-    };
+    // Create the box in DynamoDB
+    let created_box = dynamo_store.create_box(new_box).await?;
 
-    boxes_guard.push(new_box);
+    let response = BoxResponse {
+        id: created_box.id.clone(),
+        name: created_box.name.clone(),
+        description: created_box.description.clone(),
+        created_at: created_box.created_at.clone(),
+        updated_at: created_box.updated_at.clone(),
+    };
 
     Ok((
         StatusCode::CREATED,
@@ -110,7 +107,7 @@ pub async fn create_box(
 
 // PATCH /boxes/:id
 pub async fn update_box(
-    State(store): State<BoxStore>,
+    State(store): State<LegacyBoxStore>,
     Path(id): Path<String>,
     Extension(user_id): Extension<String>,
     Json(payload): Json<UpdateBoxRequest>,
@@ -151,7 +148,7 @@ pub async fn update_box(
 
 // DELETE /boxes/:id
 pub async fn delete_box(
-    State(store): State<BoxStore>,
+    State(store): State<LegacyBoxStore>,
     Path(id): Path<String>,
     Extension(user_id): Extension<String>,
 ) -> Result<Json<serde_json::Value>> {
