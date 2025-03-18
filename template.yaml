@@ -1,0 +1,62 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Lockbox Box Service - Manages digital lockboxes
+
+Resources:
+  LockboxFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ./
+      Handler: bootstrap
+      Runtime: provided.al2
+      Architectures:
+        - x86_64
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /{proxy+}
+            Method: ANY
+      Environment:
+        Variables:
+          DYNAMODB_TABLE: !Ref BoxesTable
+          RUST_LOG: info
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref BoxesTable
+
+  BoxesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: lockbox-boxes
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+        - AttributeName: owner_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: OwnerIdIndex
+          KeySchema:
+            - AttributeName: owner_id
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+
+Outputs:
+  LockboxFunction:
+    Description: "Lockbox Function ARN"
+    Value: !GetAtt LockboxFunction.Arn
+  LockboxFunctionRole:
+    Description: "IAM Role created for Lockbox function"
+    Value: !GetAtt LockboxFunctionRole.Arn
+  ApiURL:
+    Description: "API Gateway endpoint URL for Prod stage"
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/"
+  BoxesTableName:
+    Description: "DynamoDB Table Name"
+    Value: !Ref BoxesTable
