@@ -4,19 +4,23 @@ use axum::{
     Json,
 };
 use uuid::Uuid;
+use std::sync::Arc; 
 
 use crate::{
     error::{AppError, Result},
     models::{now_str, BoxRecord, BoxResponse, CreateBoxRequest, UpdateBoxRequest},
-    store::{BoxStore, dynamo::DynamoStore},
+    store::BoxStore,
 };
 
 // GET /boxes
-pub async fn get_boxes(
-    State(store): State<DynamoStore>,
+pub async fn get_boxes<S>(
+    State(store): State<Arc<S>>,
     Extension(user_id): Extension<String>,
-) -> Result<Json<serde_json::Value>> {
-    // Get boxes from DynamoDB
+) -> Result<Json<serde_json::Value>>
+where
+    S: BoxStore,
+{
+    // Get boxes from store
     let boxes = store.get_boxes_by_owner(&user_id).await?;
 
     let my_boxes: Vec<_> = boxes
@@ -34,12 +38,15 @@ pub async fn get_boxes(
 }
 
 // GET /boxes/:id
-pub async fn get_box(
-    State(store): State<DynamoStore>,
+pub async fn get_box<S>(
+    State(store): State<Arc<S>>,
     Path(id): Path<String>,
     Extension(user_id): Extension<String>,
-) -> Result<Json<serde_json::Value>> {
-    // Get box from DynamoDB
+) -> Result<Json<serde_json::Value>>
+where
+    S: BoxStore,
+{
+    // Get box from store
     let box_rec = store.get_box(&id).await?;
 
     // TODO: Is it safe to check here or should we do filter in the db query?
@@ -62,11 +69,14 @@ pub async fn get_box(
 }
 
 // POST /boxes
-pub async fn create_box(
-    State(store): State<DynamoStore>,
+pub async fn create_box<S>(
+    State(store): State<Arc<S>>,
     Extension(user_id): Extension<String>,
     Json(payload): Json<CreateBoxRequest>,
-) -> Result<(StatusCode, Json<serde_json::Value>)> {
+) -> Result<(StatusCode, Json<serde_json::Value>)>
+where
+    S: BoxStore,
+{
     let now = now_str();
     let new_box = BoxRecord {
         id: Uuid::new_v4().to_string(),
@@ -84,7 +94,7 @@ pub async fn create_box(
         unlock_request: None,
     };
 
-    // Create the box in DynamoDB
+    // Create the box in store
     let created_box = store.create_box(new_box).await?;
 
     let response = BoxResponse {
@@ -102,13 +112,16 @@ pub async fn create_box(
 }
 
 // PATCH /boxes/:id
-pub async fn update_box(
-    State(store): State<DynamoStore>,
+pub async fn update_box<S>(
+    State(store): State<Arc<S>>,
     Path(id): Path<String>,
     Extension(user_id): Extension<String>,
     Json(payload): Json<UpdateBoxRequest>,
-) -> Result<Json<serde_json::Value>> {
-    // Get the current box from DynamoDB
+) -> Result<Json<serde_json::Value>>
+where
+    S: BoxStore,
+{
+    // Get the current box from store
     let mut box_rec = store.get_box(&id).await?;
 
     // Check if the user is the owner
@@ -144,11 +157,14 @@ pub async fn update_box(
 }
 
 // DELETE /boxes/:id
-pub async fn delete_box(
-    State(store): State<DynamoStore>,
+pub async fn delete_box<S>(
+    State(store): State<Arc<S>>,
     Path(id): Path<String>,
     Extension(user_id): Extension<String>,
-) -> Result<Json<serde_json::Value>> {
+) -> Result<Json<serde_json::Value>>
+where
+    S: BoxStore,
+{
     // Get the box to check ownership
     let box_rec = store.get_box(&id).await?;
 

@@ -11,7 +11,7 @@ use crate::handlers::{
     box_handlers::{create_box, delete_box, get_box, get_boxes, update_box},
     guardian_handlers::{get_guardian_box, get_guardian_boxes, request_unlock, respond_to_unlock_request},
 };
-use crate::store::dynamo::DynamoBoxStore;
+use crate::store::{BoxStore, dynamo::DynamoBoxStore};
 
 /// Creates a router with the default store
 pub async fn create_router() -> Router {
@@ -21,8 +21,11 @@ pub async fn create_router() -> Router {
     create_router_with_store(dynamo_store)
 }
 
-/// Creates a router with a given DynamoDB store
-pub fn create_router_with_store(store: Arc<DynamoBoxStore>) -> Router {
+/// Creates a router with a given store implementation
+pub fn create_router_with_store<S>(store: Arc<S>) -> Router 
+where
+    S: BoxStore + 'static,
+{
     // Configure CORS
     let cors = CorsLayer::new()
         .allow_origin(Any)

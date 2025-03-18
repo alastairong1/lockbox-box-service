@@ -1,18 +1,18 @@
 use crate::{
     models::{now_str, BoxRecord, Guardian, UnlockRequest},
     routes,
-    store::BoxStore,
+    store::{BoxStore, memory::MemoryBoxStore},
 };
 use axum::{
     body::Body,
     http::{header, Request, StatusCode},
 };
 use serde_json::{json, Value};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use tower::ServiceExt;
 
 // Create mock data for testing
-fn setup_test_data() -> BoxStore {
+fn setup_test_data() -> Arc<MemoryBoxStore> {
     let now = now_str();
 
     // Box 1: Regular guardian (guardian_1)
@@ -142,12 +142,14 @@ fn setup_test_data() -> BoxStore {
         unlock_request: None,
     };
 
-    Arc::new(Mutex::new(vec![box_1, box_2, box_3]))
+    // Create MemoryBoxStore with the test data
+    Arc::new(MemoryBoxStore::with_data(vec![box_1, box_2, box_3]))
 }
 
 // Inject the test data into the router
 fn create_test_app() -> axum::Router {
     let store = setup_test_data();
+    // Create router with memory store for testing
     routes::create_router_with_store(store)
 }
 
