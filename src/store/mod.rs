@@ -1,5 +1,8 @@
+use std::sync::Arc;
+
+use async_trait::async_trait;
 use once_cell::sync::Lazy;
-use std::sync::{Arc, Mutex};
+use tokio::sync::Mutex;
 use uuid::Uuid;
 
 use crate::error::Result;
@@ -11,6 +14,7 @@ pub mod dynamo;
 pub mod memory;
 
 /// BoxStore trait defining the interface for box storage implementations
+#[async_trait]
 pub trait BoxStore: Send + Sync + 'static {
     /// Creates a new box
     async fn create_box(&self, box_record: BoxRecord) -> Result<BoxRecord>;
@@ -29,9 +33,9 @@ pub trait BoxStore: Send + Sync + 'static {
 }
 
 // Global in-memory store (for sample purposes only)
-pub static BOXES: Lazy<Mutex<Vec<BoxRecord>>> = Lazy::new(|| {
+pub static BOXES: Lazy<Arc<Mutex<Vec<BoxRecord>>>> = Lazy::new(|| {
     let now = now_str();
-    Mutex::new(vec![BoxRecord {
+    Arc::new(Mutex::new(vec![BoxRecord {
         id: Uuid::new_v4().to_string(),
         name: "Sample Box".into(),
         description: "A sample box".into(),
@@ -52,12 +56,8 @@ pub static BOXES: Lazy<Mutex<Vec<BoxRecord>>> = Lazy::new(|| {
         lead_guardians: vec![],
         unlock_instructions: None,
         unlock_request: None,
-    }])
+    }]))
 });
-
-// We're keeping BoxStore type for backward compatibility with other routes
-// This type will be deprecated in favor of the BoxStore trait
-pub type LegacyBoxStore = Arc<Mutex<Vec<BoxRecord>>>;
 
 // Store utility functions
 pub fn convert_to_guardian_box(box_rec: &BoxRecord, user_id: &str) -> Option<GuardianBox> {

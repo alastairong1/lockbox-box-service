@@ -4,10 +4,12 @@ use axum::{
 };
 use serde_json::{json, Value};
 use tower::ServiceExt;
+use std::sync::Arc;
 
 use crate::{
     models::{now_str, BoxRecord},
     routes,
+    store::memory::MemoryBoxStore,
 };
 
 // Helper function to create test request
@@ -34,19 +36,16 @@ async fn response_to_json(response: axum::response::Response) -> Value {
     json
 }
 
-// Create a test app with mock data for box tests
+// Helper for setting up test router with mock data
 fn create_test_app() -> axum::Router {
+    // Create mock boxes
     let now = now_str();
-
-    // Create mock boxes for testing
     let mut boxes = Vec::new();
-
-    // Box owned by user_1
-    let box_1_id = "22222222-2222-2222-2222-222222222222".to_string();
+    
     let box_1 = BoxRecord {
-        id: box_1_id,
+        id: "box_1".into(),
         name: "Test Box 1".into(),
-        description: "Box for testing".into(),
+        description: "First test box".into(),
         is_locked: false,
         created_at: now.clone(),
         updated_at: now.clone(),
@@ -58,13 +57,11 @@ fn create_test_app() -> axum::Router {
         unlock_instructions: None,
         unlock_request: None,
     };
-
-    // Box owned by user_2
-    let box_2_id = "33333333-3333-3333-3333-333333333333".to_string();
+    
     let box_2 = BoxRecord {
-        id: box_2_id,
+        id: "box_2".into(),
         name: "Test Box 2".into(),
-        description: "Another box for testing".into(),
+        description: "Second test box".into(),
         is_locked: false,
         created_at: now.clone(),
         updated_at: now.clone(),
@@ -76,13 +73,13 @@ fn create_test_app() -> axum::Router {
         unlock_instructions: None,
         unlock_request: None,
     };
-
+    
     boxes.push(box_1);
     boxes.push(box_2);
 
-    // Create store with mock data
-    let store = std::sync::Arc::new(std::sync::Mutex::new(boxes));
-
+    // Create memory store with mock data
+    let store = Arc::new(MemoryBoxStore::with_data(boxes));
+    
     // Create router with mock store
     routes::create_router_with_store(store)
 }
@@ -264,7 +261,7 @@ async fn test_get_box_not_owned() {
     let app = create_test_app();
 
     // Use a box that is owned by user_2 from our test data
-    let box_id = "33333333-3333-3333-3333-333333333333";
+    let box_id = "box_2";
 
     // First verify the initial state - get the box as the owner
     let initial_response = app
@@ -373,7 +370,7 @@ async fn test_update_box() {
     let app = create_test_app();
 
     // Use an existing box from the test data
-    let box_id = "22222222-2222-2222-2222-222222222222";
+    let box_id = "box_1";
 
     // First verify the initial state - get the box as the owner
     let initial_response = app
@@ -442,7 +439,7 @@ async fn test_update_box_partial() {
     let app = create_test_app();
 
     // Use an existing box from the test data
-    let box_id = "22222222-2222-2222-2222-222222222222";
+    let box_id = "box_1";
 
     // Get original description
     let get_response = app
@@ -502,7 +499,7 @@ async fn test_update_box_not_owned() {
     let app = create_test_app();
 
     // Use a box that is owned by user_2 from our test data
-    let box_id = "33333333-3333-3333-3333-333333333333";
+    let box_id = "box_2";
 
     // First verify the initial state - get the box as the owner
     let initial_response = app
@@ -618,7 +615,7 @@ async fn test_delete_box_not_owned() {
     let app = create_test_app();
 
     // Use an existing box ID from test data that belongs to user_1
-    let box_id = "22222222-2222-2222-2222-222222222222";
+    let box_id = "box_1";
 
     // Verify the box exists initially
     let initial_response = app
@@ -671,7 +668,7 @@ async fn test_update_box_add_documents() {
     let app = create_test_app();
 
     // Use an existing box from the test data
-    let box_id = "22222222-2222-2222-2222-222222222222";
+    let box_id = "box_1";
 
     // Get initial box state
     let initial_response = app
@@ -744,7 +741,7 @@ async fn test_update_box_add_guardians() {
     let app = create_test_app();
 
     // Use an existing box from the test data
-    let box_id = "22222222-2222-2222-2222-222222222222";
+    let box_id = "box_1";
 
     // Get initial box state
     let initial_response = app
@@ -831,7 +828,7 @@ async fn test_update_box_lock() {
     let app = create_test_app();
 
     // Use an existing box from the test data
-    let box_id = "22222222-2222-2222-2222-222222222222";
+    let box_id = "box_1";
 
     // Get initial box state
     let initial_response = app
@@ -891,7 +888,7 @@ async fn test_update_box_unlock_instructions() {
     let app = create_test_app();
 
     // Use an existing box from the test data
-    let box_id = "22222222-2222-2222-2222-222222222222";
+    let box_id = "box_1";
 
     // Get initial box state
     let initial_response = app

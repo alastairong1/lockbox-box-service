@@ -8,21 +8,19 @@ use uuid::Uuid;
 use crate::{
     error::{AppError, Result},
     models::{now_str, BoxRecord, BoxResponse, CreateBoxRequest, UpdateBoxRequest},
-    store::{BoxStore, dynamo::DynamoStore, LegacyBoxStore},
+    store::{BoxStore, dynamo::DynamoStore},
 };
 
 // GET /boxes
 pub async fn get_boxes(
-    State(store): State<LegacyBoxStore>,
+    State(store): State<DynamoStore>,
     Extension(user_id): Extension<String>,
 ) -> Result<Json<serde_json::Value>> {
-    let boxes_guard = store
-        .lock()
-        .map_err(|_| AppError::InternalServerError("Failed to acquire lock".into()))?;
+    // Get boxes from DynamoDB
+    let boxes = store.get_boxes_by_owner(&user_id).await?;
 
-    let my_boxes: Vec<_> = boxes_guard
+    let my_boxes: Vec<_> = boxes
         .iter()
-        .filter(|b| b.owner_id == user_id)
         .map(|b| BoxResponse {
             id: b.id.clone(),
             name: b.name.clone(),
@@ -37,37 +35,35 @@ pub async fn get_boxes(
 
 // GET /boxes/:id
 pub async fn get_box(
-    State(store): State<LegacyBoxStore>,
+    State(store): State<DynamoStore>,
     Path(id): Path<String>,
     Extension(user_id): Extension<String>,
 ) -> Result<Json<serde_json::Value>> {
-    let boxes_guard = store
-        .lock()
-        .map_err(|_| AppError::InternalServerError("Failed to acquire lock".into()))?;
+    // Get box from DynamoDB
+    let box_rec = store.get_box(&id).await?;
 
-    if let Some(box_rec) = boxes_guard.iter().find(|b| b.id == id) {
-        if box_rec.owner_id == user_id {
-            // Return full box info for owner
-            return Ok(Json(serde_json::json!({
-                "box": BoxResponse {
-                    id: box_rec.id.clone(),
-                    name: box_rec.name.clone(),
-                    description: box_rec.description.clone(),
-                    created_at: box_rec.created_at.clone(),
-                    updated_at: box_rec.updated_at.clone(),
-                }
-            })));
-        }
+    // TODO: Is it safe to check here or should we do filter in the db query?
+    if box_rec.owner_id != user_id {
+        return Err(AppError::Unauthorized(
+            "You don't have permission to view this box".into(),
+        ));
     }
 
-    Err(AppError::Unauthorized(
-        "Unauthorized or Box not found".into(),
-    ))
+    // Return full box info for owner
+    Ok(Json(serde_json::json!({ 
+        "box": BoxResponse {
+            id: box_rec.id.clone(),
+            name: box_rec.name.clone(),
+            description: box_rec.description.clone(),
+            created_at: box_rec.created_at.clone(),
+            updated_at: box_rec.updated_at.clone(),
+        }
+    })))
 }
 
 // POST /boxes
 pub async fn create_box(
-    State(dynamo_store): State<DynamoStore>,
+    State(store): State<DynamoStore>,
     Extension(user_id): Extension<String>,
     Json(payload): Json<CreateBoxRequest>,
 ) -> Result<(StatusCode, Json<serde_json::Value>)> {
@@ -89,7 +85,7 @@ pub async fn create_box(
     };
 
     // Create the box in DynamoDB
-    let created_box = dynamo_store.create_box(new_box).await?;
+    let created_box = store.create_box(new_box).await?;
 
     let response = BoxResponse {
         id: created_box.id.clone(),
@@ -107,66 +103,66 @@ pub async fn create_box(
 
 // PATCH /boxes/:id
 pub async fn update_box(
-    State(store): State<LegacyBoxStore>,
+    State(store): State<DynamoStore>,
     Path(id): Path<String>,
     Extension(user_id): Extension<String>,
     Json(payload): Json<UpdateBoxRequest>,
 ) -> Result<Json<serde_json::Value>> {
-    let mut boxes_guard = store
-        .lock()
-        .map_err(|_| AppError::InternalServerError("Failed to acquire lock".into()))?;
+    // Get the current box from DynamoDB
+    let mut box_rec = store.get_box(&id).await?;
 
-    if let Some(box_rec) = boxes_guard
-        .iter_mut()
-        .find(|b| b.id == id && b.owner_id == user_id)
-    {
-        if let Some(name) = payload.name {
-            box_rec.name = name;
-        }
-
-        if let Some(description) = payload.description {
-            box_rec.description = description;
-        }
-
-        box_rec.updated_at = now_str();
-
-        let response = BoxResponse {
-            id: box_rec.id.clone(),
-            name: box_rec.name.clone(),
-            description: box_rec.description.clone(),
-            created_at: box_rec.created_at.clone(),
-            updated_at: box_rec.updated_at.clone(),
-        };
-
-        return Ok(Json(serde_json::json!({ "box": response })));
+    // Check if the user is the owner
+    if box_rec.owner_id != user_id {
+        return Err(AppError::Unauthorized(
+            "You don't have permission to update this box".into(),
+        ));
     }
 
-    Err(AppError::Unauthorized(
-        "Unauthorized or Box not found".into(),
-    ))
+    // Update fields if provided
+    if let Some(name) = payload.name {
+        box_rec.name = name;
+    }
+
+    if let Some(description) = payload.description {
+        box_rec.description = description;
+    }
+
+    box_rec.updated_at = now_str();
+
+    // Save the updated box
+    let updated_box = store.update_box(box_rec).await?;
+
+    let response = BoxResponse {
+        id: updated_box.id.clone(),
+        name: updated_box.name.clone(),
+        description: updated_box.description.clone(),
+        created_at: updated_box.created_at.clone(),
+        updated_at: updated_box.updated_at.clone(),
+    };
+
+    Ok(Json(serde_json::json!({ "box": response })))
 }
 
 // DELETE /boxes/:id
 pub async fn delete_box(
-    State(store): State<LegacyBoxStore>,
+    State(store): State<DynamoStore>,
     Path(id): Path<String>,
     Extension(user_id): Extension<String>,
 ) -> Result<Json<serde_json::Value>> {
-    let mut boxes_guard = store
-        .lock()
-        .map_err(|_| AppError::InternalServerError("Failed to acquire lock".into()))?;
+    // Get the box to check ownership
+    let box_rec = store.get_box(&id).await?;
 
-    if let Some(pos) = boxes_guard
-        .iter()
-        .position(|b| b.id == id && b.owner_id == user_id)
-    {
-        boxes_guard.remove(pos);
-        return Ok(Json(
-            serde_json::json!({ "message": "Box deleted successfully." }),
+    // Check if the user is the owner
+    if box_rec.owner_id != user_id {
+        return Err(AppError::Unauthorized(
+            "You don't have permission to delete this box".into(),
         ));
     }
 
-    Err(AppError::Unauthorized(
-        "Unauthorized or Box not found".into(),
+    // Delete the box
+    store.delete_box(&id).await?;
+
+    Ok(Json(
+        serde_json::json!({ "message": "Box deleted successfully." }),
     ))
 }

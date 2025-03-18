@@ -7,19 +7,21 @@ use uuid::Uuid;
 use crate::{
     error::{AppError, Result},
     models::{now_str, GuardianResponseRequest, LeadGuardianUpdateRequest, UnlockRequest},
-    store::{convert_to_guardian_box, BoxStore, LegacyBoxStore},
+    store::{convert_to_guardian_box, dynamo::DynamoStore, BoxStore},
 };
 
 // GET /guardianBoxes
 pub async fn get_guardian_boxes(
-    State(store): State<LegacyBoxStore>,
+    State(store): State<DynamoStore>,
     Extension(user_id): Extension<String>,
 ) -> Result<Json<serde_json::Value>> {
-    let boxes_guard = store
-        .lock()
-        .map_err(|_| AppError::InternalServerError("Failed to acquire lock".into()))?;
-
-    let guardian_boxes: Vec<_> = boxes_guard
+    // TODO: For now, we'd need to fetch all boxes and filter on the guardian
+    // In a real app, we'd want to add a secondary index in DynamoDB for guardian lookups
+    
+    // This is a simplified approach - in production, you would want pagination or a GSI
+    let all_boxes = store.get_boxes_by_owner("*").await.unwrap_or_default();
+    
+    let guardian_boxes: Vec<_> = all_boxes
         .iter()
         .filter_map(|b| convert_to_guardian_box(b, &user_id))
         .collect();
@@ -29,18 +31,16 @@ pub async fn get_guardian_boxes(
 
 // GET /guardianBoxes/:id
 pub async fn get_guardian_box(
-    State(store): State<LegacyBoxStore>,
+    State(store): State<DynamoStore>,
     Path(id): Path<String>,
     Extension(user_id): Extension<String>,
 ) -> Result<Json<serde_json::Value>> {
-    let boxes_guard = store
-        .lock()
-        .map_err(|_| AppError::InternalServerError("Failed to acquire lock".into()))?;
-
-    if let Some(box_rec) = boxes_guard.iter().find(|b| b.id == id) {
-        if let Some(guardian_box) = convert_to_guardian_box(box_rec, &user_id) {
-            return Ok(Json(serde_json::json!({ "box": guardian_box })));
-        }
+    // Fetch the box from DynamoDB
+    let box_rec = store.get_box(&id).await?;
+    
+    // TODO: query DB with filters instead
+    if let Some(guardian_box) = convert_to_guardian_box(&box_rec, &user_id) {
+        return Ok(Json(serde_json::json!({ "box": guardian_box })));
     }
 
     Err(AppError::Unauthorized(
@@ -50,25 +50,15 @@ pub async fn get_guardian_box(
 
 // PATCH /boxes/guardian/:id/request - For lead guardian to initiate unlock request
 pub async fn request_unlock(
-    State(store): State<LegacyBoxStore>,
+    State(store): State<DynamoStore>,
     Path(box_id): Path<String>,
     Extension(user_id): Extension<String>,
     Json(payload): Json<LeadGuardianUpdateRequest>,
 ) -> Result<Json<serde_json::Value>> {
-    let mut boxes_guard = store
-        .lock()
-        .map_err(|_| AppError::InternalServerError("Failed to acquire lock".into()))?;
+    // Get the box from DynamoDB
+    let mut box_record = store.get_box(&box_id).await?;
 
-    let box_index = boxes_guard.iter().position(|b| b.id == box_id);
-
-    if box_index.is_none() {
-        return Err(AppError::NotFound("Box not found".into()));
-    }
-
-    let box_index = box_index.unwrap();
-    let box_record = &mut boxes_guard[box_index];
-
-    // Check if user is a guardian and not rejected
+    // TODO: query DB with filters instead
     let is_guardian = box_record
         .guardians
         .iter()
@@ -97,7 +87,10 @@ pub async fn request_unlock(
         box_record.unlock_request = Some(new_unlock);
         box_record.updated_at = now_str();
 
-        if let Some(guard_box) = convert_to_guardian_box(box_record, &user_id) {
+        // Update the box in DynamoDB
+        let updated_box = store.update_box(box_record).await?;
+        
+        if let Some(guard_box) = convert_to_guardian_box(&updated_box, &user_id) {
             return Ok(Json(serde_json::json!({ "box": guard_box })));
         } else {
             return Err(AppError::InternalServerError(
@@ -113,23 +106,15 @@ pub async fn request_unlock(
 
 // PATCH /boxes/guardian/:id/respond - For guardians to respond to unlock request
 pub async fn respond_to_unlock_request(
-    State(store): State<LegacyBoxStore>,
+    State(store): State<DynamoStore>,
     Path(box_id): Path<String>,
     Extension(user_id): Extension<String>,
     Json(payload): Json<GuardianResponseRequest>,
 ) -> Result<Json<serde_json::Value>> {
-    let mut boxes_guard = store
-        .lock()
-        .map_err(|_| AppError::InternalServerError("Failed to acquire lock".into()))?;
+    // Get the box from DynamoDB
+    let mut box_record = store.get_box(&box_id).await?;
 
-    let box_index = boxes_guard
-        .iter()
-        .position(|b| b.id == box_id)
-        .ok_or_else(|| AppError::NotFound("Box not found".into()))?;
-
-    let box_record = &mut boxes_guard[box_index];
-
-    // Check if user is a guardian and not rejected
+    // TODO: query DB with filters instead
     if box_record
         .guardians
         .iter()
@@ -171,8 +156,11 @@ pub async fn respond_to_unlock_request(
     }
 
     box_record.updated_at = now_str();
+    
+    // Update the box in DynamoDB
+    let updated_box = store.update_box(box_record).await?;
 
-    if let Some(guard_box) = convert_to_guardian_box(box_record, &user_id) {
+    if let Some(guard_box) = convert_to_guardian_box(&updated_box, &user_id) {
         return Ok(Json(serde_json::json!({ "box": guard_box })));
     } else {
         return Err(AppError::InternalServerError(

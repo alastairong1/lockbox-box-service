@@ -1,6 +1,5 @@
 use aws_sdk_dynamodb::Client;
 use aws_sdk_dynamodb::error::SdkError;
-use aws_sdk_dynamodb::operation::put_item::PutItemError;
 use aws_sdk_dynamodb::operation::delete_item::DeleteItemError;
 use aws_sdk_dynamodb::operation::get_item::GetItemError;
 use aws_sdk_dynamodb::operation::query::QueryError;
@@ -22,7 +21,11 @@ pub struct DynamoBoxStore {
 impl DynamoBoxStore {
     /// Creates a new DynamoDB store
     pub async fn new() -> Self {
-        let config = aws_config::load_from_env().await;
+        // Use the recommended defaults() function instead of from_env()
+        let config = aws_config::defaults(aws_config::BehaviorVersion::latest())
+            .load()
+            .await;
+            
         let client = Client::new(&config);
         
         // Get table name from environment or use a default
@@ -93,7 +96,8 @@ impl BoxStore for DynamoBoxStore {
             .await
             .map_err(|e| map_query_dynamo_error(e))?;
             
-        let items = response.items().unwrap_or_default();
+        // items() returns a reference to a slice, which could be empty but not None
+        let items = response.items();
         
         let mut boxes = Vec::new();
         for item in items {
@@ -170,7 +174,7 @@ fn map_dynamo_error<E>(operation: &str, err: SdkError<E>) -> AppError {
 /// Map DynamoDB get_item errors to application errors
 fn map_get_dynamo_error(err: SdkError<GetItemError>, id: &str) -> AppError {
     match err {
-        SdkError::ServiceError(service_err) => {
+        SdkError::ServiceError(ref service_err) => {
             if let GetItemError::ResourceNotFoundException(_) = service_err.err() {
                 AppError::NotFound(format!("Box not found: {}", id))
             } else {
