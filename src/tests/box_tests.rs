@@ -93,7 +93,7 @@ async fn test_get_boxes() {
     let response = app
         .clone()
         .oneshot(create_request(
-            "GET", "/boxes", "user_1", // User with boxes in the mock data
+            "GET", "/boxes/owned", "user_1", // User with boxes in the mock data
             None,
         ))
         .await
@@ -121,7 +121,7 @@ async fn test_get_boxes_empty_for_new_user() {
 
     // Execute with a new user ID
     let response = app
-        .oneshot(create_request("GET", "/boxes", "new_user", None))
+        .oneshot(create_request("GET", "/boxes/owned", "new_user", None))
         .await
         .unwrap();
 
@@ -142,7 +142,7 @@ async fn test_get_boxes_missing_user_id() {
     let response = app
         .oneshot(
             Request::builder()
-                .uri("/boxes")
+                .uri("/boxes/owned")
                 .method("GET")
                 .body(Body::empty())
                 .unwrap(),
@@ -163,7 +163,7 @@ async fn test_create_box() {
     let response = app
         .oneshot(create_request(
             "POST",
-            "/boxes",
+            "/boxes/owned",
             "test_user",
             Some(json!({
                 "name": "Test Box",
@@ -189,7 +189,7 @@ async fn test_create_box_invalid_payload() {
     let response = app
         .oneshot(create_request(
             "POST",
-            "/boxes",
+            "/boxes/owned",
             "test_user",
             Some(json!({
                 "description": "Missing name field"
@@ -213,7 +213,7 @@ async fn test_create_and_get_box() {
         .clone()
         .oneshot(create_request(
             "POST",
-            "/boxes",
+            "/boxes/owned",
             "user_1",
             Some(json!({
                 "name": box_name,
@@ -236,7 +236,7 @@ async fn test_create_and_get_box() {
     let get_response = app
         .oneshot(create_request(
             "GET",
-            &format!("/boxes/{}", box_id),
+            &format!("/boxes/owned/{}", box_id),
             "user_1",
             None,
         ))
@@ -268,7 +268,7 @@ async fn test_get_box_not_owned() {
         .clone()
         .oneshot(create_request(
             "GET",
-            &format!("/boxes/{}", box_id),
+            &format!("/boxes/owned/{}", box_id),
             "user_2", // Actual owner
             None,
         ))
@@ -284,7 +284,7 @@ async fn test_get_box_not_owned() {
         .clone()
         .oneshot(create_request(
             "GET",
-            &format!("/boxes/{}", box_id),
+            &format!("/boxes/owned/{}", box_id),
             "user_1", // Not the owner
             None,
         ))
@@ -298,7 +298,7 @@ async fn test_get_box_not_owned() {
     let final_response = app
         .oneshot(create_request(
             "GET",
-            &format!("/boxes/{}", box_id),
+            &format!("/boxes/owned/{}", box_id),
             "user_2", // Actual owner
             None,
         ))
@@ -324,7 +324,7 @@ async fn test_get_box_not_found() {
     // Get the list of boxes before the request
     let initial_boxes_response = app
         .clone()
-        .oneshot(create_request("GET", "/boxes", "user_1", None))
+        .oneshot(create_request("GET", "/boxes/owned", "user_1", None))
         .await
         .unwrap();
 
@@ -337,7 +337,7 @@ async fn test_get_box_not_found() {
         .clone()
         .oneshot(create_request(
             "GET",
-            &format!("/boxes/{}", non_existent_box_id),
+            &format!("/boxes/owned/{}", non_existent_box_id),
             "user_1",
             None,
         ))
@@ -352,7 +352,7 @@ async fn test_get_box_not_found() {
 
     // Check that the total box count hasn't changed
     let final_boxes_response = app
-        .oneshot(create_request("GET", "/boxes", "user_1", None))
+        .oneshot(create_request("GET", "/boxes/owned", "user_1", None))
         .await
         .unwrap();
 
@@ -377,7 +377,7 @@ async fn test_update_box() {
         .clone()
         .oneshot(create_request(
             "GET",
-            &format!("/boxes/{}", box_id),
+            &format!("/boxes/owned/{}", box_id),
             "user_1", // Actual owner
             None,
         ))
@@ -399,7 +399,7 @@ async fn test_update_box() {
         .clone()
         .oneshot(create_request(
             "PATCH",
-            &format!("/boxes/{}", box_id),
+            &format!("/boxes/owned/{}", box_id),
             "user_1",
             Some(json!({
                 "name": new_name,
@@ -416,7 +416,7 @@ async fn test_update_box() {
     let get_response = app
         .oneshot(create_request(
             "GET",
-            &format!("/boxes/{}", box_id),
+            &format!("/boxes/owned/{}", box_id),
             "user_1",
             None,
         ))
@@ -446,7 +446,7 @@ async fn test_update_box_partial() {
         .clone()
         .oneshot(create_request(
             "GET",
-            &format!("/boxes/{}", box_id),
+            &format!("/boxes/owned/{}", box_id),
             "user_1", // Actual owner
             None,
         ))
@@ -463,7 +463,7 @@ async fn test_update_box_partial() {
         .clone()
         .oneshot(create_request(
             "PATCH",
-            &format!("/boxes/{}", box_id),
+            &format!("/boxes/owned/{}", box_id),
             "user_1",
             Some(json!({
                 "name": new_name
@@ -479,7 +479,7 @@ async fn test_update_box_partial() {
     let get_response = app
         .oneshot(create_request(
             "GET",
-            &format!("/boxes/{}", box_id),
+            &format!("/boxes/owned/{}", box_id),
             "user_1",
             None,
         ))
@@ -506,7 +506,7 @@ async fn test_update_box_not_owned() {
         .clone()
         .oneshot(create_request(
             "GET",
-            &format!("/boxes/{}", box_id),
+            &format!("/boxes/owned/{}", box_id),
             "user_2", // Actual owner
             None,
         ))
@@ -526,7 +526,7 @@ async fn test_update_box_not_owned() {
         .clone()
         .oneshot(create_request(
             "PATCH",
-            &format!("/boxes/{}", box_id),
+            &format!("/boxes/owned/{}", box_id),
             "user_1", // not the owner of this box
             Some(json!({
                 "name": "Attempted Update By Non-Owner",
@@ -543,7 +543,7 @@ async fn test_update_box_not_owned() {
     let final_response = app
         .oneshot(create_request(
             "GET",
-            &format!("/boxes/{}", box_id),
+            &format!("/boxes/owned/{}", box_id),
             "user_2", // Actual owner
             None,
         ))
@@ -573,7 +573,7 @@ async fn test_delete_box() {
         .clone()
         .oneshot(create_request(
             "POST",
-            "/boxes",
+            "/boxes/owned",
             "owner_user",
             Some(json!({
                 "name": "Box to Delete",
@@ -594,7 +594,7 @@ async fn test_delete_box() {
         .clone()
         .oneshot(create_request(
             "DELETE",
-            &format!("/boxes/{}", box_id),
+            &format!("/boxes/owned/{}", box_id),
             "owner_user",
             None,
         ))
@@ -622,7 +622,7 @@ async fn test_delete_box_not_owned() {
         .clone()
         .oneshot(create_request(
             "GET",
-            &format!("/boxes/{}", box_id),
+            &format!("/boxes/owned/{}", box_id),
             "user_1", // Should be the original owner
             None,
         ))
@@ -636,7 +636,7 @@ async fn test_delete_box_not_owned() {
         .clone()
         .oneshot(create_request(
             "DELETE",
-            &format!("/boxes/{}", box_id),
+            &format!("/boxes/owned/{}", box_id),
             "user_2", // Not the owner
             None,
         ))
@@ -652,7 +652,7 @@ async fn test_delete_box_not_owned() {
         .clone()
         .oneshot(create_request(
             "GET",
-            &format!("/boxes/{}", box_id),
+            &format!("/boxes/owned/{}", box_id),
             "user_1", // Original owner
             None,
         ))
@@ -675,7 +675,7 @@ async fn test_update_box_add_documents() {
         .clone()
         .oneshot(create_request(
             "GET",
-            &format!("/boxes/{}", box_id),
+            &format!("/boxes/owned/{}", box_id),
             "user_1",
             None,
         ))
@@ -689,7 +689,7 @@ async fn test_update_box_add_documents() {
         .clone()
         .oneshot(create_request(
             "PATCH",
-            &format!("/boxes/{}", box_id),
+            &format!("/boxes/owned/{}", box_id),
             "user_1",
             Some(json!({
                 "documents": [
@@ -718,7 +718,7 @@ async fn test_update_box_add_documents() {
     let get_response = app
         .oneshot(create_request(
             "GET",
-            &format!("/boxes/{}", box_id),
+            &format!("/boxes/owned/{}", box_id),
             "user_1",
             None,
         ))
@@ -748,7 +748,7 @@ async fn test_update_box_add_guardians() {
         .clone()
         .oneshot(create_request(
             "GET",
-            &format!("/boxes/{}", box_id),
+            &format!("/boxes/owned/{}", box_id),
             "user_1",
             None,
         ))
@@ -762,7 +762,7 @@ async fn test_update_box_add_guardians() {
         .clone()
         .oneshot(create_request(
             "PATCH",
-            &format!("/boxes/{}", box_id),
+            &format!("/boxes/owned/{}", box_id),
             "user_1",
             Some(json!({
                 "guardians": [
@@ -805,7 +805,7 @@ async fn test_update_box_add_guardians() {
     let get_response = app
         .oneshot(create_request(
             "GET",
-            &format!("/boxes/{}", box_id),
+            &format!("/boxes/owned/{}", box_id),
             "user_1",
             None,
         ))
@@ -835,7 +835,7 @@ async fn test_update_box_lock() {
         .clone()
         .oneshot(create_request(
             "GET",
-            &format!("/boxes/{}", box_id),
+            &format!("/boxes/owned/{}", box_id),
             "user_1",
             None,
         ))
@@ -849,7 +849,7 @@ async fn test_update_box_lock() {
         .clone()
         .oneshot(create_request(
             "PATCH",
-            &format!("/boxes/{}", box_id),
+            &format!("/boxes/owned/{}", box_id),
             "user_1",
             Some(json!({
                 "is_locked": true
@@ -865,7 +865,7 @@ async fn test_update_box_lock() {
     let get_response = app
         .oneshot(create_request(
             "GET",
-            &format!("/boxes/{}", box_id),
+            &format!("/boxes/owned/{}", box_id),
             "user_1",
             None,
         ))
@@ -895,7 +895,7 @@ async fn test_update_box_unlock_instructions() {
         .clone()
         .oneshot(create_request(
             "GET",
-            &format!("/boxes/{}", box_id),
+            &format!("/boxes/owned/{}", box_id),
             "user_1",
             None,
         ))
@@ -910,7 +910,7 @@ async fn test_update_box_unlock_instructions() {
         .clone()
         .oneshot(create_request(
             "PATCH",
-            &format!("/boxes/{}", box_id),
+            &format!("/boxes/owned/{}", box_id),
             "user_1",
             Some(json!({
                 "unlock_instructions": unlock_instructions
@@ -926,7 +926,7 @@ async fn test_update_box_unlock_instructions() {
     let get_response = app
         .oneshot(create_request(
             "GET",
-            &format!("/boxes/{}", box_id),
+            &format!("/boxes/owned/{}", box_id),
             "user_1",
             None,
         ))

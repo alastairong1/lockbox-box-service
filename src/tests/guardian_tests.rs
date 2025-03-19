@@ -182,7 +182,7 @@ async fn test_get_guardian_boxes() {
 
     // Execute
     let response = app
-        .oneshot(create_request("GET", "/guardianBoxes", "guardian_1", None))
+        .oneshot(create_request("GET", "/boxes/guardian", "guardian_1", None))
         .await
         .unwrap();
 
@@ -212,12 +212,7 @@ async fn test_get_guardian_boxes_empty_for_non_guardian() {
 
     // Execute
     let response = app
-        .oneshot(create_request(
-            "GET",
-            "/guardianBoxes",
-            "not_a_guardian",
-            None,
-        ))
+        .oneshot(create_request("GET", "/boxes/guardian", "not_a_guardian", None))
         .await
         .unwrap();
 
@@ -237,12 +232,7 @@ async fn test_get_guardian_box_found() {
 
     // Execute
     let response = app
-        .oneshot(create_request(
-            "GET",
-            &format!("/guardianBoxes/{}", box_id),
-            "guardian_1",
-            None,
-        ))
+        .oneshot(create_request("GET", &format!("/boxes/guardian/{}", box_id), "guardian_1", None))
         .await
         .unwrap();
 
@@ -269,7 +259,7 @@ async fn test_get_guardian_box_unauthorized() {
     let response = app
         .oneshot(create_request(
             "GET",
-            &format!("/guardianBoxes/{}", box_id),
+            &format!("/boxes/guardian/{}", box_id),
             "not_a_guardian",
             None,
         ))
@@ -290,7 +280,7 @@ async fn test_get_guardian_box_not_found() {
     let response = app
         .oneshot(create_request(
             "GET",
-            &format!("/guardianBoxes/{}", non_existent_box_id),
+            &format!("/boxes/guardian/{}", non_existent_box_id),
             "guardian_1",
             None,
         ))
