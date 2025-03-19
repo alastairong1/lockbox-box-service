@@ -34,6 +34,12 @@ impl DynamoBoxStore {
 
         Self { client, table_name }
     }
+    
+    /// Creates a new DynamoDB store with the specified client and table name.
+    /// This is mainly useful for testing with a local DynamoDB instance.
+    pub fn with_client_and_table(client: Client, table_name: String) -> Self {
+        Self { client, table_name }
+    }
 }
 
 #[async_trait::async_trait]
@@ -89,6 +95,7 @@ impl BoxStore for DynamoBoxStore {
             .client
             .query()
             .table_name(&self.table_name)
+            .index_name("owner_id-index")  // Use the GSI
             .key_condition_expression("#owner_id = :owner_id")
             .set_expression_attribute_names(Some(expr_attr_names))
             .set_expression_attribute_values(Some(expr_attr_values))
@@ -150,10 +157,18 @@ impl BoxStore for DynamoBoxStore {
     }
 
     /// Gets all boxes where the given user is a guardian (with status not rejected)
+    /// 
+    /// Implementation notes:
+    /// - Currently uses a full table scan since guardians are stored in nested arrays within the BoxRecord
+    /// - For production systems with many boxes, this could be improved by:
+    ///   1. Creating a new GSI with a composite key or
+    ///   2. Creating a separate guardian-to-box mapping table with a GSI
+    ///   3. Using DynamoDB's new document path capabilities for filtering
     async fn get_boxes_by_guardian_id(&self, guardian_id: &str) -> Result<Vec<BoxRecord>> {
-        // Since there's no secondary index for guardians, we need to scan the table
-        // In a production environment, we would want to add a GSI for this kind of query
-
+        // Currently we perform a full table scan as guardian information is stored in an array within
+        // the box document, not as a separate attribute that can be indexed. In the future, we could
+        // create a separate table or GSI for guardian relationships.
+        
         let response = self
             .client
             .scan()
