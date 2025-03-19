@@ -23,9 +23,13 @@ where
     // In a real app, we'd want to add a secondary index in DynamoDB for guardian lookups
 
     // This is a simplified approach - in production, you would want pagination or a GSI
-    let all_boxes = store.get_boxes_by_owner("*").await.unwrap_or_default();
+    let guardian_boxes = store
+        .get_boxes_by_guardian_id(&user_id)
+        .await
+        .unwrap_or_default();
 
-    let guardian_boxes: Vec<_> = all_boxes
+    // Convert BoxRecords to GuardianBox format
+    let guardian_boxes: Vec<_> = guardian_boxes
         .iter()
         .filter_map(|b| convert_to_guardian_box(b, &user_id))
         .collect();
@@ -42,8 +46,10 @@ pub async fn get_guardian_box<S>(
 where
     S: BoxStore,
 {
+    println!("HELLO");
     // Fetch the box from store
     let box_rec = store.get_box(&id).await?;
+    println!("Box record: {:#?}", box_rec);
 
     // TODO: query DB with filters instead
     if let Some(guardian_box) = convert_to_guardian_box(&box_rec, &user_id) {

@@ -138,4 +138,24 @@ impl BoxStore for MemoryBoxStore {
 
         Ok(())
     }
+
+    async fn get_boxes_by_guardian_id(&self, guardian_id: &str) -> Result<Vec<BoxRecord>> {
+        let boxes = self
+            .boxes
+            .read()
+            .map_err(|_| AppError::InternalServerError("Failed to acquire read lock".into()))?;
+
+        let guardian_boxes: Vec<BoxRecord> = boxes
+            .values()
+            .filter(|box_record| {
+                box_record
+                    .guardians
+                    .iter()
+                    .any(|guardian| guardian.id == guardian_id && guardian.status != "rejected")
+            })
+            .cloned()
+            .collect();
+
+        Ok(guardian_boxes)
+    }
 }
