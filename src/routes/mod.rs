@@ -1,48 +1,59 @@
 use axum::{
     middleware,
-    routing::{delete, get, patch, post},
+    routing::{get, patch},
     Router,
 };
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use tower_http::cors::{Any, CorsLayer};
 
-use crate::{
-    handlers::{
-        auth_middleware,
-        box_handlers::{create_box, delete_box, get_box, get_boxes, update_box},
-        guardian_handlers::{
-            get_guardian_box, get_guardian_boxes, request_unlock, respond_to_unlock_request,
-        },
+use crate::handlers::{
+    auth_middleware,
+    box_handlers::{create_box, delete_box, get_box, get_boxes, update_box},
+    guardian_handlers::{
+        get_guardian_box, get_guardian_boxes, request_unlock, respond_to_invitation,
+        respond_to_unlock_request,
     },
-    store::{BoxStore, BOXES},
 };
+use crate::store::{dynamo::DynamoBoxStore, BoxStore};
 
 /// Creates a router with the default store
-pub fn create_router() -> Router {
-    // Create store with initial data
-    let store = Arc::new(Mutex::new(BOXES.lock().unwrap().clone()));
-    create_router_with_store(store)
+pub async fn create_router() -> Router {
+    // Create the DynamoDB store
+    let dynamo_store = Arc::new(DynamoBoxStore::new().await);
+
+    create_router_with_store(dynamo_store)
 }
 
-/// Creates a router with a custom store (for testing)
-pub fn create_router_with_store(store: BoxStore) -> Router {
-    // Create routes
+/// Creates a router with a given store implementation
+pub fn create_router_with_store<S>(store: Arc<S>) -> Router
+where
+    S: BoxStore + 'static,
+{
+    // Configure CORS
+    let cors = CorsLayer::new()
+        .allow_origin(Any)
+        .allow_methods(Any)
+        .allow_headers(Any);
+
+    // Create router with the store and routes
     Router::new()
-        // Box routes
-        .route("/boxes", get(get_boxes))
-        .route("/boxes", post(create_box))
-        .route("/boxes/:id", get(get_box))
-        .route("/boxes/:id", patch(update_box))
-        .route("/boxes/:id", delete(delete_box))
-        // Guardian box routes
-        .route("/guardianBoxes", get(get_guardian_boxes))
-        .route("/guardianBoxes/:id", get(get_guardian_box))
+        .route("/boxes/owned", get(get_boxes).post(create_box))
+        .route(
+            "/boxes/owned/:id",
+            get(get_box).patch(update_box).delete(delete_box),
+        )
+        .route("/boxes/guardian", get(get_guardian_boxes))
+        .route("/boxes/guardian/:id", get(get_guardian_box))
         .route("/boxes/guardian/:id/request", patch(request_unlock))
         .route(
             "/boxes/guardian/:id/respond",
             patch(respond_to_unlock_request),
         )
-        // Apply middleware
+        .route(
+            "/boxes/guardian/:id/invitation",
+            patch(respond_to_invitation),
+        )
+        .layer(cors)
         .layer(middleware::from_fn(auth_middleware))
-        // Add store as state
         .with_state(store)
 }

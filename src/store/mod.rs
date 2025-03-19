@@ -1,37 +1,34 @@
-use once_cell::sync::Lazy;
-use std::sync::{Arc, Mutex};
-use uuid::Uuid;
+use async_trait::async_trait;
 
-use crate::models::{now_str, BoxRecord, Guardian, GuardianBox};
+use crate::error::Result;
+use crate::models::{BoxRecord, GuardianBox};
 
-// Global in-memory store (for sample purposes only)
-pub static BOXES: Lazy<Mutex<Vec<BoxRecord>>> = Lazy::new(|| {
-    let now = now_str();
-    Mutex::new(vec![BoxRecord {
-        id: Uuid::new_v4().to_string(),
-        name: "Sample Box".into(),
-        description: "A sample box".into(),
-        is_locked: false,
-        created_at: now.clone(),
-        updated_at: now.clone(),
-        owner_id: "user_1".into(),
-        owner_name: Some("User One".into()),
-        documents: vec![],
-        guardians: vec![Guardian {
-            id: "guardian_1".into(),
-            name: "Guardian One".into(),
-            email: "guardian1@example.com".into(),
-            lead: false,
-            status: "pending".into(),
-            added_at: now.clone(),
-        }],
-        lead_guardians: vec![],
-        unlock_instructions: None,
-        unlock_request: None,
-    }])
-});
+// Expose the DynamoDB store module
+pub mod dynamo;
+// Add the memory store implementation
+pub mod memory;
 
-pub type BoxStore = Arc<Mutex<Vec<BoxRecord>>>;
+/// BoxStore trait defining the interface for box storage implementations
+#[async_trait]
+pub trait BoxStore: Send + Sync + 'static {
+    /// Creates a new box
+    async fn create_box(&self, box_record: BoxRecord) -> Result<BoxRecord>;
+
+    /// Gets a box by ID
+    async fn get_box(&self, id: &str) -> Result<BoxRecord>;
+
+    /// Gets all boxes owned by a user
+    async fn get_boxes_by_owner(&self, owner_id: &str) -> Result<Vec<BoxRecord>>;
+
+    /// Gets all boxes where the given user is a guardian (with status not rejected)
+    async fn get_boxes_by_guardian_id(&self, guardian_id: &str) -> Result<Vec<BoxRecord>>;
+
+    /// Updates a box
+    async fn update_box(&self, box_record: BoxRecord) -> Result<BoxRecord>;
+
+    /// Deletes a box
+    async fn delete_box(&self, id: &str) -> Result<()>;
+}
 
 // Store utility functions
 pub fn convert_to_guardian_box(box_rec: &BoxRecord, user_id: &str) -> Option<GuardianBox> {

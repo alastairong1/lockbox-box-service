@@ -3,6 +3,7 @@ use axum::{
     http::StatusCode,
     Json,
 };
+use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::{
@@ -12,17 +13,18 @@ use crate::{
 };
 
 // GET /boxes
-pub async fn get_boxes(
-    State(store): State<BoxStore>,
+pub async fn get_boxes<S>(
+    State(store): State<Arc<S>>,
     Extension(user_id): Extension<String>,
-) -> Result<Json<serde_json::Value>> {
-    let boxes_guard = store
-        .lock()
-        .map_err(|_| AppError::InternalServerError("Failed to acquire lock".into()))?;
+) -> Result<Json<serde_json::Value>>
+where
+    S: BoxStore,
+{
+    // Get boxes from store
+    let boxes = store.get_boxes_by_owner(&user_id).await?;
 
-    let my_boxes: Vec<_> = boxes_guard
+    let my_boxes: Vec<_> = boxes
         .iter()
-        .filter(|b| b.owner_id == user_id)
         .map(|b| BoxResponse {
             id: b.id.clone(),
             name: b.name.clone(),
@@ -36,45 +38,45 @@ pub async fn get_boxes(
 }
 
 // GET /boxes/:id
-pub async fn get_box(
-    State(store): State<BoxStore>,
+pub async fn get_box<S>(
+    State(store): State<Arc<S>>,
     Path(id): Path<String>,
     Extension(user_id): Extension<String>,
-) -> Result<Json<serde_json::Value>> {
-    let boxes_guard = store
-        .lock()
-        .map_err(|_| AppError::InternalServerError("Failed to acquire lock".into()))?;
+) -> Result<Json<serde_json::Value>>
+where
+    S: BoxStore,
+{
+    // Get box from store
+    let box_rec = store.get_box(&id).await?;
 
-    if let Some(box_rec) = boxes_guard.iter().find(|b| b.id == id) {
-        if box_rec.owner_id == user_id {
-            // Return full box info for owner
-            return Ok(Json(serde_json::json!({
-                "box": BoxResponse {
-                    id: box_rec.id.clone(),
-                    name: box_rec.name.clone(),
-                    description: box_rec.description.clone(),
-                    created_at: box_rec.created_at.clone(),
-                    updated_at: box_rec.updated_at.clone(),
-                }
-            })));
-        }
+    // TODO: Is it safe to check here or should we do filter in the db query?
+    if box_rec.owner_id != user_id {
+        return Err(AppError::Unauthorized(
+            "You don't have permission to view this box".into(),
+        ));
     }
 
-    Err(AppError::Unauthorized(
-        "Unauthorized or Box not found".into(),
-    ))
+    // Return full box info for owner
+    Ok(Json(serde_json::json!({
+        "box": BoxResponse {
+            id: box_rec.id.clone(),
+            name: box_rec.name.clone(),
+            description: box_rec.description.clone(),
+            created_at: box_rec.created_at.clone(),
+            updated_at: box_rec.updated_at.clone(),
+        }
+    })))
 }
 
 // POST /boxes
-pub async fn create_box(
-    State(store): State<BoxStore>,
+pub async fn create_box<S>(
+    State(store): State<Arc<S>>,
     Extension(user_id): Extension<String>,
     Json(payload): Json<CreateBoxRequest>,
-) -> Result<(StatusCode, Json<serde_json::Value>)> {
-    let mut boxes_guard = store
-        .lock()
-        .map_err(|_| AppError::InternalServerError("Failed to acquire lock".into()))?;
-
+) -> Result<(StatusCode, Json<serde_json::Value>)>
+where
+    S: BoxStore,
+{
     let now = now_str();
     let new_box = BoxRecord {
         id: Uuid::new_v4().to_string(),
@@ -92,15 +94,16 @@ pub async fn create_box(
         unlock_request: None,
     };
 
-    let response = BoxResponse {
-        id: new_box.id.clone(),
-        name: new_box.name.clone(),
-        description: new_box.description.clone(),
-        created_at: new_box.created_at.clone(),
-        updated_at: new_box.updated_at.clone(),
-    };
+    // Create the box in store
+    let created_box = store.create_box(new_box).await?;
 
-    boxes_guard.push(new_box);
+    let response = BoxResponse {
+        id: created_box.id.clone(),
+        name: created_box.name.clone(),
+        description: created_box.description.clone(),
+        created_at: created_box.created_at.clone(),
+        updated_at: created_box.updated_at.clone(),
+    };
 
     Ok((
         StatusCode::CREATED,
@@ -109,67 +112,73 @@ pub async fn create_box(
 }
 
 // PATCH /boxes/:id
-pub async fn update_box(
-    State(store): State<BoxStore>,
+pub async fn update_box<S>(
+    State(store): State<Arc<S>>,
     Path(id): Path<String>,
     Extension(user_id): Extension<String>,
     Json(payload): Json<UpdateBoxRequest>,
-) -> Result<Json<serde_json::Value>> {
-    let mut boxes_guard = store
-        .lock()
-        .map_err(|_| AppError::InternalServerError("Failed to acquire lock".into()))?;
+) -> Result<Json<serde_json::Value>>
+where
+    S: BoxStore,
+{
+    // Get the current box from store
+    let mut box_rec = store.get_box(&id).await?;
 
-    if let Some(box_rec) = boxes_guard
-        .iter_mut()
-        .find(|b| b.id == id && b.owner_id == user_id)
-    {
-        if let Some(name) = payload.name {
-            box_rec.name = name;
-        }
-
-        if let Some(description) = payload.description {
-            box_rec.description = description;
-        }
-
-        box_rec.updated_at = now_str();
-
-        let response = BoxResponse {
-            id: box_rec.id.clone(),
-            name: box_rec.name.clone(),
-            description: box_rec.description.clone(),
-            created_at: box_rec.created_at.clone(),
-            updated_at: box_rec.updated_at.clone(),
-        };
-
-        return Ok(Json(serde_json::json!({ "box": response })));
-    }
-
-    Err(AppError::Unauthorized(
-        "Unauthorized or Box not found".into(),
-    ))
-}
-
-// DELETE /boxes/:id
-pub async fn delete_box(
-    State(store): State<BoxStore>,
-    Path(id): Path<String>,
-    Extension(user_id): Extension<String>,
-) -> Result<Json<serde_json::Value>> {
-    let mut boxes_guard = store
-        .lock()
-        .map_err(|_| AppError::InternalServerError("Failed to acquire lock".into()))?;
-
-    if let Some(pos) = boxes_guard
-        .iter()
-        .position(|b| b.id == id && b.owner_id == user_id)
-    {
-        boxes_guard.remove(pos);
-        return Ok(Json(
-            serde_json::json!({ "message": "Box deleted successfully." }),
+    // Check if the user is the owner
+    if box_rec.owner_id != user_id {
+        return Err(AppError::Unauthorized(
+            "You don't have permission to update this box".into(),
         ));
     }
 
-    Err(AppError::Unauthorized(
-        "Unauthorized or Box not found".into(),
+    // Update fields if provided
+    if let Some(name) = payload.name {
+        box_rec.name = name;
+    }
+
+    if let Some(description) = payload.description {
+        box_rec.description = description;
+    }
+
+    box_rec.updated_at = now_str();
+
+    // Save the updated box
+    let updated_box = store.update_box(box_rec).await?;
+
+    let response = BoxResponse {
+        id: updated_box.id.clone(),
+        name: updated_box.name.clone(),
+        description: updated_box.description.clone(),
+        created_at: updated_box.created_at.clone(),
+        updated_at: updated_box.updated_at.clone(),
+    };
+
+    Ok(Json(serde_json::json!({ "box": response })))
+}
+
+// DELETE /boxes/:id
+pub async fn delete_box<S>(
+    State(store): State<Arc<S>>,
+    Path(id): Path<String>,
+    Extension(user_id): Extension<String>,
+) -> Result<Json<serde_json::Value>>
+where
+    S: BoxStore,
+{
+    // Get the box to check ownership
+    let box_rec = store.get_box(&id).await?;
+
+    // Check if the user is the owner
+    if box_rec.owner_id != user_id {
+        return Err(AppError::Unauthorized(
+            "You don't have permission to delete this box".into(),
+        ));
+    }
+
+    // Delete the box
+    store.delete_box(&id).await?;
+
+    Ok(Json(
+        serde_json::json!({ "message": "Box deleted successfully." }),
     ))
 }

@@ -2,24 +2,37 @@ use axum::{
     extract::{Extension, Path, State},
     Json,
 };
+use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::{
     error::{AppError, Result},
-    models::{now_str, GuardianResponseRequest, LeadGuardianUpdateRequest, UnlockRequest},
+    models::{
+        now_str, GuardianInvitationResponse, GuardianResponseRequest, LeadGuardianUpdateRequest,
+        UnlockRequest,
+    },
     store::{convert_to_guardian_box, BoxStore},
 };
 
 // GET /guardianBoxes
-pub async fn get_guardian_boxes(
-    State(store): State<BoxStore>,
+pub async fn get_guardian_boxes<S>(
+    State(store): State<Arc<S>>,
     Extension(user_id): Extension<String>,
-) -> Result<Json<serde_json::Value>> {
-    let boxes_guard = store
-        .lock()
-        .map_err(|_| AppError::InternalServerError("Failed to acquire lock".into()))?;
+) -> Result<Json<serde_json::Value>>
+where
+    S: BoxStore,
+{
+    // TODO: For now, we'd need to fetch all boxes and filter on the guardian
+    // In a real app, we'd want to add a secondary index in DynamoDB for guardian lookups
 
-    let guardian_boxes: Vec<_> = boxes_guard
+    // This is a simplified approach - in production, you would want pagination or a GSI
+    let guardian_boxes = store
+        .get_boxes_by_guardian_id(&user_id)
+        .await
+        .unwrap_or_default();
+
+    // Convert BoxRecords to GuardianBox format
+    let guardian_boxes: Vec<_> = guardian_boxes
         .iter()
         .filter_map(|b| convert_to_guardian_box(b, &user_id))
         .collect();
@@ -28,19 +41,22 @@ pub async fn get_guardian_boxes(
 }
 
 // GET /guardianBoxes/:id
-pub async fn get_guardian_box(
-    State(store): State<BoxStore>,
+pub async fn get_guardian_box<S>(
+    State(store): State<Arc<S>>,
     Path(id): Path<String>,
     Extension(user_id): Extension<String>,
-) -> Result<Json<serde_json::Value>> {
-    let boxes_guard = store
-        .lock()
-        .map_err(|_| AppError::InternalServerError("Failed to acquire lock".into()))?;
+) -> Result<Json<serde_json::Value>>
+where
+    S: BoxStore,
+{
+    println!("HELLO");
+    // Fetch the box from store
+    let box_rec = store.get_box(&id).await?;
+    println!("Box record: {:#?}", box_rec);
 
-    if let Some(box_rec) = boxes_guard.iter().find(|b| b.id == id) {
-        if let Some(guardian_box) = convert_to_guardian_box(box_rec, &user_id) {
-            return Ok(Json(serde_json::json!({ "box": guardian_box })));
-        }
+    // TODO: query DB with filters instead
+    if let Some(guardian_box) = convert_to_guardian_box(&box_rec, &user_id) {
+        return Ok(Json(serde_json::json!({ "box": guardian_box })));
     }
 
     Err(AppError::Unauthorized(
@@ -49,26 +65,19 @@ pub async fn get_guardian_box(
 }
 
 // PATCH /boxes/guardian/:id/request - For lead guardian to initiate unlock request
-pub async fn request_unlock(
-    State(store): State<BoxStore>,
+pub async fn request_unlock<S>(
+    State(store): State<Arc<S>>,
     Path(box_id): Path<String>,
     Extension(user_id): Extension<String>,
     Json(payload): Json<LeadGuardianUpdateRequest>,
-) -> Result<Json<serde_json::Value>> {
-    let mut boxes_guard = store
-        .lock()
-        .map_err(|_| AppError::InternalServerError("Failed to acquire lock".into()))?;
+) -> Result<Json<serde_json::Value>>
+where
+    S: BoxStore,
+{
+    // Get the box from store
+    let mut box_record = store.get_box(&box_id).await?;
 
-    let box_index = boxes_guard.iter().position(|b| b.id == box_id);
-
-    if box_index.is_none() {
-        return Err(AppError::NotFound("Box not found".into()));
-    }
-
-    let box_index = box_index.unwrap();
-    let box_record = &mut boxes_guard[box_index];
-
-    // Check if user is a guardian and not rejected
+    // TODO: query DB with filters instead
     let is_guardian = box_record
         .guardians
         .iter()
@@ -97,7 +106,10 @@ pub async fn request_unlock(
         box_record.unlock_request = Some(new_unlock);
         box_record.updated_at = now_str();
 
-        if let Some(guard_box) = convert_to_guardian_box(box_record, &user_id) {
+        // Update the box in store
+        let updated_box = store.update_box(box_record).await?;
+
+        if let Some(guard_box) = convert_to_guardian_box(&updated_box, &user_id) {
             return Ok(Json(serde_json::json!({ "box": guard_box })));
         } else {
             return Err(AppError::InternalServerError(
@@ -112,24 +124,19 @@ pub async fn request_unlock(
 }
 
 // PATCH /boxes/guardian/:id/respond - For guardians to respond to unlock request
-pub async fn respond_to_unlock_request(
-    State(store): State<BoxStore>,
+pub async fn respond_to_unlock_request<S>(
+    State(store): State<Arc<S>>,
     Path(box_id): Path<String>,
     Extension(user_id): Extension<String>,
     Json(payload): Json<GuardianResponseRequest>,
-) -> Result<Json<serde_json::Value>> {
-    let mut boxes_guard = store
-        .lock()
-        .map_err(|_| AppError::InternalServerError("Failed to acquire lock".into()))?;
+) -> Result<Json<serde_json::Value>>
+where
+    S: BoxStore,
+{
+    // Get the box from store
+    let mut box_record = store.get_box(&box_id).await?;
 
-    let box_index = boxes_guard
-        .iter()
-        .position(|b| b.id == box_id)
-        .ok_or_else(|| AppError::NotFound("Box not found".into()))?;
-
-    let box_record = &mut boxes_guard[box_index];
-
-    // Check if user is a guardian and not rejected
+    // TODO: query DB with filters instead
     if box_record
         .guardians
         .iter()
@@ -172,11 +179,72 @@ pub async fn respond_to_unlock_request(
 
     box_record.updated_at = now_str();
 
-    if let Some(guard_box) = convert_to_guardian_box(box_record, &user_id) {
+    // Update the box in store
+    let updated_box = store.update_box(box_record).await?;
+
+    if let Some(guard_box) = convert_to_guardian_box(&updated_box, &user_id) {
         return Ok(Json(serde_json::json!({ "box": guard_box })));
     } else {
         return Err(AppError::InternalServerError(
             "Failed to render guardian box".into(),
         ));
     }
+}
+
+// PATCH /boxes/guardian/:id/invitation - For accepting/rejecting a guardian invitation
+pub async fn respond_to_invitation<S>(
+    State(store): State<Arc<S>>,
+    Path(box_id): Path<String>,
+    Extension(user_id): Extension<String>,
+    Json(payload): Json<GuardianInvitationResponse>,
+) -> Result<Json<serde_json::Value>>
+where
+    S: BoxStore,
+{
+    // Get the box from store
+    let mut box_record = store.get_box(&box_id).await?;
+
+    // Find if user is a guardian with pending status
+    let guardian_index = box_record
+        .guardians
+        .iter()
+        .position(|g| g.id == user_id && g.status == "pending");
+
+    if let Some(index) = guardian_index {
+        // Update the guardian status based on the acceptance
+        if payload.accept {
+            box_record.guardians[index].status = "accepted".to_string();
+            box_record.updated_at = now_str();
+
+            // Update the box in store
+            let updated_box = store.update_box(box_record).await?;
+
+            if let Some(guard_box) = convert_to_guardian_box(&updated_box, &user_id) {
+                return Ok(Json(serde_json::json!({
+                    "message": "Guardian invitation accepted successfully",
+                    "box": guard_box
+                })));
+            } else {
+                return Err(AppError::InternalServerError(
+                    "Failed to render guardian box".into(),
+                ));
+            }
+        } else {
+            // User is rejecting the invitation
+            box_record.guardians[index].status = "rejected".to_string();
+            box_record.updated_at = now_str();
+
+            // Update the box in store
+            let _updated_box = store.update_box(box_record).await?;
+
+            return Ok(Json(serde_json::json!({
+                "message": "Guardian invitation rejected successfully"
+            })));
+        }
+    }
+
+    // If we get here, the user isn't a pending guardian for this box
+    Err(AppError::BadRequest(
+        "No pending invitation found for this box".into(),
+    ))
 }

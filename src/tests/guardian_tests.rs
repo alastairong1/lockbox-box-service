@@ -1,18 +1,18 @@
 use crate::{
     models::{now_str, BoxRecord, Guardian, UnlockRequest},
     routes,
-    store::BoxStore,
+    store::memory::MemoryBoxStore,
 };
 use axum::{
     body::Body,
     http::{header, Request, StatusCode},
 };
 use serde_json::{json, Value};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use tower::ServiceExt;
 
 // Create mock data for testing
-fn setup_test_data() -> BoxStore {
+fn setup_test_data() -> Arc<MemoryBoxStore> {
     let now = now_str();
 
     // Box 1: Regular guardian (guardian_1)
@@ -142,12 +142,14 @@ fn setup_test_data() -> BoxStore {
         unlock_request: None,
     };
 
-    Arc::new(Mutex::new(vec![box_1, box_2, box_3]))
+    // Create MemoryBoxStore with the test data
+    Arc::new(MemoryBoxStore::with_data(vec![box_1, box_2, box_3]))
 }
 
 // Inject the test data into the router
 fn create_test_app() -> axum::Router {
     let store = setup_test_data();
+    // Create router with memory store for testing
     routes::create_router_with_store(store)
 }
 
@@ -180,7 +182,7 @@ async fn test_get_guardian_boxes() {
 
     // Execute
     let response = app
-        .oneshot(create_request("GET", "/guardianBoxes", "guardian_1", None))
+        .oneshot(create_request("GET", "/boxes/guardian", "guardian_1", None))
         .await
         .unwrap();
 
@@ -212,7 +214,7 @@ async fn test_get_guardian_boxes_empty_for_non_guardian() {
     let response = app
         .oneshot(create_request(
             "GET",
-            "/guardianBoxes",
+            "/boxes/guardian",
             "not_a_guardian",
             None,
         ))
@@ -237,7 +239,7 @@ async fn test_get_guardian_box_found() {
     let response = app
         .oneshot(create_request(
             "GET",
-            &format!("/guardianBoxes/{}", box_id),
+            &format!("/boxes/guardian/{}", box_id),
             "guardian_1",
             None,
         ))
@@ -267,7 +269,7 @@ async fn test_get_guardian_box_unauthorized() {
     let response = app
         .oneshot(create_request(
             "GET",
-            &format!("/guardianBoxes/{}", box_id),
+            &format!("/boxes/guardian/{}", box_id),
             "not_a_guardian",
             None,
         ))
@@ -288,7 +290,7 @@ async fn test_get_guardian_box_not_found() {
     let response = app
         .oneshot(create_request(
             "GET",
-            &format!("/guardianBoxes/{}", non_existent_box_id),
+            &format!("/boxes/guardian/{}", non_existent_box_id),
             "guardian_1",
             None,
         ))
@@ -296,7 +298,7 @@ async fn test_get_guardian_box_not_found() {
         .unwrap();
 
     // Verify
-    assert_eq!(response.status(), StatusCode::UNAUTHORIZED); // Returns unauthorized for not found when guardian is valid
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
 }
 
 #[tokio::test]
