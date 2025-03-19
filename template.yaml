@@ -36,11 +36,16 @@ Resources:
           AttributeType: S
         - AttributeName: owner_id
           AttributeType: S
+        # Note: We can't directly create a GSI for guardian IDs because they're stored
+        # in a nested array within the item. Options for production scaling:
+        # 1. Create a separate guardian-to-box mapping table
+        # 2. Use DynamoDB Streams to maintain a flattened view of guardian relationships
+        # 3. Use client-side filtering or sparse GSIs for specific guardian-related queries
       KeySchema:
         - AttributeName: id
           KeyType: HASH
       GlobalSecondaryIndexes:
-        - IndexName: OwnerIdIndex
+        - IndexName: owner_id-index
           KeySchema:
             - AttributeName: owner_id
               KeyType: HASH
