@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 use crate::{
     error::{AppError, Result},
-    models::{now_str, GuardianResponseRequest, LeadGuardianUpdateRequest, UnlockRequest},
+    models::{now_str, GuardianInvitationResponse, GuardianResponseRequest, LeadGuardianUpdateRequest, UnlockRequest},
     store::{convert_to_guardian_box, BoxStore},
 };
 
@@ -186,4 +186,62 @@ where
             "Failed to render guardian box".into(),
         ));
     }
+}
+
+// PATCH /boxes/guardian/:id/invitation - For accepting/rejecting a guardian invitation
+pub async fn respond_to_invitation<S>(
+    State(store): State<Arc<S>>,
+    Path(box_id): Path<String>,
+    Extension(user_id): Extension<String>,
+    Json(payload): Json<GuardianInvitationResponse>,
+) -> Result<Json<serde_json::Value>>
+where
+    S: BoxStore,
+{
+    // Get the box from store
+    let mut box_record = store.get_box(&box_id).await?;
+
+    // Find if user is a guardian with pending status
+    let guardian_index = box_record
+        .guardians
+        .iter()
+        .position(|g| g.id == user_id && g.status == "pending");
+
+    if let Some(index) = guardian_index {
+        // Update the guardian status based on the acceptance
+        if payload.accept {
+            box_record.guardians[index].status = "accepted".to_string();
+            box_record.updated_at = now_str();
+
+            // Update the box in store
+            let updated_box = store.update_box(box_record).await?;
+
+            if let Some(guard_box) = convert_to_guardian_box(&updated_box, &user_id) {
+                return Ok(Json(serde_json::json!({
+                    "message": "Guardian invitation accepted successfully",
+                    "box": guard_box
+                })));
+            } else {
+                return Err(AppError::InternalServerError(
+                    "Failed to render guardian box".into(),
+                ));
+            }
+        } else {
+            // User is rejecting the invitation
+            box_record.guardians[index].status = "rejected".to_string();
+            box_record.updated_at = now_str();
+
+            // Update the box in store
+            let _updated_box = store.update_box(box_record).await?;
+
+            return Ok(Json(serde_json::json!({
+                "message": "Guardian invitation rejected successfully"
+            })));
+        }
+    }
+
+    // If we get here, the user isn't a pending guardian for this box
+    Err(AppError::BadRequest(
+        "No pending invitation found for this box".into(),
+    ))
 }

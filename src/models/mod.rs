@@ -88,6 +88,11 @@ pub struct GuardianResponseRequest {
     pub reject: Option<bool>,
 }
 
+#[derive(Deserialize, Debug)]
+pub struct GuardianInvitationResponse {
+    pub accept: bool,
+}
+
 // Response DTOs
 #[derive(Serialize, Debug)]
 pub struct BoxResponse {

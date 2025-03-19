@@ -8,9 +8,11 @@ The lockbox-box-service provides endpoints for managing boxes and associated unl
 
 ## API Endpoints
 
-### 1. Get Boxes
+### Owner Endpoints
 
-**Endpoint:** `GET /boxes`
+#### 1. Get Owned Boxes
+
+**Endpoint:** `GET /boxes/owned`
 
 **Headers:**
 - `x-user-id`: Your user identifier
@@ -33,9 +35,27 @@ Returns all boxes owned by the user.
 }
 ```
 
-### 2. Update Box (Owner Update)
+#### 2. Create Box
 
-**Endpoint:** `PATCH /boxes/{id}`
+**Endpoint:** `POST /boxes/owned`
+
+**Headers:**
+- `x-user-id`: Your user identifier
+
+**Description:**
+Create a new box with you as the owner.
+
+**Payload Example:**
+```json
+{
+  "name": "New Box",
+  "description": "Description of the box"
+}
+```
+
+#### 3. Update Box (Owner Update)
+
+**Endpoint:** `PATCH /boxes/owned/{id}`
 
 **Headers:**
 - `x-user-id`: Your owner user identifier
@@ -56,7 +76,82 @@ Allows box owners to update box details such as name and description.
 - **400 Bad Request:** Invalid request payload or missing required fields.
 - **401 Unauthorized:** The user is not the owner or the box is not found.
 
-### 3. Request Unlock (Lead Guardian Only)
+#### 4. Delete Box
+
+**Endpoint:** `DELETE /boxes/owned/{id}`
+
+**Headers:**
+- `x-user-id`: Your owner user identifier
+
+**Description:**
+Allows box owners to delete a box.
+
+**Response Codes:**
+- **200 OK:** Box deleted successfully.
+- **401 Unauthorized:** The user is not the owner or the box is not found.
+- **404 Not Found:** Box not found.
+
+### Guardian Endpoints
+
+#### 1. Get Guardian Boxes
+
+**Endpoint:** `GET /boxes/guardian`
+
+**Headers:**
+- `x-user-id`: Your user identifier
+
+**Description:**
+Returns all boxes where the authenticated user is a guardian (excluding rejected entries). It uses the store to filter and convert boxes using the guardian conversion logic.
+
+**Response Example:**
+```json
+{
+  "boxes": [
+    {
+      "id": "box_id",
+      "name": "Box Name",
+      "description": "Description",
+      "created_at": "timestamp",
+      "updated_at": "timestamp",
+      "unlock_request": {
+         "id": "unlock_request_id",
+         "requested_at": "timestamp",
+         "status": "pending",
+         "message": "Unlock request message",
+         "initiated_by": "guardian_id",
+         "approved_by": [],
+         "rejected_by": []
+      }
+    }
+  ]
+}
+```
+
+#### 2. Get Guardian Box
+
+**Endpoint:** `GET /boxes/guardian/{id}`
+
+**Headers:**
+- `x-user-id`: Your guardian user identifier
+
+**Description:**
+Get a specific box where you are a guardian.
+
+**Response Example:**
+```json
+{
+  "box": {
+    "id": "box_id",
+    "name": "Box Name",
+    "description": "Description",
+    "created_at": "timestamp",
+    "updated_at": "timestamp",
+    "unlock_request": { /* unlock request data if present */ }
+  }
+}
+```
+
+#### 3. Request Unlock (Lead Guardian Only)
 
 **Endpoint:** `PATCH /boxes/guardian/{id}/request`
 
@@ -80,7 +175,7 @@ Allows lead guardians to initiate an unlock request for a box. The endpoint vali
 - **404 Not Found:** Box not found.
 - **500 Internal Server Error:** An error occurred processing the update.
 
-### 4. Respond to Unlock Request (Guardian Only)
+#### 4. Respond to Unlock Request (Guardian Only)
 
 **Endpoint:** `PATCH /boxes/guardian/{id}/respond`
 
@@ -109,51 +204,30 @@ _Rejection:_
 }
 ```
 
-**Response Codes:**
-- **200 OK:** Response recorded successfully, returning the updated guardian box details.
-- **400 Bad Request:** Invalid payload, missing fields, or no active unlock request.
-- **401 Unauthorized:** The user is not an authorized guardian.
-- **404 Not Found:** Box not found.
-- **500 Internal Server Error:** An error occurred processing the response.
+#### 5. Respond to Guardian Invitation
 
-### 5. Get Guardian Boxes
-
-**Endpoint:** `GET /guardianBoxes`
+**Endpoint:** `PATCH /boxes/guardian/{id}/invitation`
 
 **Headers:**
 - `x-user-id`: Your user identifier
 
 **Description:**
-Returns all boxes where the authenticated user is a guardian (excluding rejected entries). It uses the in-memory store to filter and convert boxes using the guardian conversion logic.
+Allows users to accept or reject an invitation to be a guardian for a box. The endpoint validates that:
+1. The user has a pending invitation for the box
+2. The invitation hasn't already been responded to
 
-**Response Example:**
+**Payload Example:**
 ```json
 {
-  "boxes": [
-    {
-      "id": "box_id",
-      "name": "Box Name",
-      "description": "Description",
-      "created_at": "timestamp",
-      "updated_at": "timestamp",
-      "unlock_request": {
-         "id": "unlock_request_id",
-         "requested_at": "timestamp",
-         "status": "pending",
-         "message": "Unlock request message",
-         "initiated_by": "guardian_id",
-         "approved_by": [],
-         "rejected_by": []
-      }
-    }
-  ]
+  "accept": true
 }
 ```
 
 **Response Codes:**
-- **200 OK:** Guardian boxes returned successfully.
-- **401 Unauthorized:** Missing or invalid user authentication.
-- **404 Not Found:** No boxes found for the guardian (if applicable).
+- **200 OK:** Guardian invitation accepted successfully, returning the updated guardian box details.
+- **400 Bad Request:** No pending invitation found for this box.
+- **404 Not Found:** Box not found.
+- **500 Internal Server Error:** An error occurred processing the response.
 
 ## Running the Service
 
@@ -218,14 +292,25 @@ The service uses GitHub Actions for continuous integration and deployment:
   - Packages the binary
   - Deploys to AWS Lambda
 
+## Data Storage
+
+The service uses DynamoDB to store box records. Key features include:
+- Tables are defined in the CloudFormation template
+- Global Secondary Index (GSI) for querying by owner_id
+- Guardian relationships are stored in the box record
+
+See the `GUARDIAN_INDEX_IMPLEMENTATION.md` file for details on future improvements to guardian search functionality.
+
 ## Additional Notes
 
-- The service uses an in-memory store for demonstration purposes.
 - All timestamps are in ISO8601 format.
 - Ensure the `x-user-id` header is included in requests for proper authentication and authorization.
+- Box records include both owner information and guardian relationships.
 
 ## Dependencies
 
 - Rust
 - Cargo
 - AWS Lambda runtime
+- DynamoDB
+- AWS SAM for local testing and deployment
