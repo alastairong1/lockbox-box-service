@@ -2,8 +2,8 @@ use axum::{
     extract::{Extension, Path, State},
     Json,
 };
-use uuid::Uuid;
 use std::sync::Arc;
+use uuid::Uuid;
 
 use crate::{
     error::{AppError, Result},
@@ -21,10 +21,10 @@ where
 {
     // TODO: For now, we'd need to fetch all boxes and filter on the guardian
     // In a real app, we'd want to add a secondary index in DynamoDB for guardian lookups
-    
+
     // This is a simplified approach - in production, you would want pagination or a GSI
     let all_boxes = store.get_boxes_by_owner("*").await.unwrap_or_default();
-    
+
     let guardian_boxes: Vec<_> = all_boxes
         .iter()
         .filter_map(|b| convert_to_guardian_box(b, &user_id))
@@ -44,7 +44,7 @@ where
 {
     // Fetch the box from store
     let box_rec = store.get_box(&id).await?;
-    
+
     // TODO: query DB with filters instead
     if let Some(guardian_box) = convert_to_guardian_box(&box_rec, &user_id) {
         return Ok(Json(serde_json::json!({ "box": guardian_box })));
@@ -99,7 +99,7 @@ where
 
         // Update the box in store
         let updated_box = store.update_box(box_record).await?;
-        
+
         if let Some(guard_box) = convert_to_guardian_box(&updated_box, &user_id) {
             return Ok(Json(serde_json::json!({ "box": guard_box })));
         } else {
@@ -169,7 +169,7 @@ where
     }
 
     box_record.updated_at = now_str();
-    
+
     // Update the box in store
     let updated_box = store.update_box(box_record).await?;
 

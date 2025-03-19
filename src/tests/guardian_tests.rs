@@ -1,7 +1,7 @@
 use crate::{
     models::{now_str, BoxRecord, Guardian, UnlockRequest},
     routes,
-    store::{BoxStore, memory::MemoryBoxStore},
+    store::memory::MemoryBoxStore,
 };
 use axum::{
     body::Body,

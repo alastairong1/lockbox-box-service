@@ -3,8 +3,8 @@ use axum::{
     http::StatusCode,
     Json,
 };
+use std::sync::Arc;
 use uuid::Uuid;
-use std::sync::Arc; 
 
 use crate::{
     error::{AppError, Result},
@@ -57,7 +57,7 @@ where
     }
 
     // Return full box info for owner
-    Ok(Json(serde_json::json!({ 
+    Ok(Json(serde_json::json!({
         "box": BoxResponse {
             id: box_rec.id.clone(),
             name: box_rec.name.clone(),
