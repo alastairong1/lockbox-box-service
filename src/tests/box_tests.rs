@@ -3,8 +3,8 @@ use axum::{
     http::{Request, StatusCode},
 };
 use serde_json::{json, Value};
-use tower::ServiceExt;
 use std::sync::Arc;
+use tower::ServiceExt;
 
 use crate::{
     models::{now_str, BoxRecord},
@@ -41,7 +41,7 @@ fn create_test_app() -> axum::Router {
     // Create mock boxes
     let now = now_str();
     let mut boxes = Vec::new();
-    
+
     let box_1 = BoxRecord {
         id: "box_1".into(),
         name: "Test Box 1".into(),
@@ -57,7 +57,7 @@ fn create_test_app() -> axum::Router {
         unlock_instructions: None,
         unlock_request: None,
     };
-    
+
     let box_2 = BoxRecord {
         id: "box_2".into(),
         name: "Test Box 2".into(),
@@ -73,13 +73,13 @@ fn create_test_app() -> axum::Router {
         unlock_instructions: None,
         unlock_request: None,
     };
-    
+
     boxes.push(box_1);
     boxes.push(box_2);
 
     // Create memory store with mock data
     let store = Arc::new(MemoryBoxStore::with_data(boxes));
-    
+
     // Create router with memory store for testing
     routes::create_router_with_store(store)
 }

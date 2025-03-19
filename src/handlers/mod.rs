@@ -9,6 +9,7 @@ use axum::{
 use crate::error::AppError;
 
 // Extractor for user_id from header
+#[allow(dead_code)]
 pub struct UserId(String);
 
 #[async_trait]
