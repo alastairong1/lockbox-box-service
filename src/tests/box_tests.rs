@@ -93,7 +93,9 @@ async fn test_get_boxes() {
     let response = app
         .clone()
         .oneshot(create_request(
-            "GET", "/boxes/owned", "user_1", // User with boxes in the mock data
+            "GET",
+            "/boxes/owned",
+            "user_1", // User with boxes in the mock data
             None,
         ))
         .await
