@@ -7,7 +7,10 @@ use uuid::Uuid;
 
 use crate::{
     error::{AppError, Result},
-    models::{now_str, GuardianInvitationResponse, GuardianResponseRequest, LeadGuardianUpdateRequest, UnlockRequest},
+    models::{
+        now_str, GuardianInvitationResponse, GuardianResponseRequest, LeadGuardianUpdateRequest,
+        UnlockRequest,
+    },
     store::{convert_to_guardian_box, BoxStore},
 };
 

@@ -34,7 +34,7 @@ impl DynamoBoxStore {
 
         Self { client, table_name }
     }
-    
+
     /// Creates a new DynamoDB store with the specified client and table name.
     /// This is mainly useful for testing with a local DynamoDB instance.
     pub fn with_client_and_table(client: Client, table_name: String) -> Self {
@@ -95,7 +95,7 @@ impl BoxStore for DynamoBoxStore {
             .client
             .query()
             .table_name(&self.table_name)
-            .index_name("owner_id-index")  // Use the GSI
+            .index_name("owner_id-index") // Use the GSI
             .key_condition_expression("#owner_id = :owner_id")
             .set_expression_attribute_names(Some(expr_attr_names))
             .set_expression_attribute_values(Some(expr_attr_values))
@@ -157,7 +157,7 @@ impl BoxStore for DynamoBoxStore {
     }
 
     /// Gets all boxes where the given user is a guardian (with status not rejected)
-    /// 
+    ///
     /// Implementation notes:
     /// - Currently uses a full table scan since guardians are stored in nested arrays within the BoxRecord
     /// - For production systems with many boxes, this could be improved by:
@@ -168,7 +168,7 @@ impl BoxStore for DynamoBoxStore {
         // Currently we perform a full table scan as guardian information is stored in an array within
         // the box document, not as a separate attribute that can be indexed. In the future, we could
         // create a separate table or GSI for guardian relationships.
-        
+
         let response = self
             .client
             .scan()
