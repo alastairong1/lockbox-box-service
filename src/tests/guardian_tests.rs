@@ -298,7 +298,7 @@ async fn test_get_guardian_box_not_found() {
         .unwrap();
 
     // Verify
-    assert_eq!(response.status(), StatusCode::UNAUTHORIZED); // Returns unauthorized for not found when guardian is valid
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
 }
 
 #[tokio::test]

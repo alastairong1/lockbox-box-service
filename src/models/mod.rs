@@ -1,7 +1,7 @@
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Document {
     pub id: String,
     pub title: String,
@@ -9,7 +9,7 @@ pub struct Document {
     pub created_at: String,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Guardian {
     pub id: String,
     pub name: String,
@@ -19,7 +19,7 @@ pub struct Guardian {
     pub added_at: String,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct UnlockRequest {
     pub id: String,
     pub requested_at: String,
@@ -30,7 +30,7 @@ pub struct UnlockRequest {
     pub rejected_by: Vec<String>,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct BoxRecord {
     pub id: String,
     pub name: String,
@@ -47,7 +47,7 @@ pub struct BoxRecord {
     pub unlock_request: Option<UnlockRequest>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct GuardianBox {
     pub id: String,
     pub name: String,
@@ -65,31 +65,31 @@ pub struct GuardianBox {
 }
 
 // Request DTOs
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct CreateBoxRequest {
     pub name: String,
     pub description: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct UpdateBoxRequest {
     pub name: Option<String>,
     pub description: Option<String>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct LeadGuardianUpdateRequest {
     pub message: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct GuardianResponseRequest {
     pub approve: Option<bool>,
     pub reject: Option<bool>,
 }
 
 // Response DTOs
-#[derive(Serialize)]
+#[derive(Serialize, Debug)]
 pub struct BoxResponse {
     pub id: String,
     pub name: String,

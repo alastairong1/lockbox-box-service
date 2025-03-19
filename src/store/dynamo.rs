@@ -2,6 +2,7 @@ use aws_sdk_dynamodb::error::SdkError;
 use aws_sdk_dynamodb::operation::delete_item::DeleteItemError;
 use aws_sdk_dynamodb::operation::get_item::GetItemError;
 use aws_sdk_dynamodb::operation::query::QueryError;
+use aws_sdk_dynamodb::operation::scan::ScanError;
 use aws_sdk_dynamodb::types::AttributeValue;
 use aws_sdk_dynamodb::Client;
 use serde_dynamo::{from_item, to_item};
@@ -147,6 +148,41 @@ impl BoxStore for DynamoBoxStore {
 
         Ok(())
     }
+
+    /// Gets all boxes where the given user is a guardian (with status not rejected)
+    async fn get_boxes_by_guardian_id(&self, guardian_id: &str) -> Result<Vec<BoxRecord>> {
+        // Since there's no secondary index for guardians, we need to scan the table
+        // In a production environment, we would want to add a GSI for this kind of query
+
+        let response = self
+            .client
+            .scan()
+            .table_name(&self.table_name)
+            .send()
+            .await
+            .map_err(|e| map_scan_dynamo_error(e))?;
+
+        let items = response.items();
+
+        let mut boxes = Vec::new();
+        for item in items {
+            let box_record: BoxRecord = from_item(item.clone()).map_err(|e| {
+                AppError::InternalServerError(format!("Failed to deserialize box: {}", e))
+            })?;
+
+            // Check if the user is a guardian for this box
+            let is_guardian = box_record
+                .guardians
+                .iter()
+                .any(|guardian| guardian.id == guardian_id && guardian.status != "rejected");
+
+            if is_guardian {
+                boxes.push(box_record);
+            }
+        }
+
+        Ok(boxes)
+    }
 }
 
 /// Default implementation for testing purposes
@@ -192,4 +228,9 @@ fn map_delete_dynamo_error(err: SdkError<DeleteItemError>) -> AppError {
 /// Map DynamoDB query errors to application errors
 fn map_query_dynamo_error(err: SdkError<QueryError>) -> AppError {
     AppError::InternalServerError(format!("DynamoDB query error: {}", err))
+}
+
+/// Map DynamoDB scan errors to application errors
+fn map_scan_dynamo_error(err: SdkError<ScanError>) -> AppError {
+    AppError::InternalServerError(format!("DynamoDB scan error: {}", err))
 }

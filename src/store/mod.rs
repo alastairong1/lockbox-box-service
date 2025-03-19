@@ -20,6 +20,9 @@ pub trait BoxStore: Send + Sync + 'static {
     /// Gets all boxes owned by a user
     async fn get_boxes_by_owner(&self, owner_id: &str) -> Result<Vec<BoxRecord>>;
 
+    /// Gets all boxes where the given user is a guardian (with status not rejected)
+    async fn get_boxes_by_guardian_id(&self, guardian_id: &str) -> Result<Vec<BoxRecord>>;
+
     /// Updates a box
     async fn update_box(&self, box_record: BoxRecord) -> Result<BoxRecord>;
 
