@@ -17,7 +17,7 @@ Resources:
   LockboxFunction:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: ./
+      CodeUri: function.zip
       Handler: bootstrap
       Runtime: provided.al2
       Architectures:
