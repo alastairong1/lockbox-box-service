@@ -30,8 +30,6 @@ Resources:
             RestApiId: !Ref ApiGatewayApi
             Path: /{proxy+}
             Method: ANY
-            Auth:
-              ApiKeyRequired: false
       Environment:
         Variables:
           DYNAMODB_TABLE: !Ref BoxesTable
