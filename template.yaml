@@ -17,8 +17,7 @@ Resources:
   LockboxFunction:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: lockbox-box-service
-      CodeUri: ./
+      CodeUri: function.zip
       Handler: bootstrap
       Runtime: provided.al2
       Architectures:
@@ -30,8 +29,6 @@ Resources:
             RestApiId: !Ref ApiGatewayApi
             Path: /{proxy+}
             Method: ANY
-            Auth:
-              ApiKeyRequired: false
       Environment:
         Variables:
           DYNAMODB_TABLE: !Ref BoxesTable
