@@ -75,6 +75,8 @@ pub struct CreateBoxRequest {
 pub struct UpdateBoxRequest {
     pub name: Option<String>,
     pub description: Option<String>,
+    pub unlock_instructions: Option<String>,
+    pub is_locked: Option<bool>,
 }
 
 #[derive(Deserialize, Debug)]

@@ -394,9 +394,12 @@ async fn test_update_box() {
         .unwrap()
         .to_string();
 
-    // Update the box
+    // Update the box with all fields
     let new_name = "Updated Box Name";
     let new_description = "Updated description";
+    let new_unlock_instructions = "New unlock instructions";
+    let new_is_locked = true;
+    
     let response = app
         .clone()
         .oneshot(create_request(
@@ -405,7 +408,9 @@ async fn test_update_box() {
             "user_1",
             Some(json!({
                 "name": new_name,
-                "description": new_description
+                "description": new_description,
+                "unlock_instructions": new_unlock_instructions,
+                "is_locked": new_is_locked
             })),
         ))
         .await
@@ -433,6 +438,8 @@ async fn test_update_box() {
     let box_data = json_response["box"].as_object().unwrap();
     assert!(box_data.get("name").is_some());
     assert!(box_data.get("description").is_some());
+    assert!(box_data.get("unlock_instructions").is_some());
+    assert!(box_data.get("is_locked").is_some());
 }
 
 #[tokio::test]
@@ -443,7 +450,7 @@ async fn test_update_box_partial() {
     // Use an existing box from the test data
     let box_id = "box_1";
 
-    // Get original description
+    // Get original state
     let get_response = app
         .clone()
         .oneshot(create_request(
@@ -458,9 +465,12 @@ async fn test_update_box_partial() {
     let json_response = response_to_json(get_response).await;
     let box_data = json_response["box"].as_object().unwrap();
     let _original_description = box_data["description"].as_str().unwrap();
+    let _original_unlock_instructions = box_data.get("unlock_instructions").and_then(|v| v.as_str());
+    let _original_is_locked = box_data.get("is_locked").and_then(|v| v.as_bool());
 
-    // Update only the name
+    // Update only the name and is_locked
     let new_name = "Updated Box Name Only";
+    let new_is_locked = true;
     let response = app
         .clone()
         .oneshot(create_request(
@@ -468,7 +478,8 @@ async fn test_update_box_partial() {
             &format!("/boxes/owned/{}", box_id),
             "user_1",
             Some(json!({
-                "name": new_name
+                "name": new_name,
+                "is_locked": new_is_locked
             })),
         ))
         .await
@@ -488,11 +499,13 @@ async fn test_update_box_partial() {
         .await
         .unwrap();
 
-    // Verify the name was updated but description preserved
+    // Verify the name was updated but description and unlock_instructions preserved
     let json_response = response_to_json(get_response).await;
     let box_data = json_response["box"].as_object().unwrap();
     assert!(box_data.get("name").is_some());
     assert!(box_data.get("description").is_some());
+    assert!(box_data.get("unlock_instructions").is_some());
+    assert!(box_data.get("is_locked").is_some());
 }
 
 #[tokio::test]
@@ -880,8 +893,9 @@ async fn test_update_box_lock() {
     let json_response = response_to_json(get_response).await;
     assert!(json_response.get("box").is_some());
 
-    // For tests like this where we don't know if is_locked is returned in the response,
-    // we just verify that the update API call succeeded with a 200 OK response
+    // Verify is_locked was updated
+    let box_data = json_response["box"].as_object().unwrap();
+    assert_eq!(box_data.get("is_locked").unwrap().as_bool().unwrap(), true);
 }
 
 #[tokio::test]
@@ -942,6 +956,7 @@ async fn test_update_box_unlock_instructions() {
     let json_response = response_to_json(get_response).await;
     assert!(json_response.get("box").is_some());
 
-    // For tests like this where we don't know if unlock_instructions is returned in the response,
-    // we just verify that the update API call succeeded with a 200 OK response
+    // Verify unlock_instructions was updated
+    let box_data = json_response["box"].as_object().unwrap();
+    assert_eq!(box_data.get("unlock_instructions").unwrap().as_str().unwrap(), unlock_instructions);
 }

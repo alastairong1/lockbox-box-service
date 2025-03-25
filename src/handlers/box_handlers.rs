@@ -140,6 +140,14 @@ where
         box_rec.description = description;
     }
 
+    if let Some(unlock_instructions) = payload.unlock_instructions {
+        box_rec.unlock_instructions = Some(unlock_instructions);
+    }
+
+    if let Some(is_locked) = payload.is_locked {
+        box_rec.is_locked = is_locked;
+    }
+
     box_rec.updated_at = now_str();
 
     // Save the updated box
