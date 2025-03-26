@@ -31,6 +31,8 @@ where
             description: b.description.clone(),
             created_at: b.created_at.clone(),
             updated_at: b.updated_at.clone(),
+            unlock_instructions: b.unlock_instructions.clone(),
+            is_locked: b.is_locked,
         })
         .collect();
 
@@ -64,6 +66,8 @@ where
             description: box_rec.description.clone(),
             created_at: box_rec.created_at.clone(),
             updated_at: box_rec.updated_at.clone(),
+            unlock_instructions: box_rec.unlock_instructions.clone(),
+            is_locked: box_rec.is_locked,
         }
     })))
 }
@@ -103,6 +107,8 @@ where
         description: created_box.description.clone(),
         created_at: created_box.created_at.clone(),
         updated_at: created_box.updated_at.clone(),
+        unlock_instructions: created_box.unlock_instructions.clone(),
+        is_locked: created_box.is_locked,
     };
 
     Ok((
@@ -142,6 +148,8 @@ where
 
     if let Some(unlock_instructions) = payload.unlock_instructions {
         box_rec.unlock_instructions = Some(unlock_instructions);
+    } else if payload.unlock_instructions.is_none() {
+        box_rec.unlock_instructions = None;
     }
 
     if let Some(is_locked) = payload.is_locked {
@@ -159,6 +167,8 @@ where
         description: updated_box.description.clone(),
         created_at: updated_box.created_at.clone(),
         updated_at: updated_box.updated_at.clone(),
+        unlock_instructions: updated_box.unlock_instructions.clone(),
+        is_locked: updated_box.is_locked,
     };
 
     Ok(Json(serde_json::json!({ "box": response })))

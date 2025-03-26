@@ -103,6 +103,8 @@ pub struct BoxResponse {
     pub description: String,
     pub created_at: String,
     pub updated_at: String,
+    pub unlock_instructions: Option<String>,
+    pub is_locked: bool,
 }
 
 #[derive(Serialize)]
