@@ -9,8 +9,8 @@ use tower_http::cors::{Any, CorsLayer};
 use crate::handlers::{
     auth_middleware,
     box_handlers::{
-        create_box, delete_box, delete_document, delete_guardian, get_box, get_boxes, update_box, update_document,
-        update_guardian,
+        create_box, delete_box, delete_document, delete_guardian, get_box, get_boxes, update_box,
+        update_document, update_guardian,
     },
     guardian_handlers::{
         get_guardian_box, get_guardian_boxes, request_unlock, respond_to_invitation,
@@ -46,9 +46,15 @@ where
             get(get_box).patch(update_box).delete(delete_box),
         )
         .route("/boxes/owned/:id/guardian", patch(update_guardian))
-        .route("/boxes/owned/:id/guardian/:guardian_id", axum::routing::delete(delete_guardian))
+        .route(
+            "/boxes/owned/:id/guardian/:guardian_id",
+            axum::routing::delete(delete_guardian),
+        )
         .route("/boxes/owned/:id/document", patch(update_document))
-        .route("/boxes/owned/:id/document/:document_id", axum::routing::delete(delete_document))
+        .route(
+            "/boxes/owned/:id/document/:document_id",
+            axum::routing::delete(delete_document),
+        )
         .route("/boxes/guardian", get(get_guardian_boxes))
         .route("/boxes/guardian/:id", get(get_guardian_box))
         .route("/boxes/guardian/:id/request", patch(request_unlock))

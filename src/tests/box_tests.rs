@@ -118,18 +118,18 @@ async fn test_get_boxes() {
     assert!(first_box.get("createdAt").is_some());
     assert!(first_box.get("updatedAt").is_some());
     assert!(first_box.get("isLocked").is_some());
-    
+
     // Verify the new fields are included
     assert!(first_box.get("documents").is_some());
     assert!(first_box.get("guardians").is_some());
     assert!(first_box.get("leadGuardians").is_some());
     assert!(first_box.get("ownerId").is_some());
-    
+
     // Verify types of array fields
     assert!(first_box["documents"].is_array());
     assert!(first_box["guardians"].is_array());
     assert!(first_box["leadGuardians"].is_array());
-    
+
     // Verify owner ID matches expected value for this test data
     assert_eq!(first_box["ownerId"].as_str().unwrap(), "user_1");
 }
@@ -275,15 +275,18 @@ async fn test_create_and_get_box() {
     assert!(box_data.get("name").is_some());
     assert_eq!(box_data["name"].as_str().unwrap(), box_name);
     assert!(box_data.get("description").is_some());
-    assert_eq!(box_data["description"].as_str().unwrap(), "Test description for new box");
-    
+    assert_eq!(
+        box_data["description"].as_str().unwrap(),
+        "Test description for new box"
+    );
+
     // Verify all the new fields from enhanced BoxResponse
     assert!(box_data.get("documents").is_some());
     assert!(box_data.get("guardians").is_some());
     assert!(box_data.get("leadGuardians").is_some());
     assert!(box_data.get("ownerId").is_some());
     assert_eq!(box_data["ownerId"].as_str().unwrap(), "user_1");
-    
+
     // Verify empty collections
     assert!(box_data["documents"].is_array());
     assert!(box_data["documents"].as_array().unwrap().is_empty());
@@ -851,7 +854,6 @@ async fn test_update_box_add_guardians() {
         json_response.get("box").is_some(),
         "Response should contain a 'box' field"
     );
-
 
     // Get the box to verify the update was received
     let get_response = app
@@ -1710,7 +1712,7 @@ async fn test_delete_document() {
     let deleted_doc = docs
         .iter()
         .find(|d| d["id"].as_str().unwrap() == "doc_to_delete");
-    
+
     assert!(deleted_doc.is_none(), "Document should be deleted");
 }
 
@@ -1868,7 +1870,7 @@ async fn test_delete_guardian() {
     let deleted_guardian = guardians
         .iter()
         .find(|g| g["id"].as_str().unwrap() == "guardian_to_delete");
-    
+
     assert!(deleted_guardian.is_none(), "Guardian should be deleted");
 }
 
@@ -1924,8 +1926,11 @@ async fn test_delete_lead_guardian() {
     let lead_guardian = lead_guardians
         .iter()
         .find(|g| g["id"].as_str().unwrap() == "lead_guardian_to_delete");
-    
-    assert!(lead_guardian.is_some(), "Lead guardian should be added to lead_guardians");
+
+    assert!(
+        lead_guardian.is_some(),
+        "Lead guardian should be added to lead_guardians"
+    );
 
     // Now delete the lead guardian
     let delete_response = app
@@ -1957,22 +1962,28 @@ async fn test_delete_lead_guardian() {
 
     // Verify the guardian is not in the box
     let box_json = response_to_json(get_response).await;
-    
+
     // Check guardians array
     let guardians = box_json["box"]["guardians"].as_array().unwrap();
     let deleted_guardian = guardians
         .iter()
         .find(|g| g["id"].as_str().unwrap() == "lead_guardian_to_delete");
-    
-    assert!(deleted_guardian.is_none(), "Guardian should be deleted from guardians array");
-    
+
+    assert!(
+        deleted_guardian.is_none(),
+        "Guardian should be deleted from guardians array"
+    );
+
     // Check lead_guardians array
     let lead_guardians = box_json["box"]["leadGuardians"].as_array().unwrap();
     let deleted_lead_guardian = lead_guardians
         .iter()
         .find(|g| g["id"].as_str().unwrap() == "lead_guardian_to_delete");
-    
-    assert!(deleted_lead_guardian.is_none(), "Lead guardian should be deleted from lead_guardians array");
+
+    assert!(
+        deleted_lead_guardian.is_none(),
+        "Lead guardian should be deleted from lead_guardians array"
+    );
 }
 
 #[tokio::test]
@@ -1989,7 +2000,10 @@ async fn test_delete_guardian_nonexistent() {
         .clone()
         .oneshot(create_request(
             "DELETE",
-            &format!("/boxes/owned/{}/guardian/{}", box_id, nonexistent_guardian_id),
+            &format!(
+                "/boxes/owned/{}/guardian/{}",
+                box_id, nonexistent_guardian_id
+            ),
             "user_1", // Box owner
             None,
         ))

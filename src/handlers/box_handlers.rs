@@ -171,7 +171,10 @@ where
     // Handle unlock_instructions with our new NullableField
     // If the field was present in the request, update it (even if null)
     if payload.unlock_instructions.was_present() {
-        println!("unlockInstructions was present in request: {:?}", payload.unlock_instructions);
+        println!(
+            "unlockInstructions was present in request: {:?}",
+            payload.unlock_instructions
+        );
         box_rec.unlock_instructions = payload.unlock_instructions.into_option();
     }
 
@@ -438,9 +441,9 @@ where
         updated_at: updated_box.updated_at,
     };
 
-    Ok(Json(serde_json::json!({ 
+    Ok(Json(serde_json::json!({
         "message": "Document deleted successfully",
-        "document": response 
+        "document": response
     })))
 }
 
@@ -511,8 +514,8 @@ where
         updated_at: updated_box.updated_at,
     };
 
-    Ok(Json(serde_json::json!({ 
+    Ok(Json(serde_json::json!({
         "message": "Guardian deleted successfully",
-        "guardian": response 
+        "guardian": response
     })))
 }
