@@ -18,7 +18,7 @@ The lockbox-box-service provides endpoints for managing boxes and associated unl
 - `x-user-id`: Your user identifier
 
 **Description:**
-Returns all boxes owned by the user.
+Returns all boxes owned by the user, including complete details such as documents, guardians, and unlock requests.
 
 **Response Example:**
 ```json
@@ -28,8 +28,41 @@ Returns all boxes owned by the user.
       "id": "box_id",
       "name": "Box Name",
       "description": "Description",
-      "created_at": "timestamp",
-      "updated_at": "timestamp"
+      "createdAt": "timestamp",
+      "updatedAt": "timestamp",
+      "isLocked": false,
+      "unlockInstructions": "Instructions to unlock",
+      "documents": [
+        {
+          "id": "doc_id",
+          "title": "Document Title",
+          "content": "Document content",
+          "createdAt": "timestamp"
+        }
+      ],
+      "guardians": [
+        {
+          "id": "guardian_id",
+          "name": "Guardian Name",
+          "email": "guardian@example.com",
+          "leadGuardian": false,
+          "status": "accepted",
+          "addedAt": "timestamp"
+        }
+      ],
+      "leadGuardians": [
+        {
+          "id": "lead_guardian_id",
+          "name": "Lead Guardian",
+          "email": "lead@example.com",
+          "leadGuardian": true,
+          "status": "accepted",
+          "addedAt": "timestamp"
+        }
+      ],
+      "ownerId": "owner_user_id",
+      "ownerName": "Owner Name",
+      "unlockRequest": null
     }
   ]
 }
@@ -53,7 +86,68 @@ Create a new box with you as the owner.
 }
 ```
 
-#### 3. Update Box (Owner Update)
+#### 3. Get Box
+
+**Endpoint:** `GET /boxes/owned/{id}`
+
+**Headers:**
+- `x-user-id`: Your user identifier
+
+**Description:**
+Returns complete details of a specific box owned by the user, including all documents, guardians, and other metadata.
+
+**Response Example:**
+```json
+{
+  "box": {
+    "id": "box_id",
+    "name": "Box Name",
+    "description": "Description",
+    "createdAt": "timestamp",
+    "updatedAt": "timestamp",
+    "isLocked": false,
+    "unlockInstructions": "Instructions to unlock",
+    "documents": [
+      {
+        "id": "doc_id",
+        "title": "Document Title",
+        "content": "Document content",
+        "createdAt": "timestamp"
+      }
+    ],
+    "guardians": [
+      {
+        "id": "guardian_id",
+        "name": "Guardian Name",
+        "email": "guardian@example.com",
+        "leadGuardian": false,
+        "status": "accepted",
+        "addedAt": "timestamp"
+      }
+    ],
+    "leadGuardians": [
+      {
+        "id": "lead_guardian_id",
+        "name": "Lead Guardian",
+        "email": "lead@example.com",
+        "leadGuardian": true,
+        "status": "accepted",
+        "addedAt": "timestamp"
+      }
+    ],
+    "ownerId": "owner_user_id",
+    "ownerName": "Owner Name",
+    "unlockRequest": null
+  }
+}
+```
+
+**Response Codes:**
+- **200 OK:** Box retrieved successfully.
+- **401 Unauthorized:** The user is not the owner of the box.
+- **404 Not Found:** Box not found.
+
+#### 4. Update Box (Owner Update)
 
 **Endpoint:** `PATCH /boxes/owned/{id}`
 
@@ -76,7 +170,7 @@ Allows box owners to update box details such as name and description.
 - **400 Bad Request:** Invalid request payload or missing required fields.
 - **401 Unauthorized:** The user is not the owner or the box is not found.
 
-#### 4. Delete Box
+#### 5. Delete Box
 
 **Endpoint:** `DELETE /boxes/owned/{id}`
 
@@ -91,7 +185,7 @@ Allows box owners to delete a box.
 - **401 Unauthorized:** The user is not the owner or the box is not found.
 - **404 Not Found:** Box not found.
 
-#### 5. Update Guardian
+#### 6. Update Guardian
 
 **Endpoint:** `PATCH /boxes/owned/{id}/guardian`
 
@@ -148,7 +242,7 @@ Allows box owners to add or update a guardian for their box. This is the dedicat
 - **401 Unauthorized:** The user is not the owner of the box.
 - **404 Not Found:** Box not found.
 
-#### 6. Update Document
+#### 7. Update Document
 
 **Endpoint:** `PATCH /boxes/owned/{id}/document`
 

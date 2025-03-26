@@ -110,10 +110,28 @@ async fn test_get_boxes() {
     let boxes = json_response["boxes"].as_array().unwrap();
     assert!(!boxes.is_empty());
 
-    // Check the first box has expected properties
+    // Check the first box has all expected properties from the enhanced BoxResponse
     let first_box = &boxes[0];
     assert!(first_box.get("id").is_some());
     assert!(first_box.get("name").is_some());
+    assert!(first_box.get("description").is_some());
+    assert!(first_box.get("createdAt").is_some());
+    assert!(first_box.get("updatedAt").is_some());
+    assert!(first_box.get("isLocked").is_some());
+    
+    // Verify the new fields are included
+    assert!(first_box.get("documents").is_some());
+    assert!(first_box.get("guardians").is_some());
+    assert!(first_box.get("leadGuardians").is_some());
+    assert!(first_box.get("ownerId").is_some());
+    
+    // Verify types of array fields
+    assert!(first_box["documents"].is_array());
+    assert!(first_box["guardians"].is_array());
+    assert!(first_box["leadGuardians"].is_array());
+    
+    // Verify owner ID matches expected value for this test data
+    assert_eq!(first_box["ownerId"].as_str().unwrap(), "user_1");
 }
 
 #[tokio::test]
@@ -251,10 +269,28 @@ async fn test_create_and_get_box() {
     let json_response = response_to_json(get_response).await;
     assert!(json_response.get("box").is_some());
 
-    // Verify box details
+    // Verify complete box details including new fields
     let box_data = &json_response["box"];
     assert!(box_data.get("id").is_some());
     assert!(box_data.get("name").is_some());
+    assert_eq!(box_data["name"].as_str().unwrap(), box_name);
+    assert!(box_data.get("description").is_some());
+    assert_eq!(box_data["description"].as_str().unwrap(), "Test description for new box");
+    
+    // Verify all the new fields from enhanced BoxResponse
+    assert!(box_data.get("documents").is_some());
+    assert!(box_data.get("guardians").is_some());
+    assert!(box_data.get("leadGuardians").is_some());
+    assert!(box_data.get("ownerId").is_some());
+    assert_eq!(box_data["ownerId"].as_str().unwrap(), "user_1");
+    
+    // Verify empty collections
+    assert!(box_data["documents"].is_array());
+    assert!(box_data["documents"].as_array().unwrap().is_empty());
+    assert!(box_data["guardians"].is_array());
+    assert!(box_data["guardians"].as_array().unwrap().is_empty());
+    assert!(box_data["leadGuardians"].is_array());
+    assert!(box_data["leadGuardians"].as_array().unwrap().is_empty());
 }
 
 #[tokio::test]

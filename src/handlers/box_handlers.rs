@@ -37,6 +37,12 @@ where
             updated_at: b.updated_at.clone(),
             unlock_instructions: b.unlock_instructions.clone(),
             is_locked: b.is_locked,
+            documents: b.documents.clone(),
+            guardians: b.guardians.clone(),
+            lead_guardians: b.lead_guardians.clone(),
+            owner_id: b.owner_id.clone(),
+            owner_name: b.owner_name.clone(),
+            unlock_request: b.unlock_request.clone(),
         })
         .collect();
 
@@ -72,6 +78,12 @@ where
             updated_at: box_rec.updated_at.clone(),
             unlock_instructions: box_rec.unlock_instructions.clone(),
             is_locked: box_rec.is_locked,
+            documents: box_rec.documents.clone(),
+            guardians: box_rec.guardians.clone(),
+            lead_guardians: box_rec.lead_guardians.clone(),
+            owner_id: box_rec.owner_id.clone(),
+            owner_name: box_rec.owner_name.clone(),
+            unlock_request: box_rec.unlock_request.clone(),
         }
     })))
 }
@@ -113,6 +125,12 @@ where
         updated_at: created_box.updated_at.clone(),
         unlock_instructions: created_box.unlock_instructions.clone(),
         is_locked: created_box.is_locked,
+        documents: created_box.documents.clone(),
+        guardians: created_box.guardians.clone(),
+        lead_guardians: created_box.lead_guardians.clone(),
+        owner_id: created_box.owner_id.clone(),
+        owner_name: created_box.owner_name.clone(),
+        unlock_request: created_box.unlock_request.clone(),
     };
 
     Ok((
@@ -153,10 +171,7 @@ where
     // Handle unlock_instructions with our new NullableField
     // If the field was present in the request, update it (even if null)
     if payload.unlock_instructions.was_present() {
-        println!(
-            "unlockInstructions was present in request: {:?}",
-            payload.unlock_instructions
-        );
+        println!("unlockInstructions was present in request: {:?}", payload.unlock_instructions);
         box_rec.unlock_instructions = payload.unlock_instructions.into_option();
     }
 
@@ -177,6 +192,12 @@ where
         updated_at: updated_box.updated_at.clone(),
         unlock_instructions: updated_box.unlock_instructions.clone(),
         is_locked: updated_box.is_locked,
+        documents: updated_box.documents.clone(),
+        guardians: updated_box.guardians.clone(),
+        lead_guardians: updated_box.lead_guardians.clone(),
+        owner_id: updated_box.owner_id.clone(),
+        owner_name: updated_box.owner_name.clone(),
+        unlock_request: updated_box.unlock_request.clone(),
     };
 
     Ok(Json(serde_json::json!({ "box": response })))
