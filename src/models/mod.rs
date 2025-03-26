@@ -1,5 +1,6 @@
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
+use std::fmt;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Document {
@@ -83,12 +84,58 @@ pub struct CreateBoxRequest {
     pub description: String,
 }
 
+// Add this custom struct for handling nullable fields
+#[derive(Debug, Clone, Default)]
+pub struct NullableField<T> {
+    value: Option<T>,
+    present_in_request: bool,
+}
+
+impl<T> NullableField<T> {
+    pub fn value(&self) -> Option<&T> {
+        self.value.as_ref()
+    }
+    
+    pub fn was_present(&self) -> bool {
+        self.present_in_request
+    }
+    
+    pub fn into_option(self) -> Option<T> {
+        self.value
+    }
+}
+
+// Add custom Deserialize implementation
+impl<'de, T> Deserialize<'de> for NullableField<T>
+where
+    T: Deserialize<'de>,
+{
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        // This helps us track whether the field was present
+        Ok(NullableField {
+            value: Option::<T>::deserialize(deserializer)?,
+            present_in_request: true,
+        })
+    }
+}
+
+impl<T: fmt::Debug> fmt::Display for NullableField<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "NullableField({:?}, present={})", self.value, self.present_in_request)
+    }
+}
+
+// Update the UpdateBoxRequest struct to use NullableField instead of Option<Option<>>
 #[derive(Deserialize, Debug)]
 pub struct UpdateBoxRequest {
     pub name: Option<String>,
     pub description: Option<String>,
     #[serde(rename = "unlockInstructions")]
-    pub unlock_instructions: Option<String>,
+    #[serde(default)]
+    pub unlock_instructions: NullableField<String>,
     #[serde(rename = "isLocked")]
     pub is_locked: Option<bool>,
 }
@@ -120,6 +167,7 @@ pub struct BoxResponse {
     #[serde(rename = "updatedAt")]
     pub updated_at: String,
     #[serde(rename = "unlockInstructions")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub unlock_instructions: Option<String>,
     #[serde(rename = "isLocked")]
     pub is_locked: bool,

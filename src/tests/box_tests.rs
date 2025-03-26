@@ -961,3 +961,169 @@ async fn test_update_box_unlock_instructions() {
         unlock_instructions
     );
 }
+
+#[tokio::test]
+async fn test_update_box_clear_unlock_instructions() {
+    // Setup with mock data
+    let app = create_test_app();
+
+    // Use an existing box from the test data
+    let box_id = "box_1";
+
+    // First, update the box to set unlock_instructions
+    let unlock_instructions = "Initial instructions";
+    let response = app
+        .clone()
+        .oneshot(create_request(
+            "PATCH",
+            &format!("/boxes/owned/{}", box_id),
+            "user_1",
+            Some(json!({
+                "unlockInstructions": unlock_instructions
+            })),
+        ))
+        .await
+        .unwrap();
+
+    // Verify update was successful
+    assert_eq!(response.status(), StatusCode::OK);
+
+    // Verify the instructions were set
+    let get_response = app
+        .clone()
+        .oneshot(create_request(
+            "GET",
+            &format!("/boxes/owned/{}", box_id),
+            "user_1",
+            None,
+        ))
+        .await
+        .unwrap();
+
+    let json_response = response_to_json(get_response).await;
+    let box_data = json_response["box"].as_object().unwrap();
+    assert_eq!(
+        box_data.get("unlockInstructions").unwrap().as_str().unwrap(),
+        unlock_instructions
+    );
+
+    // Now update again to clear unlock_instructions by setting to null
+    let response = app
+        .clone()
+        .oneshot(create_request(
+            "PATCH",
+            &format!("/boxes/owned/{}", box_id),
+            "user_1",
+            Some(json!({
+                "unlockInstructions": null
+            })),
+        ))
+        .await
+        .unwrap();
+
+    // Verify update was successful
+    assert_eq!(response.status(), StatusCode::OK);
+
+    // Get the box to confirm update
+    let get_response = app
+        .oneshot(create_request(
+            "GET",
+            &format!("/boxes/owned/{}", box_id),
+            "user_1",
+            None,
+        ))
+        .await
+        .unwrap();
+
+    // Verify the GET request was successful
+    assert_eq!(get_response.status(), StatusCode::OK);
+
+    // Verify the JSON response contains a box
+    let json_response = response_to_json(get_response).await;
+    assert!(json_response.get("box").is_some());
+
+    // Verify unlock_instructions was cleared
+    let box_data = json_response["box"].as_object().unwrap();
+    
+    // With skip_serializing_if, the field should not be present in the JSON
+    assert!(!box_data.contains_key("unlockInstructions") || 
+            box_data.get("unlockInstructions").unwrap().is_null(),
+            "Expected unlockInstructions to be absent or null, got: {:?}", 
+            box_data.get("unlockInstructions"));
+}
+
+#[tokio::test]
+async fn test_update_box_preserve_unlock_instructions_when_omitted() {
+    // Setup with mock data
+    let app = create_test_app();
+
+    // Use an existing box from the test data
+    let box_id = "box_1";
+
+    // First, update the box to set unlock_instructions
+    let unlock_instructions = "Instructions that should be preserved";
+    let response = app
+        .clone()
+        .oneshot(create_request(
+            "PATCH",
+            &format!("/boxes/owned/{}", box_id),
+            "user_1",
+            Some(json!({
+                "unlockInstructions": unlock_instructions
+            })),
+        ))
+        .await
+        .unwrap();
+
+    // Verify update was successful
+    assert_eq!(response.status(), StatusCode::OK);
+
+    // Now update other fields but omit unlockInstructions
+    let response = app
+        .clone()
+        .oneshot(create_request(
+            "PATCH",
+            &format!("/boxes/owned/{}", box_id),
+            "user_1",
+            Some(json!({
+                "name": "Updated name without changing instructions"
+            })),
+        ))
+        .await
+        .unwrap();
+
+    // Verify update was successful
+    assert_eq!(response.status(), StatusCode::OK);
+
+    // Get the box to confirm update
+    let get_response = app
+        .oneshot(create_request(
+            "GET",
+            &format!("/boxes/owned/{}", box_id),
+            "user_1",
+            None,
+        ))
+        .await
+        .unwrap();
+
+    // Verify the GET request was successful
+    assert_eq!(get_response.status(), StatusCode::OK);
+
+    // Verify the JSON response contains a box
+    let json_response = response_to_json(get_response).await;
+    assert!(json_response.get("box").is_some());
+
+    // Verify name was updated
+    let box_data = json_response["box"].as_object().unwrap();
+    assert_eq!(
+        box_data.get("name").unwrap().as_str().unwrap(),
+        "Updated name without changing instructions"
+    );
+
+    // Verify unlock_instructions was preserved
+    assert!(box_data.contains_key("unlockInstructions"));
+    assert_eq!(
+        box_data.get("unlockInstructions").unwrap().as_str().unwrap(),
+        unlock_instructions
+    );
+}

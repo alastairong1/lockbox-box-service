@@ -146,10 +146,11 @@ where
         box_rec.description = description;
     }
 
-    if let Some(unlock_instructions) = payload.unlock_instructions {
-        box_rec.unlock_instructions = Some(unlock_instructions);
-    } else if payload.unlock_instructions.is_none() {
-        box_rec.unlock_instructions = None;
+    // Handle unlock_instructions with our new NullableField
+    // If the field was present in the request, update it (even if null)
+    if payload.unlock_instructions.was_present() {
+        println!("unlockInstructions was present in request: {:?}", payload.unlock_instructions);
+        box_rec.unlock_instructions = payload.unlock_instructions.into_option();
     }
 
     if let Some(is_locked) = payload.is_locked {
