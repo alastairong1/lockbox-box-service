@@ -303,7 +303,7 @@ Allows box owners to add or update a document for their box. This is the dedicat
 - `x-user-id`: Your user identifier
 
 **Description:**
-Returns all boxes where the authenticated user is a guardian (excluding rejected entries). It uses the store to filter and convert boxes using the guardian conversion logic.
+Returns all boxes where the authenticated user is a guardian (excluding rejected entries). Contains complete box details including documents, guardians, lead guardians, and guardian-specific information.
 
 **Response Example:**
 ```json
@@ -313,17 +313,52 @@ Returns all boxes where the authenticated user is a guardian (excluding rejected
       "id": "box_id",
       "name": "Box Name",
       "description": "Description",
-      "created_at": "timestamp",
-      "updated_at": "timestamp",
-      "unlock_request": {
-         "id": "unlock_request_id",
-         "requested_at": "timestamp",
-         "status": "pending",
-         "message": "Unlock request message",
-         "initiated_by": "guardian_id",
-         "approved_by": [],
-         "rejected_by": []
-      }
+      "createdAt": "timestamp",
+      "updatedAt": "timestamp",
+      "isLocked": false,
+      "ownerId": "owner_user_id",
+      "ownerName": "Owner Name",
+      "unlockInstructions": "Instructions to unlock",
+      "documents": [
+        {
+          "id": "doc_id",
+          "title": "Document Title",
+          "content": "Document content",
+          "createdAt": "timestamp"
+        }
+      ],
+      "guardians": [
+        {
+          "id": "guardian_id",
+          "name": "Guardian Name",
+          "email": "guardian@example.com",
+          "leadGuardian": false,
+          "status": "accepted",
+          "addedAt": "timestamp"
+        }
+      ],
+      "leadGuardians": [
+        {
+          "id": "lead_guardian_id",
+          "name": "Lead Guardian",
+          "email": "lead@example.com",
+          "leadGuardian": true,
+          "status": "accepted",
+          "addedAt": "timestamp"
+        }
+      ],
+      "unlockRequest": {
+        "id": "unlock_request_id",
+        "requestedAt": "timestamp",
+        "status": "pending",
+        "message": "Unlock request message",
+        "initiatedBy": "guardian_id",
+        "approvedBy": [],
+        "rejectedBy": []
+      },
+      "pendingGuardianApproval": false,
+      "guardiansCount": 3,
+      "isLeadGuardian": true
     }
   ]
 }
@@ -337,7 +372,7 @@ Returns all boxes where the authenticated user is a guardian (excluding rejected
 - `x-user-id`: Your guardian user identifier
 
 **Description:**
-Get a specific box where you are a guardian.
+Get a specific box where you are a guardian, including complete details of documents, guardians, and unlock information.
 
 **Response Example:**
 ```json
@@ -346,12 +381,60 @@ Get a specific box where you are a guardian.
     "id": "box_id",
     "name": "Box Name",
     "description": "Description",
-    "created_at": "timestamp",
-    "updated_at": "timestamp",
-    "unlock_request": { /* unlock request data if present */ }
+    "createdAt": "timestamp",
+    "updatedAt": "timestamp",
+    "isLocked": false,
+    "ownerId": "owner_user_id",
+    "ownerName": "Owner Name",
+    "unlockInstructions": "Instructions to unlock",
+    "documents": [
+      {
+        "id": "doc_id",
+        "title": "Document Title",
+        "content": "Document content",
+        "createdAt": "timestamp"
+      }
+    ],
+    "guardians": [
+      {
+        "id": "guardian_id",
+        "name": "Guardian Name",
+        "email": "guardian@example.com",
+        "leadGuardian": false,
+        "status": "accepted",
+        "addedAt": "timestamp"
+      }
+    ],
+    "leadGuardians": [
+      {
+        "id": "lead_guardian_id",
+        "name": "Lead Guardian",
+        "email": "lead@example.com",
+        "leadGuardian": true,
+        "status": "accepted",
+        "addedAt": "timestamp"
+      }
+    ],
+    "unlockRequest": {
+      "id": "unlock_request_id",
+      "requestedAt": "timestamp",
+      "status": "pending",
+      "message": "Unlock request message",
+      "initiatedBy": "guardian_id",
+      "approvedBy": [],
+      "rejectedBy": []
+    },
+    "pendingGuardianApproval": false,
+    "guardiansCount": 3,
+    "isLeadGuardian": true
   }
 }
 ```
+
+**Response Codes:**
+- **200 OK:** Box retrieved successfully.
+- **401 Unauthorized:** The user is not a guardian for this box.
+- **404 Not Found:** Box not found.
 
 #### 3. Request Unlock (Lead Guardian Only)
 

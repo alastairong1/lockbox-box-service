@@ -66,7 +66,9 @@ pub struct GuardianBox {
     pub created_at: String,
     #[serde(rename = "updatedAt")]
     pub updated_at: String,
+    #[serde(rename = "ownerId")]
     pub owner_id: String,
+    #[serde(rename = "ownerName")]
     pub owner_name: Option<String>,
     #[serde(rename = "unlockInstructions")]
     pub unlock_instructions: Option<String>,
@@ -78,6 +80,10 @@ pub struct GuardianBox {
     pub guardians_count: usize,
     #[serde(rename = "isLeadGuardian")]
     pub is_lead_guardian: bool,
+    pub documents: Vec<Document>,
+    pub guardians: Vec<Guardian>,
+    #[serde(rename = "leadGuardians")]
+    pub lead_guardians: Vec<Guardian>,
 }
 
 // Request DTOs

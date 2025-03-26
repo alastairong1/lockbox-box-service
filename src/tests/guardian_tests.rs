@@ -211,6 +211,17 @@ async fn test_get_guardian_boxes() {
 
     assert!(box_ids.contains(&"11111111-1111-1111-1111-111111111111"));
     assert!(box_ids.contains(&"22222222-2222-2222-2222-222222222222"));
+    
+    // Check that the boxes have all the fields including the new ones
+    let first_box = &boxes[0];
+    assert!(first_box.get("documents").is_some(), "Box should include documents");
+    assert!(first_box.get("guardians").is_some(), "Box should include guardians");
+    assert!(first_box.get("leadGuardians").is_some(), "Box should include leadGuardians");
+    
+    // Verify the guardian-specific fields
+    assert!(first_box.get("guardiansCount").is_some(), "Box should include guardiansCount");
+    assert!(first_box.get("isLeadGuardian").is_some(), "Box should include isLeadGuardian");
+    assert!(first_box.get("pendingGuardianApproval").is_some(), "Box should include pendingGuardianApproval");
 }
 
 #[tokio::test]

@@ -53,6 +53,9 @@ pub fn convert_to_guardian_box(box_rec: &BoxRecord, user_id: &str) -> Option<Gua
             pending_guardian_approval: Some(pending),
             guardians_count: box_rec.guardians.len(),
             is_lead_guardian: is_lead,
+            documents: box_rec.documents.clone(),
+            guardians: box_rec.guardians.clone(),
+            lead_guardians: box_rec.lead_guardians.clone(),
         })
     } else {
         None
