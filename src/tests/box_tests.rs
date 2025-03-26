@@ -409,8 +409,8 @@ async fn test_update_box() {
             Some(json!({
                 "name": new_name,
                 "description": new_description,
-                "unlock_instructions": new_unlock_instructions,
-                "is_locked": new_is_locked
+                "unlockInstructions": new_unlock_instructions,
+                "isLocked": new_is_locked
             })),
         ))
         .await
@@ -438,8 +438,8 @@ async fn test_update_box() {
     let box_data = json_response["box"].as_object().unwrap();
     assert!(box_data.get("name").is_some());
     assert!(box_data.get("description").is_some());
-    assert!(box_data.get("unlock_instructions").is_some());
-    assert!(box_data.get("is_locked").is_some());
+    assert!(box_data.get("unlockInstructions").is_some());
+    assert!(box_data.get("isLocked").is_some());
 }
 
 #[tokio::test]
@@ -860,7 +860,7 @@ async fn test_update_box_lock() {
             &format!("/boxes/owned/{}", box_id),
             "user_1",
             Some(json!({
-                "is_locked": true
+                "isLocked": true
             })),
         ))
         .await
@@ -888,7 +888,7 @@ async fn test_update_box_lock() {
 
     // Verify is_locked was updated
     let box_data = json_response["box"].as_object().unwrap();
-    assert_eq!(box_data.get("is_locked").unwrap().as_bool().unwrap(), true);
+    assert_eq!(box_data.get("isLocked").unwrap().as_bool().unwrap(), true);
 }
 
 #[tokio::test]
@@ -922,7 +922,7 @@ async fn test_update_box_unlock_instructions() {
             &format!("/boxes/owned/{}", box_id),
             "user_1",
             Some(json!({
-                "unlock_instructions": unlock_instructions
+                "unlockInstructions": unlock_instructions
             })),
         ))
         .await
@@ -951,10 +951,10 @@ async fn test_update_box_unlock_instructions() {
 
     // Verify unlock_instructions was updated
     let box_data = json_response["box"].as_object().unwrap();
-    assert!(box_data.get("unlock_instructions").is_some());
+    assert!(box_data.get("unlockInstructions").is_some());
     assert_eq!(
         box_data
-            .get("unlock_instructions")
+            .get("unlockInstructions")
             .unwrap()
             .as_str()
             .unwrap(),

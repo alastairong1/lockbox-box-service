@@ -22,11 +22,15 @@ pub struct Guardian {
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct UnlockRequest {
     pub id: String,
+    #[serde(rename = "requestedAt")]
     pub requested_at: String,
     pub status: String,
     pub message: Option<String>,
+    #[serde(rename = "initiatedBy")]
     pub initiated_by: Option<String>,
+    #[serde(rename = "approvedBy")]
     pub approved_by: Vec<String>,
+    #[serde(rename = "rejectedBy")]
     pub rejected_by: Vec<String>,
 }
 
@@ -52,15 +56,23 @@ pub struct GuardianBox {
     pub id: String,
     pub name: String,
     pub description: String,
+    #[serde(rename = "isLocked")]
     pub is_locked: bool,
+    #[serde(rename = "createdAt")]
     pub created_at: String,
+    #[serde(rename = "updatedAt")]
     pub updated_at: String,
     pub owner_id: String,
     pub owner_name: Option<String>,
+    #[serde(rename = "unlockInstructions")]
     pub unlock_instructions: Option<String>,
+    #[serde(rename = "unlockRequest")]
     pub unlock_request: Option<UnlockRequest>,
+    #[serde(rename = "pendingGuardianApproval")]
     pub pending_guardian_approval: Option<bool>,
+    #[serde(rename = "guardiansCount")]
     pub guardians_count: usize,
+    #[serde(rename = "isLeadGuardian")]
     pub is_lead_guardian: bool,
 }
 
@@ -75,7 +87,9 @@ pub struct CreateBoxRequest {
 pub struct UpdateBoxRequest {
     pub name: Option<String>,
     pub description: Option<String>,
+    #[serde(rename = "unlockInstructions")]
     pub unlock_instructions: Option<String>,
+    #[serde(rename = "isLocked")]
     pub is_locked: Option<bool>,
 }
 
@@ -101,9 +115,13 @@ pub struct BoxResponse {
     pub id: String,
     pub name: String,
     pub description: String,
+    #[serde(rename = "createdAt")]
     pub created_at: String,
+    #[serde(rename = "updatedAt")]
     pub updated_at: String,
+    #[serde(rename = "unlockInstructions")]
     pub unlock_instructions: Option<String>,
+    #[serde(rename = "isLocked")]
     pub is_locked: bool,
 }
 

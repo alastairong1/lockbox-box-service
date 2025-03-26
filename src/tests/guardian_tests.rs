@@ -104,6 +104,14 @@ fn setup_test_data() -> Arc<MemoryBoxStore> {
                 status: "accepted".into(),
                 added_at: now.clone(),
             },
+            Guardian {
+                id: "lead_guardian_1".into(),
+                name: "Lead Guardian One".into(),
+                email: "leadguardian1@example.com".into(),
+                lead: true,
+                status: "accepted".into(),
+                added_at: now.clone(),
+            },
         ],
         lead_guardians: vec![Guardian {
             id: "lead_guardian_1".into(),
@@ -327,10 +335,16 @@ async fn test_lead_guardian_unlock_request() {
     assert_eq!(response.status(), StatusCode::OK);
 
     let json_response = response_to_json(response).await;
-    let box_data = json_response.get("box").unwrap();
+    println!("Response JSON: {:?}", json_response);
+
+    let box_data = json_response
+        .get("box")
+        .expect("Response should contain 'box' field");
 
     // Verify unlock request was created
-    let unlock_request = box_data.get("unlock_request").unwrap();
+    let unlock_request = box_data
+        .get("unlockRequest")
+        .expect("Box should have unlockRequest field");
     assert_eq!(
         unlock_request.get("status").unwrap().as_str().unwrap(),
         "pending"
@@ -340,11 +354,7 @@ async fn test_lead_guardian_unlock_request() {
         "Emergency access needed for testing"
     );
     assert_eq!(
-        unlock_request
-            .get("initiated_by")
-            .unwrap()
-            .as_str()
-            .unwrap(),
+        unlock_request.get("initiatedBy").unwrap().as_str().unwrap(),
         "lead_guardian_1"
     );
 }
@@ -371,7 +381,7 @@ async fn test_non_lead_guardian_cannot_initiate_unlock() {
         .await
         .unwrap();
 
-    // Should be UNAUTHORIZED or BAD_REQUEST
+    // Should be BAD_REQUEST
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
 }
 
@@ -401,12 +411,18 @@ async fn test_accept_unlock_request() {
     assert_eq!(response.status(), StatusCode::OK);
 
     let json_response = response_to_json(response).await;
-    let box_data = json_response.get("box").unwrap();
+    println!("Response JSON: {:?}", json_response);
 
-    // Verify guardian was added to approved_by
-    let unlock_request = box_data.get("unlock_request").unwrap();
+    let box_data = json_response
+        .get("box")
+        .expect("Response should contain 'box' field");
+
+    // Verify guardian was added to approvedBy
+    let unlock_request = box_data
+        .get("unlockRequest")
+        .expect("Box should have unlockRequest field");
     let approved_by = unlock_request
-        .get("approved_by")
+        .get("approvedBy")
         .unwrap()
         .as_array()
         .unwrap();
@@ -442,12 +458,18 @@ async fn test_reject_unlock_request() {
     assert_eq!(response.status(), StatusCode::OK);
 
     let json_response = response_to_json(response).await;
-    let box_data = json_response.get("box").unwrap();
+    println!("Response JSON: {:?}", json_response);
 
-    // Verify guardian was added to rejected_by
-    let unlock_request = box_data.get("unlock_request").unwrap();
+    let box_data = json_response
+        .get("box")
+        .expect("Response should contain 'box' field");
+
+    // Verify guardian was added to rejectedBy
+    let unlock_request = box_data
+        .get("unlockRequest")
+        .expect("Box should have unlockRequest field");
     let rejected_by = unlock_request
-        .get("rejected_by")
+        .get("rejectedBy")
         .unwrap()
         .as_array()
         .unwrap();
