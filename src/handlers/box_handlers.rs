@@ -8,7 +8,11 @@ use uuid::Uuid;
 
 use crate::{
     error::{AppError, Result},
-    models::{now_str, BoxRecord, BoxResponse, CreateBoxRequest, UpdateBoxRequest},
+    models::{
+        now_str, BoxRecord, BoxResponse, CreateBoxRequest, Document, DocumentUpdateRequest,
+        DocumentUpdateResponse, Guardian, GuardianUpdateRequest, GuardianUpdateResponse,
+        UpdateBoxRequest,
+    },
     store::BoxStore,
 };
 
@@ -149,7 +153,10 @@ where
     // Handle unlock_instructions with our new NullableField
     // If the field was present in the request, update it (even if null)
     if payload.unlock_instructions.was_present() {
-        println!("unlockInstructions was present in request: {:?}", payload.unlock_instructions);
+        println!(
+            "unlockInstructions was present in request: {:?}",
+            payload.unlock_instructions
+        );
         box_rec.unlock_instructions = payload.unlock_instructions.into_option();
     }
 
@@ -200,4 +207,151 @@ where
     Ok(Json(
         serde_json::json!({ "message": "Box deleted successfully." }),
     ))
+}
+
+// Helper function to update a guardian in a box
+// Returns (updated_box, was_guardian_updated)
+async fn update_or_add_guardian<S>(
+    store: &S,
+    box_id: &str,
+    owner_id: &str,
+    guardian: &Guardian,
+) -> Result<(BoxRecord, bool)>
+where
+    S: BoxStore,
+{
+    // Get the current box from store
+    let mut box_rec = store.get_box(box_id).await?;
+
+    // Check if the user is the owner
+    if box_rec.owner_id != owner_id {
+        return Err(AppError::Unauthorized(
+            "You don't have permission to update this box".into(),
+        ));
+    }
+
+    // Check if the guardian already exists in the box
+    let guardian_index = box_rec.guardians.iter().position(|g| g.id == guardian.id);
+
+    let was_updated = if let Some(index) = guardian_index {
+        // Update existing guardian
+        box_rec.guardians[index] = guardian.clone();
+
+        // Update lead_guardians array if needed
+        if guardian.lead {
+            if !box_rec.lead_guardians.iter().any(|g| g.id == guardian.id) {
+                box_rec.lead_guardians.push(guardian.clone());
+            }
+        } else {
+            // Remove from lead guardians if needed
+            box_rec.lead_guardians.retain(|g| g.id != guardian.id);
+        }
+        true
+    } else {
+        // Add new guardian
+        box_rec.guardians.push(guardian.clone());
+
+        // Add to lead_guardians if needed
+        if guardian.lead {
+            box_rec.lead_guardians.push(guardian.clone());
+        }
+        true
+    };
+
+    box_rec.updated_at = now_str();
+
+    // Save the updated box
+    let updated_box = store.update_box(box_rec).await?;
+
+    Ok((updated_box, was_updated))
+}
+
+// PATCH /boxes/owned/:id/guardian
+// This is a dedicated endpoint for updating a single guardian
+pub async fn update_guardian<S>(
+    State(store): State<Arc<S>>,
+    Path(box_id): Path<String>,
+    Extension(user_id): Extension<String>,
+    Json(payload): Json<GuardianUpdateRequest>,
+) -> Result<Json<serde_json::Value>>
+where
+    S: BoxStore,
+{
+    // Let the helper function do the work
+    let (updated_box, _) =
+        update_or_add_guardian(&*store, &box_id, &user_id, &payload.guardian).await?;
+
+    // Create a specialized response with all guardians
+    let response = GuardianUpdateResponse {
+        guardians: updated_box.guardians,
+        updated_at: updated_box.updated_at,
+    };
+
+    Ok(Json(serde_json::json!({ "guardian": response })))
+}
+
+// Helper function to update a document in a box
+// Returns (updated_box, was_document_updated)
+async fn update_or_add_document<S>(
+    store: &S,
+    box_id: &str,
+    owner_id: &str,
+    document: &Document,
+) -> Result<(BoxRecord, bool)>
+where
+    S: BoxStore,
+{
+    // Get the current box from store
+    let mut box_rec = store.get_box(box_id).await?;
+
+    // Check if the user is the owner
+    if box_rec.owner_id != owner_id {
+        return Err(AppError::Unauthorized(
+            "You don't have permission to update this box".into(),
+        ));
+    }
+
+    // Check if the document already exists in the box
+    let document_index = box_rec.documents.iter().position(|d| d.id == document.id);
+
+    let was_updated = if let Some(index) = document_index {
+        // Update existing document
+        box_rec.documents[index] = document.clone();
+        true
+    } else {
+        // Add new document
+        box_rec.documents.push(document.clone());
+        true
+    };
+
+    box_rec.updated_at = now_str();
+
+    // Save the updated box
+    let updated_box = store.update_box(box_rec).await?;
+
+    Ok((updated_box, was_updated))
+}
+
+// PATCH /boxes/owned/:id/document
+// This is a dedicated endpoint for updating a single document
+pub async fn update_document<S>(
+    State(store): State<Arc<S>>,
+    Path(box_id): Path<String>,
+    Extension(user_id): Extension<String>,
+    Json(payload): Json<DocumentUpdateRequest>,
+) -> Result<Json<serde_json::Value>>
+where
+    S: BoxStore,
+{
+    // Let the helper function do the work
+    let (updated_box, _) =
+        update_or_add_document(&*store, &box_id, &user_id, &payload.document).await?;
+
+    // Create a specialized response with all documents
+    let response = DocumentUpdateResponse {
+        documents: updated_box.documents,
+        updated_at: updated_box.updated_at,
+    };
+
+    Ok(Json(serde_json::json!({ "document": response })))
 }

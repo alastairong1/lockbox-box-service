@@ -91,6 +91,114 @@ Allows box owners to delete a box.
 - **401 Unauthorized:** The user is not the owner or the box is not found.
 - **404 Not Found:** Box not found.
 
+#### 5. Update Guardian
+
+**Endpoint:** `PATCH /boxes/owned/{id}/guardian`
+
+**Headers:**
+- `x-user-id`: Your owner user identifier
+
+**Description:**
+Allows box owners to add or update a guardian for their box. This is the dedicated endpoint for managing individual guardians.
+
+**Payload Example:**
+```json
+{
+  "guardian": {
+    "id": "guardian_id",
+    "name": "Guardian Name",
+    "email": "guardian@example.com",
+    "leadGuardian": true,
+    "status": "pending",
+    "addedAt": "2023-05-25T12:00:00Z"
+  }
+}
+```
+
+**Response Example:**
+```json
+{
+  "guardian": {
+    "guardians": [
+      {
+        "id": "guardian_id",
+        "name": "Guardian Name",
+        "email": "guardian@example.com",
+        "leadGuardian": true,
+        "status": "pending",
+        "addedAt": "2023-05-25T12:00:00Z"
+      },
+      {
+        "id": "guardian_id_2",
+        "name": "Guardian Two",
+        "email": "guardian2@example.com",
+        "leadGuardian": false,
+        "status": "accepted",
+        "addedAt": "2023-05-20T11:30:00Z"
+      }
+    ],
+    "updatedAt": "2023-05-25T12:02:35Z"
+  }
+}
+```
+
+**Response Codes:**
+- **200 OK:** Guardian updated successfully.
+- **400 Bad Request:** Invalid request payload.
+- **401 Unauthorized:** The user is not the owner of the box.
+- **404 Not Found:** Box not found.
+
+#### 6. Update Document
+
+**Endpoint:** `PATCH /boxes/owned/{id}/document`
+
+**Headers:**
+- `x-user-id`: Your owner user identifier
+
+**Description:**
+Allows box owners to add or update a document for their box. This is the dedicated endpoint for managing individual documents.
+
+**Payload Example:**
+```json
+{
+  "document": {
+    "id": "document_id",
+    "title": "Document Title",
+    "content": "This is the document content",
+    "createdAt": "2023-05-25T12:00:00Z"
+  }
+}
+```
+
+**Response Example:**
+```json
+{
+  "document": {
+    "documents": [
+      {
+        "id": "document_id",
+        "title": "Document Title",
+        "content": "This is the document content",
+        "createdAt": "2023-05-25T12:00:00Z"
+      },
+      {
+        "id": "document_id_2",
+        "title": "Another Document",
+        "content": "Content of another document",
+        "createdAt": "2023-05-20T11:30:00Z"
+      }
+    ],
+    "updatedAt": "2023-05-25T12:02:35Z"
+  }
+}
+```
+
+**Response Codes:**
+- **200 OK:** Document updated successfully.
+- **400 Bad Request:** Invalid request payload.
+- **401 Unauthorized:** The user is not the owner of the box.
+- **404 Not Found:** Box not found.
+
 ### Guardian Endpoints
 
 #### 1. Get Guardian Boxes

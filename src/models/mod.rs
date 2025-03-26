@@ -7,6 +7,7 @@ pub struct Document {
     pub id: String,
     pub title: String,
     pub content: String,
+    #[serde(rename = "createdAt")]
     pub created_at: String,
 }
 
@@ -15,8 +16,10 @@ pub struct Guardian {
     pub id: String,
     pub name: String,
     pub email: String,
+    #[serde(rename = "leadGuardian")]
     pub lead: bool,
     pub status: String, // "pending", "accepted", "rejected"
+    #[serde(rename = "addedAt")]
     pub added_at: String,
 }
 
@@ -92,14 +95,14 @@ pub struct NullableField<T> {
 }
 
 impl<T> NullableField<T> {
-    pub fn value(&self) -> Option<&T> {
-        self.value.as_ref()
-    }
-    
+    // pub fn value(&self) -> Option<&T> {
+    //     self.value.as_ref()
+    // }
+
     pub fn was_present(&self) -> bool {
         self.present_in_request
     }
-    
+
     pub fn into_option(self) -> Option<T> {
         self.value
     }
@@ -124,7 +127,11 @@ where
 
 impl<T: fmt::Debug> fmt::Display for NullableField<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "NullableField({:?}, present={})", self.value, self.present_in_request)
+        write!(
+            f,
+            "NullableField({:?}, present={})",
+            self.value, self.present_in_request
+        )
     }
 }
 
@@ -154,6 +161,30 @@ pub struct GuardianResponseRequest {
 #[derive(Deserialize, Debug)]
 pub struct GuardianInvitationResponse {
     pub accept: bool,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct DocumentUpdateRequest {
+    pub document: Document,
+}
+
+#[derive(Serialize, Debug)]
+pub struct DocumentUpdateResponse {
+    pub documents: Vec<Document>,
+    #[serde(rename = "updatedAt")]
+    pub updated_at: String,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct GuardianUpdateRequest {
+    pub guardian: Guardian,
+}
+
+#[derive(Serialize, Debug)]
+pub struct GuardianUpdateResponse {
+    pub guardians: Vec<Guardian>,
+    #[serde(rename = "updatedAt")]
+    pub updated_at: String,
 }
 
 // Response DTOs
