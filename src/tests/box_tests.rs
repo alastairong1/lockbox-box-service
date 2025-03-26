@@ -1787,3 +1787,266 @@ async fn test_delete_document_unauthorized() {
     // Verify unauthorized status
     assert_eq!(delete_response.status(), StatusCode::UNAUTHORIZED);
 }
+
+#[tokio::test]
+async fn test_delete_guardian() {
+    // Setup with mock data
+    let app = create_test_app();
+
+    // Use an existing box from the test data
+    let box_id = "box_1";
+
+    // First add a guardian
+    let guardian = json!({
+        "guardian": {
+            "id": "guardian_to_delete",
+            "name": "Guardian to Delete",
+            "email": "guardian_delete@example.com",
+            "leadGuardian": false,
+            "status": "accepted",
+            "addedAt": "2023-01-01T12:00:00Z"
+        }
+    });
+
+    // Make the request to add a guardian
+    let add_response = app
+        .clone()
+        .oneshot(create_request(
+            "PATCH",
+            &format!("/boxes/owned/{}/guardian", box_id),
+            "user_1", // Box owner
+            Some(guardian),
+        ))
+        .await
+        .unwrap();
+
+    // Verify update was successful
+    assert_eq!(add_response.status(), StatusCode::OK);
+
+    // Now delete the guardian
+    let delete_response = app
+        .clone()
+        .oneshot(create_request(
+            "DELETE",
+            &format!("/boxes/owned/{}/guardian/guardian_to_delete", box_id),
+            "user_1", // Box owner
+            None,
+        ))
+        .await
+        .unwrap();
+
+    // Verify delete was successful
+    assert_eq!(delete_response.status(), StatusCode::OK);
+
+    // Verify the response structure
+    let json_response = response_to_json(delete_response).await;
+    assert!(
+        json_response.get("message").is_some(),
+        "Response should contain a 'message' field"
+    );
+    assert!(
+        json_response.get("guardian").is_some(),
+        "Response should contain a 'guardian' field"
+    );
+
+    // Get the box to confirm the guardian was deleted
+    let get_response = app
+        .oneshot(create_request(
+            "GET",
+            &format!("/boxes/owned/{}", box_id),
+            "user_1",
+            None,
+        ))
+        .await
+        .unwrap();
+
+    assert_eq!(get_response.status(), StatusCode::OK);
+
+    // Verify the guardian is not in the box
+    let box_json = response_to_json(get_response).await;
+    let guardians = box_json["box"]["guardians"].as_array().unwrap();
+    let deleted_guardian = guardians
+        .iter()
+        .find(|g| g["id"].as_str().unwrap() == "guardian_to_delete");
+    
+    assert!(deleted_guardian.is_none(), "Guardian should be deleted");
+}
+
+#[tokio::test]
+async fn test_delete_lead_guardian() {
+    // Setup with mock data
+    let app = create_test_app();
+
+    // Use an existing box from the test data
+    let box_id = "box_1";
+
+    // First add a lead guardian
+    let guardian = json!({
+        "guardian": {
+            "id": "lead_guardian_to_delete",
+            "name": "Lead Guardian to Delete",
+            "email": "lead_guardian_delete@example.com",
+            "leadGuardian": true,
+            "status": "accepted",
+            "addedAt": "2023-01-01T12:00:00Z"
+        }
+    });
+
+    // Make the request to add a lead guardian
+    let add_response = app
+        .clone()
+        .oneshot(create_request(
+            "PATCH",
+            &format!("/boxes/owned/{}/guardian", box_id),
+            "user_1", // Box owner
+            Some(guardian),
+        ))
+        .await
+        .unwrap();
+
+    // Verify update was successful
+    assert_eq!(add_response.status(), StatusCode::OK);
+
+    // Verify lead guardian was added to both guardians and lead_guardians
+    let get_box_response = app
+        .clone()
+        .oneshot(create_request(
+            "GET",
+            &format!("/boxes/owned/{}", box_id),
+            "user_1",
+            None,
+        ))
+        .await
+        .unwrap();
+
+    let json_response = response_to_json(get_box_response).await;
+    let lead_guardians = json_response["box"]["leadGuardians"].as_array().unwrap();
+    let lead_guardian = lead_guardians
+        .iter()
+        .find(|g| g["id"].as_str().unwrap() == "lead_guardian_to_delete");
+    
+    assert!(lead_guardian.is_some(), "Lead guardian should be added to lead_guardians");
+
+    // Now delete the lead guardian
+    let delete_response = app
+        .clone()
+        .oneshot(create_request(
+            "DELETE",
+            &format!("/boxes/owned/{}/guardian/lead_guardian_to_delete", box_id),
+            "user_1", // Box owner
+            None,
+        ))
+        .await
+        .unwrap();
+
+    // Verify delete was successful
+    assert_eq!(delete_response.status(), StatusCode::OK);
+
+    // Get the box to confirm the guardian was deleted from both guardians and lead_guardians
+    let get_response = app
+        .oneshot(create_request(
+            "GET",
+            &format!("/boxes/owned/{}", box_id),
+            "user_1",
+            None,
+        ))
+        .await
+        .unwrap();
+
+    assert_eq!(get_response.status(), StatusCode::OK);
+
+    // Verify the guardian is not in the box
+    let box_json = response_to_json(get_response).await;
+    
+    // Check guardians array
+    let guardians = box_json["box"]["guardians"].as_array().unwrap();
+    let deleted_guardian = guardians
+        .iter()
+        .find(|g| g["id"].as_str().unwrap() == "lead_guardian_to_delete");
+    
+    assert!(deleted_guardian.is_none(), "Guardian should be deleted from guardians array");
+    
+    // Check lead_guardians array
+    let lead_guardians = box_json["box"]["leadGuardians"].as_array().unwrap();
+    let deleted_lead_guardian = lead_guardians
+        .iter()
+        .find(|g| g["id"].as_str().unwrap() == "lead_guardian_to_delete");
+    
+    assert!(deleted_lead_guardian.is_none(), "Lead guardian should be deleted from lead_guardians array");
+}
+
+#[tokio::test]
+async fn test_delete_guardian_nonexistent() {
+    // Setup with mock data
+    let app = create_test_app();
+
+    // Use an existing box from the test data
+    let box_id = "box_1";
+    let nonexistent_guardian_id = "nonexistent_guardian";
+
+    // Try to delete a guardian that doesn't exist
+    let response = app
+        .clone()
+        .oneshot(create_request(
+            "DELETE",
+            &format!("/boxes/owned/{}/guardian/{}", box_id, nonexistent_guardian_id),
+            "user_1", // Box owner
+            None,
+        ))
+        .await
+        .unwrap();
+
+    // Verify not found status
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn test_delete_guardian_unauthorized() {
+    // Setup with mock data
+    let app = create_test_app();
+
+    // Use an existing box from the test data
+    let box_id = "box_2"; // box_2 is owned by user_2
+
+    // First add a guardian as the owner
+    let guardian = json!({
+        "guardian": {
+            "id": "guardian_in_box_2",
+            "name": "Guardian in Box 2",
+            "email": "guardian_box2@example.com",
+            "leadGuardian": false,
+            "status": "accepted",
+            "addedAt": "2023-01-01T12:00:00Z"
+        }
+    });
+
+    // Make the request to add a guardian as the owner
+    let add_response = app
+        .clone()
+        .oneshot(create_request(
+            "PATCH",
+            &format!("/boxes/owned/{}/guardian", box_id),
+            "user_2", // Box owner
+            Some(guardian),
+        ))
+        .await
+        .unwrap();
+
+    // Verify update was successful
+    assert_eq!(add_response.status(), StatusCode::OK);
+
+    // Try to delete the guardian as a non-owner
+    let delete_response = app
+        .clone()
+        .oneshot(create_request(
+            "DELETE",
+            &format!("/boxes/owned/{}/guardian/guardian_in_box_2", box_id),
+            "user_1", // Not the owner
+            None,
+        ))
+        .await
+        .unwrap();
+
+    // Verify unauthorized status
+    assert_eq!(delete_response.status(), StatusCode::UNAUTHORIZED);
+}

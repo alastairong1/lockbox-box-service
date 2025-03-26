@@ -443,3 +443,76 @@ where
         "document": response 
     })))
 }
+
+// Helper function to delete a guardian from a box
+// Returns updated box after deletion
+async fn delete_guardian_from_box<S>(
+    store: &S,
+    box_id: &str,
+    owner_id: &str,
+    guardian_id: &str,
+) -> Result<BoxRecord>
+where
+    S: BoxStore,
+{
+    // Get the current box from store
+    let mut box_rec = store.get_box(box_id).await?;
+
+    // Check if the user is the owner
+    if box_rec.owner_id != owner_id {
+        return Err(AppError::Unauthorized(
+            "You don't have permission to delete guardians from this box".into(),
+        ));
+    }
+
+    // Check if the guardian exists in the box
+    let guardian_index = box_rec.guardians.iter().position(|g| g.id == guardian_id);
+
+    // Return not found if guardian doesn't exist
+    if guardian_index.is_none() {
+        return Err(AppError::NotFound(format!(
+            "Guardian with ID {} not found in box {}",
+            guardian_id, box_id
+        )));
+    }
+
+    // Check if guardian is also a lead guardian and remove from lead_guardians if needed
+    let is_lead = box_rec.guardians[guardian_index.unwrap()].lead;
+    if is_lead {
+        box_rec.lead_guardians.retain(|g| g.id != guardian_id);
+    }
+
+    // Remove the guardian
+    box_rec.guardians.remove(guardian_index.unwrap());
+    box_rec.updated_at = now_str();
+
+    // Save the updated box
+    let updated_box = store.update_box(box_rec).await?;
+
+    Ok(updated_box)
+}
+
+// DELETE /boxes/owned/:id/guardian/:guardian_id
+// This is a dedicated endpoint for deleting a single guardian
+pub async fn delete_guardian<S>(
+    State(store): State<Arc<S>>,
+    Path((box_id, guardian_id)): Path<(String, String)>,
+    Extension(user_id): Extension<String>,
+) -> Result<Json<serde_json::Value>>
+where
+    S: BoxStore,
+{
+    // Use the helper function to delete the guardian
+    let updated_box = delete_guardian_from_box(&*store, &box_id, &user_id, &guardian_id).await?;
+
+    // Create a response with all remaining guardians
+    let response = GuardianUpdateResponse {
+        guardians: updated_box.guardians,
+        updated_at: updated_box.updated_at,
+    };
+
+    Ok(Json(serde_json::json!({ 
+        "message": "Guardian deleted successfully",
+        "guardian": response 
+    })))
+}

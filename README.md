@@ -242,7 +242,42 @@ Allows box owners to add or update a guardian for their box. This is the dedicat
 - **401 Unauthorized:** The user is not the owner of the box.
 - **404 Not Found:** Box not found.
 
-#### 7. Update Document
+#### 7. Delete Guardian
+
+**Endpoint:** `DELETE /boxes/owned/{id}/guardian/{guardian_id}`
+
+**Headers:**
+- `x-user-id`: Your owner user identifier
+
+**Description:**
+Allows box owners to delete a specific guardian from their box. This is a dedicated endpoint for removing individual guardians. If the guardian is also a lead guardian, they will be removed from both the guardians and lead guardians lists.
+
+**Response Example:**
+```json
+{
+  "message": "Guardian deleted successfully",
+  "guardian": {
+    "guardians": [
+      {
+        "id": "guardian_id_2",
+        "name": "Guardian Two",
+        "email": "guardian2@example.com",
+        "leadGuardian": false,
+        "status": "accepted",
+        "addedAt": "2023-05-20T11:30:00Z"
+      }
+    ],
+    "updatedAt": "2023-05-25T12:02:35Z"
+  }
+}
+```
+
+**Response Codes:**
+- **200 OK:** Guardian deleted successfully.
+- **401 Unauthorized:** The user is not the owner of the box.
+- **404 Not Found:** Box or guardian not found.
+
+#### 8. Update Document
 
 **Endpoint:** `PATCH /boxes/owned/{id}/document`
 
@@ -293,7 +328,7 @@ Allows box owners to add or update a document for their box. This is the dedicat
 - **401 Unauthorized:** The user is not the owner of the box.
 - **404 Not Found:** Box not found.
 
-#### 8. Delete Document
+#### 9. Delete Document
 
 **Endpoint:** `DELETE /boxes/owned/{id}/document/{document_id}`
 
