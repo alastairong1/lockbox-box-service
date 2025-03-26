@@ -293,6 +293,39 @@ Allows box owners to add or update a document for their box. This is the dedicat
 - **401 Unauthorized:** The user is not the owner of the box.
 - **404 Not Found:** Box not found.
 
+#### 8. Delete Document
+
+**Endpoint:** `DELETE /boxes/owned/{id}/document/{document_id}`
+
+**Headers:**
+- `x-user-id`: Your owner user identifier
+
+**Description:**
+Allows box owners to delete a specific document from their box. This is a dedicated endpoint for removing individual documents.
+
+**Response Example:**
+```json
+{
+  "message": "Document deleted successfully",
+  "document": {
+    "documents": [
+      {
+        "id": "document_id_2",
+        "title": "Another Document",
+        "content": "Content of another document",
+        "createdAt": "2023-05-20T11:30:00Z"
+      }
+    ],
+    "updatedAt": "2023-05-25T12:02:35Z"
+  }
+}
+```
+
+**Response Codes:**
+- **200 OK:** Document deleted successfully.
+- **401 Unauthorized:** The user is not the owner of the box.
+- **404 Not Found:** Box or document not found.
+
 ### Guardian Endpoints
 
 #### 1. Get Guardian Boxes

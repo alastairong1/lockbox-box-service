@@ -1631,3 +1631,159 @@ async fn test_update_document_unauthorized() {
     // Verify unauthorized status
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
+
+#[tokio::test]
+async fn test_delete_document() {
+    // Setup with mock data
+    let app = create_test_app();
+
+    // Use an existing box from the test data
+    let box_id = "box_1";
+
+    // First add a document
+    let document = json!({
+        "document": {
+            "id": "doc_to_delete",
+            "title": "Document to Delete",
+            "content": "This document will be deleted",
+            "createdAt": "2023-01-01T12:00:00Z"
+        }
+    });
+
+    // Make the request to add a document
+    let add_response = app
+        .clone()
+        .oneshot(create_request(
+            "PATCH",
+            &format!("/boxes/owned/{}/document", box_id),
+            "user_1", // Box owner
+            Some(document),
+        ))
+        .await
+        .unwrap();
+
+    // Verify update was successful
+    assert_eq!(add_response.status(), StatusCode::OK);
+
+    // Now delete the document
+    let delete_response = app
+        .clone()
+        .oneshot(create_request(
+            "DELETE",
+            &format!("/boxes/owned/{}/document/doc_to_delete", box_id),
+            "user_1", // Box owner
+            None,
+        ))
+        .await
+        .unwrap();
+
+    // Verify delete was successful
+    assert_eq!(delete_response.status(), StatusCode::OK);
+
+    // Verify the response structure
+    let json_response = response_to_json(delete_response).await;
+    assert!(
+        json_response.get("message").is_some(),
+        "Response should contain a 'message' field"
+    );
+    assert!(
+        json_response.get("document").is_some(),
+        "Response should contain a 'document' field"
+    );
+
+    // Get the box to confirm the document was deleted
+    let get_response = app
+        .oneshot(create_request(
+            "GET",
+            &format!("/boxes/owned/{}", box_id),
+            "user_1",
+            None,
+        ))
+        .await
+        .unwrap();
+
+    assert_eq!(get_response.status(), StatusCode::OK);
+
+    // Verify the document is not in the box
+    let box_json = response_to_json(get_response).await;
+    let docs = box_json["box"]["documents"].as_array().unwrap();
+    let deleted_doc = docs
+        .iter()
+        .find(|d| d["id"].as_str().unwrap() == "doc_to_delete");
+    
+    assert!(deleted_doc.is_none(), "Document should be deleted");
+}
+
+#[tokio::test]
+async fn test_delete_document_nonexistent() {
+    // Setup with mock data
+    let app = create_test_app();
+
+    // Use an existing box from the test data
+    let box_id = "box_1";
+    let nonexistent_doc_id = "nonexistent_doc";
+
+    // Try to delete a document that doesn't exist
+    let response = app
+        .clone()
+        .oneshot(create_request(
+            "DELETE",
+            &format!("/boxes/owned/{}/document/{}", box_id, nonexistent_doc_id),
+            "user_1", // Box owner
+            None,
+        ))
+        .await
+        .unwrap();
+
+    // Verify not found status
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn test_delete_document_unauthorized() {
+    // Setup with mock data
+    let app = create_test_app();
+
+    // Use an existing box from the test data
+    let box_id = "box_2"; // box_2 is owned by user_2
+
+    // First add a document as the owner
+    let document = json!({
+        "document": {
+            "id": "doc_in_box_2",
+            "title": "Document in Box 2",
+            "content": "This document belongs to user_2's box",
+            "createdAt": "2023-01-01T12:00:00Z"
+        }
+    });
+
+    // Make the request to add a document as the owner
+    let add_response = app
+        .clone()
+        .oneshot(create_request(
+            "PATCH",
+            &format!("/boxes/owned/{}/document", box_id),
+            "user_2", // Box owner
+            Some(document),
+        ))
+        .await
+        .unwrap();
+
+    // Verify update was successful
+    assert_eq!(add_response.status(), StatusCode::OK);
+
+    // Try to delete the document as a non-owner
+    let delete_response = app
+        .clone()
+        .oneshot(create_request(
+            "DELETE",
+            &format!("/boxes/owned/{}/document/doc_in_box_2", box_id),
+            "user_1", // Not the owner
+            None,
+        ))
+        .await
+        .unwrap();
+
+    // Verify unauthorized status
+    assert_eq!(delete_response.status(), StatusCode::UNAUTHORIZED);
+}
