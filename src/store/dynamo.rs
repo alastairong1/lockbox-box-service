@@ -37,6 +37,7 @@ impl DynamoBoxStore {
 
     /// Creates a new DynamoDB store with the specified client and table name.
     /// This is mainly useful for testing with a local DynamoDB instance.
+    #[warn(dead_code)]
     pub fn with_client_and_table(client: Client, table_name: String) -> Self {
         Self { client, table_name }
     }

@@ -399,7 +399,7 @@ async fn test_update_box() {
     let new_description = "Updated description";
     let new_unlock_instructions = "New instructions: Contact all guardians via email and provide them with the death certificate.";
     let new_is_locked = true;
-    
+
     let response = app
         .clone()
         .oneshot(create_request(
@@ -465,8 +465,6 @@ async fn test_update_box_partial() {
     let json_response = response_to_json(get_response).await;
     let box_data = json_response["box"].as_object().unwrap();
     let _original_description = box_data["description"].as_str().unwrap();
-
-
 
     let new_name = "Updated Box Name Only";
     let response = app
@@ -915,9 +913,6 @@ async fn test_update_box_unlock_instructions() {
 
     assert_eq!(initial_response.status(), StatusCode::OK);
 
-    // Verify initial state has no unlock instructions
-    let initial_json = response_to_json(initial_response).await;
-
     // Update the unlock instructions
     let unlock_instructions = "New instructions: Contact all guardians via email and provide them with the death certificate.";
     let response = app
@@ -957,5 +952,12 @@ async fn test_update_box_unlock_instructions() {
     // Verify unlock_instructions was updated
     let box_data = json_response["box"].as_object().unwrap();
     assert!(box_data.get("unlock_instructions").is_some());
-    assert_eq!(box_data.get("unlock_instructions").unwrap().as_str().unwrap(), unlock_instructions);
+    assert_eq!(
+        box_data
+            .get("unlock_instructions")
+            .unwrap()
+            .as_str()
+            .unwrap(),
+        unlock_instructions
+    );
 }
