@@ -79,9 +79,9 @@ Resources:
       AccessTokenValidity: 1
       IdTokenValidity: 1
       TokenValidityUnits:
-        RefreshToken: DAYS
-        AccessToken: HOURS
-        IdToken: HOURS
+        RefreshToken: days
+        AccessToken: hours
+        IdToken: hours
 
   # Add a domain for the user pool
   UserPoolDomain:
