@@ -1,6 +1,5 @@
 [workspace]
 members = [
     "box-service",
-    "user-service",
 ]
 resolver = "2"
