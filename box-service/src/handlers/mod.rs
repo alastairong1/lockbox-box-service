@@ -1,11 +1,11 @@
 pub mod box_handlers;
 pub mod guardian_handlers;
 
+use aws_lambda_events::apigw::ApiGatewayProxyRequestContext;
 use axum::{
     async_trait, extract::FromRequestParts, extract::Request, http::request::Parts,
     middleware::Next, response::Response, Extension,
 };
-use aws_lambda_events::apigw::ApiGatewayProxyRequestContext;
 use serde_json::Value;
 
 use crate::error::AppError;
@@ -38,7 +38,8 @@ where
 pub async fn auth_middleware(mut request: Request, next: Next) -> Result<Response, AppError> {
     // Extract the Cognito user from the request context
     // API Gateway with Cognito Authorizer (Lambda Proxy integration) adds this information
-    let user_id = if let Some(context) = request.extensions().get::<ApiGatewayProxyRequestContext>() {
+    let user_id = if let Some(context) = request.extensions().get::<ApiGatewayProxyRequestContext>()
+    {
         // Standard Cognito authorizer puts claims here: context.authorizer["claims"]
         // authorizer is a HashMap<String, Value>, not an Option
         if let Some(claims_val) = context.authorizer.get("claims") {
@@ -49,19 +50,36 @@ pub async fn auth_middleware(mut request: Request, next: Next) -> Result<Respons
                         sub.clone()
                     } else {
                         tracing::error!("Cognito 'sub' claim is not a string: {:?}", sub_val);
-                        return Err(AppError::Unauthorized("Invalid user ID format in claims".into()));
+                        return Err(AppError::Unauthorized(
+                            "Invalid user ID format in claims".into(),
+                        ));
                     }
                 } else {
-                    tracing::error!("Authorizer claims object found but no 'sub' key: {:?}", claims);
-                    return Err(AppError::Unauthorized("Could not extract user ID from authorizer claims".into()));
+                    tracing::error!(
+                        "Authorizer claims object found but no 'sub' key: {:?}",
+                        claims
+                    );
+                    return Err(AppError::Unauthorized(
+                        "Could not extract user ID from authorizer claims".into(),
+                    ));
                 }
             } else {
-                tracing::error!("Authorizer 'claims' field is not an object: {:?}", claims_val);
-                return Err(AppError::Unauthorized("Invalid claims format in authorizer".into()));
+                tracing::error!(
+                    "Authorizer 'claims' field is not an object: {:?}",
+                    claims_val
+                );
+                return Err(AppError::Unauthorized(
+                    "Invalid claims format in authorizer".into(),
+                ));
             }
         } else {
-            tracing::error!("Request context found but no 'claims' key in authorizer: {:?}", context.authorizer);
-            return Err(AppError::Unauthorized("No claims found in authorizer context".into()));
+            tracing::error!(
+                "Request context found but no 'claims' key in authorizer: {:?}",
+                context.authorizer
+            );
+            return Err(AppError::Unauthorized(
+                "No claims found in authorizer context".into(),
+            ));
         }
     } else if let Some(authorizer_header) = request.headers().get("x-amzn-oidc-identity") {
         // Fallback for potentially different integration types (e.g., ALB OIDC)
@@ -80,17 +98,23 @@ pub async fn auth_middleware(mut request: Request, next: Next) -> Result<Respons
                     .map_err(|_| AppError::Unauthorized("Invalid x-user-id header".into()))?
                     .to_string()
             } else {
-                tracing::error!("No authentication information found in request (debug mode, header missing)");
-                return Err(AppError::Unauthorized("No authentication information found".into()));
+                tracing::error!(
+                    "No authentication information found in request (debug mode, header missing)"
+                );
+                return Err(AppError::Unauthorized(
+                    "No authentication information found".into(),
+                ));
             }
         } else {
             tracing::error!("No authentication information found in request (production mode)");
-            return Err(AppError::Unauthorized("No authentication information found".into()));
+            return Err(AppError::Unauthorized(
+                "No authentication information found".into(),
+            ));
         }
     };
 
     tracing::debug!("Authenticated user ID: {}", user_id);
-    
+
     // Store the user_id in the request extensions for later retrieval
     request.extensions_mut().insert(user_id);
 
