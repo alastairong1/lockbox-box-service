@@ -68,11 +68,21 @@ jobs:
           BUCKET_NAME="lockbox-deployment-bucket-$AWS_REGION"
           aws s3 mb "s3://$BUCKET_NAME" --region "$AWS_REGION" || true
           
-          # Deploy using SAM
+          # Deploy using SAM with increased timeout for Cognito resources
           sam deploy --template-file template.yaml \
             --stack-name lockbox-box-service \
-            --capabilities CAPABILITY_IAM \
+            --capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND \
             --no-confirm-changeset \
             --s3-bucket "$BUCKET_NAME" \
             --region "$AWS_REGION" \
-            --no-fail-on-empty-changeset
+            --no-fail-on-empty-changeset \
+            --parameter-overrides "Stage=prod"
+            
+      - name: Display Cognito Outputs
+        run: |
+          # Get and display the Cognito User Pool ID and Client ID
+          AWS_REGION="${{ secrets.AWS_REGION }}"
+          AWS_REGION="${AWS_REGION:-us-east-1}"
+          
+          echo "Getting stack outputs..."
+          aws cloudformation describe-stacks --stack-name lockbox-box-service --region "$AWS_REGION" --query "Stacks[0].Outputs" --output table
