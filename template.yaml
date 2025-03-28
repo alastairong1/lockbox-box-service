@@ -29,7 +29,6 @@ Resources:
         - email
       AutoVerifiedAttributes:
         - email
-        - phone_number
       Schema:
         - Name: name
           AttributeDataType: String
