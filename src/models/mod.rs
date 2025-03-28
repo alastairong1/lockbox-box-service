@@ -80,6 +80,7 @@ pub struct GuardianBox {
     pub guardians_count: usize,
     #[serde(rename = "isLeadGuardian")]
     pub is_lead_guardian: bool,
+    // TODO we probably shouldn't be just returning them all for privacy reasons
     pub documents: Vec<Document>,
     pub guardians: Vec<Guardian>,
     #[serde(rename = "leadGuardians")]
