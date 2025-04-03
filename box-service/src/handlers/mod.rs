@@ -1,119 +1,77 @@
 pub mod box_handlers;
 pub mod guardian_handlers;
 
-use aws_lambda_events::apigw::ApiGatewayProxyRequestContext;
-use axum::{
-    async_trait, extract::FromRequestParts, extract::Request, http::request::Parts,
-    middleware::Next, response::Response, Extension,
-};
-use serde_json::Value;
+use axum::{extract::Request, middleware::Next, response::Response};
+use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
+use serde::{Deserialize, Serialize};
 
 use crate::error::AppError;
 
-// Extractor for user_id from header
-#[allow(dead_code)]
-pub struct UserId(String);
-
-#[async_trait]
-impl<S> FromRequestParts<S> for UserId
-where
-    S: Send + Sync,
-{
-    type Rejection = AppError;
-
-    async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
-        if let Some(user_id) = parts.headers.get("x-user-id") {
-            let user_id = user_id
-                .to_str()
-                .map_err(|_| AppError::Unauthorized("Invalid x-user-id header".into()))?
-                .to_string();
-            Ok(UserId(user_id))
-        } else {
-            Err(AppError::Unauthorized("Missing x-user-id header".into()))
-        }
-    }
+// Cognito JWT claims structure
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Claims {
+    pub sub: String,
+    #[serde(rename = "email_verified")]
+    pub email_verified: Option<bool>,
+    pub iss: String,
+    #[serde(rename = "cognito:username")]
+    pub cognito_username: Option<String>,
+    pub origin_jti: Option<String>,
+    pub aud: String,
+    pub event_id: Option<String>,
+    #[serde(rename = "token_use")]
+    pub token_use: Option<String>,
+    pub auth_time: Option<usize>,
+    pub exp: usize,
+    pub iat: usize,
+    pub jti: Option<String>,
+    pub email: Option<String>,
 }
 
-// Middleware to extract user_id from Cognito JWT in the request
-pub async fn auth_middleware(mut request: Request, next: Next) -> Result<Response, AppError> {
-    // Extract the Cognito user from the request context
-    // API Gateway with Cognito Authorizer (Lambda Proxy integration) adds this information
-    tracing::error!("Incoming event: {:?}", request);
+// Simple JWT decoder without verification
+pub fn decode_jwt_payload(token: &str) -> Result<Claims, AppError> {
+    // Extract payload (second part of the JWT)
+    let parts: Vec<&str> = token.split('.').collect();
+    if parts.len() != 3 {
+        return Err(AppError::Unauthorized("Invalid JWT format".into()));
+    }
 
-    let user_id = if let Some(context) = request.extensions().get::<ApiGatewayProxyRequestContext>()
-    {
-        // Standard Cognito authorizer puts claims here: context.authorizer["claims"]
-        // authorizer is a HashMap<String, Value>, not an Option
-        if let Some(claims_val) = context.authorizer.get("claims") {
-            // claims_val should be a Value::Object containing the JWT claims
-            if let Value::Object(claims) = claims_val {
-                if let Some(sub_val) = claims.get("sub") {
-                    if let Value::String(sub) = sub_val {
-                        sub.clone()
-                    } else {
-                        tracing::error!("Cognito 'sub' claim is not a string: {:?}", sub_val);
-                        return Err(AppError::Unauthorized(
-                            "Invalid user ID format in claims".into(),
-                        ));
-                    }
-                } else {
-                    tracing::error!(
-                        "Authorizer claims object found but no 'sub' key: {:?}",
-                        claims
-                    );
-                    return Err(AppError::Unauthorized(
-                        "Could not extract user ID from authorizer claims".into(),
-                    ));
-                }
-            } else {
-                tracing::error!(
-                    "Authorizer 'claims' field is not an object: {:?}",
-                    claims_val
-                );
-                return Err(AppError::Unauthorized(
-                    "Invalid claims format in authorizer".into(),
-                ));
-            }
-        } else {
-            tracing::error!(
-                "Request context found but no 'claims' key in authorizer: {:?}",
-                context.authorizer
-            );
-            return Err(AppError::Unauthorized(
-                "No claims found in authorizer context".into(),
-            ));
-        }
-    } else if let Some(authorizer_header) = request.headers().get("x-amzn-oidc-identity") {
-        // Fallback for potentially different integration types (e.g., ALB OIDC)
-        // This header typically contains the Cognito user ID directly
-        authorizer_header
-            .to_str()
-            .map_err(|_| AppError::Unauthorized("Invalid identity header".into()))?
-            .to_string()
-    } else {
-        // For development/testing only - use header from the request directly
-        // This should be removed or guarded strictly in production
-        if cfg!(debug_assertions) {
-            if let Some(user_id_header) = request.headers().get("x-user-id") {
-                user_id_header
-                    .to_str()
-                    .map_err(|_| AppError::Unauthorized("Invalid x-user-id header".into()))?
-                    .to_string()
-            } else {
-                tracing::error!(
-                    "No authentication information found in request (debug mode, header missing)"
-                );
-                return Err(AppError::Unauthorized(
-                    "No authentication information found".into(),
-                ));
-            }
-        } else {
-            tracing::error!("No authentication information found in request (production mode)");
-            return Err(AppError::Unauthorized(
-                "No authentication information found".into(),
-            ));
-        }
-    };
+    // Decode the payload
+    let payload_data = URL_SAFE_NO_PAD
+        .decode(parts[1])
+        .map_err(|_| AppError::Unauthorized("Could not decode JWT payload".into()))?;
+
+    // Parse the payload
+    let claims: Claims = serde_json::from_slice(&payload_data)
+        .map_err(|_| AppError::Unauthorized("Could not parse JWT claims".into()))?;
+
+    Ok(claims)
+}
+
+// Original middleware to extract user_id from Cognito JWT in the request
+pub async fn auth_middleware(mut request: Request, next: Next) -> Result<Response, AppError> {
+    // Extract the JWT from the Authorization header
+    let auth_header = request
+        .headers()
+        .get("authorization")
+        .ok_or_else(|| AppError::Unauthorized("Missing authorization header".into()))?;
+
+    // Parse the auth header to get the token
+    let bearer_token = auth_header
+        .to_str()
+        .map_err(|_| AppError::Unauthorized("Invalid authorization header".into()))?;
+
+    if !bearer_token.starts_with("Bearer ") {
+        return Err(AppError::Unauthorized(
+            "Invalid authorization format. Expected 'Bearer <token>'".into(),
+        ));
+    }
+
+    let token = &bearer_token[7..]; // Skip "Bearer " prefix
+
+    // Decode the JWT (without verification since API Gateway already did that)
+    let claims = decode_jwt_payload(token)?;
+    let user_id = claims.sub;
 
     tracing::debug!("Authenticated user ID: {}", user_id);
 
@@ -127,11 +85,19 @@ pub async fn auth_middleware(mut request: Request, next: Next) -> Result<Respons
 #[cfg(test)]
 mod tests {
     use super::*;
-    use axum::{http::StatusCode, routing::get, Router};
+    use axum::{
+        body::Body,
+        extract::Extension,
+        http::{Request as HttpRequest, StatusCode},
+        response::IntoResponse,
+        routing::get,
+        Router,
+    };
+    use jsonwebtoken::{encode, Algorithm, EncodingKey, Header};
+    use std::time::{SystemTime, UNIX_EPOCH};
     use tower::ServiceExt;
-
     // Dummy handler to check if user_id extension is present
-    async fn check_user_id_handler(Extension(user_id): Extension<String>) -> StatusCode {
+    async fn check_user_id_handler(Extension(user_id): Extension<String>) -> impl IntoResponse {
         if !user_id.is_empty() {
             StatusCode::OK
         } else {
@@ -140,45 +106,58 @@ mod tests {
     }
 
     #[tokio::test]
-    #[cfg(debug_assertions)] // Only run this test in debug builds
-    async fn test_auth_middleware_success_debug_header_fallback() {
+    async fn test_auth_middleware_jwt_token() {
         // Arrange: Router with middleware
         let app = Router::new()
             .route("/", get(check_user_id_handler))
             .layer(axum::middleware::from_fn(auth_middleware));
 
-        // Arrange: Request without Cognito context but with the debug header
-        let request = Request::builder()
+        // Create claims for the JWT with a future expiration
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("System time is before Unix epoch")
+            .as_secs() as usize;
+
+        let exp = now + 3600; // 1 hour in the future
+
+        let claims = Claims {
+            sub: "56a20244-0061-708a-0441-62c42ace7b39".to_string(),
+            email_verified: Some(true),
+            iss: "https://cognito-idp.eu-west-2.amazonaws.com/eu-west-2_SnyjSmOpW".to_string(),
+            cognito_username: Some("56a20244-0061-708a-0441-62c42ace7b39".to_string()),
+            origin_jti: Some("2961a64b-e7ec-4885-994a-d650cc7a7c2d".to_string()),
+            aud: "5pgt5gkfulqs0tkdi279c895gp".to_string(),
+            event_id: Some("2096030a-d0cb-480a-9318-6f255408c66c".to_string()),
+            token_use: Some("id".to_string()),
+            auth_time: Some(now - 100),
+            exp,
+            iat: now - 100,
+            jti: Some("021ba19b-7fce-4bc0-b246-852346c43d4e".to_string()),
+            email: Some("alastair.ong@icloud.com".to_string()),
+        };
+
+        // Create JWT header
+        let header = Header::new(Algorithm::HS256);
+
+        // In a real scenario, Cognito would use RS256 with a proper key pair
+        // For testing purposes, we use HS256 with a simple secret
+        let secret = "test_secret_key_for_jwt_encoding_in_tests";
+        let encoding_key = EncodingKey::from_secret(secret.as_bytes());
+
+        // Generate the JWT
+        let token = encode(&header, &claims, &encoding_key).expect("Failed to create JWT");
+
+        // Create request with Authorization header
+        let request = HttpRequest::builder()
             .uri("/")
-            .header("x-user-id", "debug-user-456")
-            .body(axum::body::Body::empty())
+            .header("authorization", format!("Bearer {}", token))
+            .body(Body::empty())
             .unwrap();
 
         // Act: Call the middleware
         let response = app.oneshot(request).await.unwrap();
 
-        // Assert: Handler received user_id from header
+        // Assert: Handler received user_id from JWT
         assert_eq!(response.status(), StatusCode::OK);
-    }
-
-    #[tokio::test]
-    #[cfg(debug_assertions)] // Only run this test in debug builds
-    async fn test_auth_middleware_failure_debug_no_header() {
-        // Arrange: Router with middleware
-        let app = Router::new()
-            .route("/", get(check_user_id_handler))
-            .layer(axum::middleware::from_fn(auth_middleware));
-
-        // Arrange: Request without Cognito context and without debug header
-        let request = Request::builder()
-            .uri("/")
-            .body(axum::body::Body::empty())
-            .unwrap();
-
-        // Act: Call the middleware
-        let response = app.oneshot(request).await.unwrap();
-
-        // Assert: Middleware returned Unauthorized
-        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
     }
 }

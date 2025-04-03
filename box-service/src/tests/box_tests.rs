@@ -10,14 +10,17 @@ use crate::{
     models::{now_str, BoxRecord},
     routes,
     store::memory::MemoryBoxStore,
+    tests::utils,
 };
 
 // Helper function to create test request
 fn create_request(method: &str, uri: &str, user_id: &str, body: Option<Value>) -> Request<Body> {
+    let (auth_header, auth_value) = utils::create_auth_header(user_id);
+
     let mut builder = Request::builder()
         .uri(uri)
         .method(method)
-        .header("x-user-id", user_id);
+        .header(auth_header, auth_value);
 
     if let Some(json_body) = body {
         builder = builder.header("Content-Type", "application/json");
@@ -154,11 +157,11 @@ async fn test_get_boxes_empty_for_new_user() {
 }
 
 #[tokio::test]
-async fn test_get_boxes_missing_user_id() {
+async fn test_get_boxes_missing_authorization() {
     // Setup
     let app = create_test_app();
 
-    // Execute without user_id header
+    // Execute without authorization header
     let response = app
         .oneshot(
             Request::builder()

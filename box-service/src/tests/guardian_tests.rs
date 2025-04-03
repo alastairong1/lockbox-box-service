@@ -1,8 +1,3 @@
-use crate::{
-    models::{now_str, BoxRecord, Guardian, UnlockRequest},
-    routes,
-    store::memory::MemoryBoxStore,
-};
 use axum::{
     body::Body,
     http::{header, Request, StatusCode},
@@ -10,6 +5,13 @@ use axum::{
 use serde_json::{json, Value};
 use std::sync::Arc;
 use tower::ServiceExt;
+
+use crate::{
+    models::{now_str, BoxRecord, Guardian, UnlockRequest},
+    routes,
+    store::memory::MemoryBoxStore,
+    tests::utils,
+};
 
 // Create mock data for testing
 fn setup_test_data() -> Arc<MemoryBoxStore> {
@@ -163,10 +165,12 @@ fn create_test_app() -> axum::Router {
 
 // Helper function to create test request
 fn create_request(method: &str, uri: &str, user_id: &str, body: Option<Value>) -> Request<Body> {
+    let (auth_header, auth_value) = utils::create_auth_header(user_id);
+
     let mut builder = Request::builder()
         .uri(uri)
         .method(method)
-        .header("x-user-id", user_id);
+        .header(auth_header, auth_value);
 
     if let Some(json_body) = body {
         builder = builder.header(header::CONTENT_TYPE, "application/json");
