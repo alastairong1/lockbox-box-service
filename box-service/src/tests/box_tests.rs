@@ -84,7 +84,7 @@ fn create_test_app() -> axum::Router {
     let store = Arc::new(MemoryBoxStore::with_data(boxes));
 
     // Create router with memory store for testing
-    routes::create_router_with_store(store)
+    routes::create_router_with_store(store, "")
 }
 
 #[tokio::test]

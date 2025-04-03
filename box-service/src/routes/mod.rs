@@ -1,8 +1,8 @@
 use axum::{
+    extract::Request,
     middleware,
     routing::{get, patch},
     Router,
-    extract::Request,
 };
 use std::sync::Arc;
 use tower_http::cors::{Any, CorsLayer};
@@ -23,20 +23,23 @@ use crate::store::{dynamo::DynamoBoxStore, BoxStore};
 /// Creates a router with the default store
 pub async fn create_router() -> Router {
     tracing::info!("Creating router with DynamoDB store");
-    
+
     // Create the DynamoDB store
     let dynamo_store = Arc::new(DynamoBoxStore::new().await);
 
-    create_router_with_store(dynamo_store)
+    // Hardcode the prefix as "/Prod"
+    let prefix = "/Prod";
+
+    create_router_with_store(dynamo_store, prefix)
 }
 
 /// Creates a router with a given store implementation
-pub fn create_router_with_store<S>(store: Arc<S>) -> Router
+pub fn create_router_with_store<S>(store: Arc<S>, prefix: &str) -> Router
 where
     S: BoxStore + 'static,
 {
-    tracing::info!("Setting up API routes");
-    
+    tracing::info!("Setting up API routes with prefix: {}", prefix);
+
     // Configure CORS
     let cors = CorsLayer::new()
         .allow_origin(Any)
@@ -46,9 +49,12 @@ where
     tracing::debug!("CORS configured for all origins, methods and headers");
 
     // Logging middleware to trace all requests
-    async fn logging_middleware(req: Request, next: axum::middleware::Next) -> impl axum::response::IntoResponse {
+    async fn logging_middleware(
+        req: Request,
+        next: axum::middleware::Next,
+    ) -> impl axum::response::IntoResponse {
         tracing::info!("Logging request: {:?}", req);
-        
+
         tracing::info!(
             "Router received request: method={}, uri={}",
             req.method(),
@@ -57,8 +63,8 @@ where
         next.run(req).await
     }
 
-    // Create router with the store and routes
-    let router = Router::new()
+    // Create the API routes
+    let api_routes = Router::new()
         .route("/boxes/owned", get(get_boxes).post(create_box))
         .route(
             "/boxes/owned/:id",
@@ -85,13 +91,20 @@ where
             "/boxes/guardian/:id/invitation",
             patch(respond_to_invitation),
         )
-        .layer(cors)
-        .layer(middleware::from_fn(logging_middleware))
         .layer(middleware::from_fn(auth_middleware))
         .with_state(store);
 
-    tracing::info!("Router configured with all routes and middleware");
-    
+    // Create the main router with the prefix
+    let router = Router::new()
+        .nest(prefix, api_routes)
+        .layer(cors)
+        .layer(middleware::from_fn(logging_middleware));
+
+    tracing::info!(
+        "Router configured with all routes and middleware under prefix: {}",
+        prefix
+    );
+
     // Add a fallback handler for 404s
     router.fallback(|req: Request| async move {
         tracing::warn!("No route matched for: {} {}", req.method(), req.uri());

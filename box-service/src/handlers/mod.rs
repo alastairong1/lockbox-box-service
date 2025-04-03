@@ -31,14 +31,14 @@ pub struct Claims {
 // Simple JWT decoder without verification
 pub fn decode_jwt_payload(token: &str) -> Result<Claims, AppError> {
     tracing::debug!("Decoding JWT payload");
-    
+
     // Extract payload (second part of the JWT)
     let parts: Vec<&str> = token.split('.').collect();
     if parts.len() != 3 {
         tracing::warn!("Invalid JWT format: expected 3 parts, got {}", parts.len());
         return Err(AppError::Unauthorized("Invalid JWT format".into()));
     }
-    
+
     tracing::debug!("JWT structure verified, decoding payload part");
 
     // Decode the payload
@@ -46,7 +46,9 @@ pub fn decode_jwt_payload(token: &str) -> Result<Claims, AppError> {
         Ok(data) => data,
         Err(err) => {
             tracing::warn!("Failed to base64 decode JWT payload: {:?}", err);
-            return Err(AppError::Unauthorized("Could not decode JWT payload".into()));
+            return Err(AppError::Unauthorized(
+                "Could not decode JWT payload".into(),
+            ));
         }
     };
 
@@ -58,12 +60,12 @@ pub fn decode_jwt_payload(token: &str) -> Result<Claims, AppError> {
         }
         Err(err) => {
             tracing::warn!("Failed to parse JWT claims: {:?}", err);
-            
+
             // Try to parse as generic JSON to see what fields are missing
             if let Ok(value) = serde_json::from_slice::<serde_json::Value>(&payload_data) {
                 tracing::debug!("Raw JWT payload: {:?}", value);
             }
-            
+
             Err(AppError::Unauthorized("Could not parse JWT claims".into()))
         }
     }
@@ -84,7 +86,9 @@ pub async fn auth_middleware(mut request: Request, next: Next) -> Result<Respons
         Some(header) => header,
         None => {
             tracing::warn!("Missing authorization header in request");
-            return Err(AppError::Unauthorized("Missing authorization header".into()));
+            return Err(AppError::Unauthorized(
+                "Missing authorization header".into(),
+            ));
         }
     };
 
@@ -93,7 +97,9 @@ pub async fn auth_middleware(mut request: Request, next: Next) -> Result<Respons
         Ok(token) => token,
         Err(err) => {
             tracing::warn!("Invalid authorization header format: {:?}", err);
-            return Err(AppError::Unauthorized("Invalid authorization header".into()));
+            return Err(AppError::Unauthorized(
+                "Invalid authorization header".into(),
+            ));
         }
     };
 
@@ -115,7 +121,7 @@ pub async fn auth_middleware(mut request: Request, next: Next) -> Result<Respons
             return Err(err);
         }
     };
-    
+
     let user_id = claims.sub;
     tracing::info!("Authenticated user ID: {}", user_id);
 
@@ -126,7 +132,7 @@ pub async fn auth_middleware(mut request: Request, next: Next) -> Result<Respons
     tracing::debug!("Forwarding authenticated request to handler");
     let response = next.run(request).await;
     tracing::info!("Handler response status: {:?}", response.status());
-    
+
     Ok(response)
 }
 

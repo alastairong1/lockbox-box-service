@@ -12,7 +12,6 @@ use lambda_http::{
     Response as LambdaResponse,
 };
 use tower::ServiceExt;
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 // The Lambda handler function
 async fn function_handler(event: LambdaRequest) -> Result<LambdaResponse<LambdaBody>, Error> {
@@ -59,7 +58,10 @@ async fn function_handler(event: LambdaRequest) -> Result<LambdaResponse<LambdaB
 
     // Convert Axum's response to Lambda's response
     let lambda_response = response_to_lambda(response).await?;
-    tracing::info!("Returning Lambda response: status={}", lambda_response.status());
+    tracing::info!(
+        "Returning Lambda response: status={}",
+        lambda_response.status()
+    );
 
     Ok(lambda_response)
 }
@@ -67,8 +69,12 @@ async fn function_handler(event: LambdaRequest) -> Result<LambdaResponse<LambdaB
 // Convert the Axum response to a format suitable for Lambda
 async fn response_to_lambda(response: Response) -> Result<LambdaResponse<LambdaBody>, Error> {
     let (parts, body) = response.into_parts();
-    tracing::debug!("Converting response: status={}, headers={:?}", parts.status, parts.headers);
-    
+    tracing::debug!(
+        "Converting response: status={}, headers={:?}",
+        parts.status,
+        parts.headers
+    );
+
     let bytes = match axum::body::to_bytes(body, usize::MAX).await {
         Ok(bytes) => {
             tracing::debug!("Response body size: {} bytes", bytes.len());
@@ -106,20 +112,23 @@ async fn response_to_lambda(response: Response) -> Result<LambdaResponse<LambdaB
 async fn main() -> Result<(), Error> {
     // Initialize tracing with enhanced configuration
     let log_level = std::env::var("RUST_LOG").unwrap_or_else(|_| "info,box_service=debug".into());
-    
+
     // Configure and initialize tracing
     tracing_subscriber::fmt()
         .with_env_filter(log_level)
         .with_ansi(false) // Disable ANSI colors in Lambda environment
         .with_target(true) // Include the target (module path) in logs
         .init();
-    
-    tracing::info!("Logging initialized at level: {}", std::env::var("RUST_LOG").unwrap_or_else(|_| "info".into()));
+
+    tracing::info!(
+        "Logging initialized at level: {}",
+        std::env::var("RUST_LOG").unwrap_or_else(|_| "info".into())
+    );
 
     // Log AWS Lambda environment information
     if let Ok(function_name) = std::env::var("AWS_LAMBDA_FUNCTION_NAME") {
         tracing::info!(
-            "Starting AWS Lambda function: {} (version: {})", 
+            "Starting AWS Lambda function: {} (version: {})",
             function_name,
             std::env::var("AWS_LAMBDA_FUNCTION_VERSION").unwrap_or_else(|_| "unknown".into())
         );
@@ -129,7 +138,7 @@ async fn main() -> Result<(), Error> {
 
     // Run as Lambda function
     run(service_fn(function_handler)).await?;
-    
+
     tracing::info!("Lambda function completed");
     Ok(())
 }

@@ -49,7 +49,11 @@ impl IntoResponse for AppError {
             }
         };
 
-        tracing::info!("Returning error response: status={}, message={}", status, message);
+        tracing::info!(
+            "Returning error response: status={}, message={}",
+            status,
+            message
+        );
         (status, Json(json!({ "error": message }))).into_response()
     }
 }

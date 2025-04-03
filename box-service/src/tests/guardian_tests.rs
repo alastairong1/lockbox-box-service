@@ -160,7 +160,7 @@ fn setup_test_data() -> Arc<MemoryBoxStore> {
 fn create_test_app() -> axum::Router {
     let store = setup_test_data();
     // Create router with memory store for testing
-    routes::create_router_with_store(store)
+    routes::create_router_with_store(store, "")
 }
 
 // Helper function to create test request
