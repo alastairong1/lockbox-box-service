@@ -47,6 +47,8 @@ where
 
     // Logging middleware to trace all requests
     async fn logging_middleware(req: Request, next: axum::middleware::Next) -> impl axum::response::IntoResponse {
+        tracing::info!("Logging request: {:?}", req);
+        
         tracing::info!(
             "Router received request: method={}, uri={}",
             req.method(),
