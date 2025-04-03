@@ -38,6 +38,8 @@ where
 pub async fn auth_middleware(mut request: Request, next: Next) -> Result<Response, AppError> {
     // Extract the Cognito user from the request context
     // API Gateway with Cognito Authorizer (Lambda Proxy integration) adds this information
+    tracing::error!("Incoming event: {:?}", request);
+
     let user_id = if let Some(context) = request.extensions().get::<ApiGatewayProxyRequestContext>()
     {
         // Standard Cognito authorizer puts claims here: context.authorizer["claims"]
