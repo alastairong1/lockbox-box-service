@@ -3,6 +3,12 @@ Transform: AWS::Serverless-2016-10-31
 Description: >
   Lockbox Box Service - Manages digital lockboxes
 
+Parameters:
+  UserPoolId:
+    Type: String
+    Default: eu-west-2_SnyjSmOpW
+    Description: Existing Cognito User Pool ID to use
+
 Resources:
   # Configure API Gateway for public access
   ApiGatewayApi:
@@ -17,58 +23,15 @@ Resources:
         DefaultAuthorizer: CognitoAuthorizer
         Authorizers:
           CognitoAuthorizer:
-            UserPoolArn: !GetAtt UserPool.Arn
+            UserPoolArn: !Sub arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${UserPoolId}
         AddDefaultAuthorizerToCorsPreflight: false
-
-  # Cognito User Pool for authentication
-  UserPool:
-    Type: AWS::Cognito::UserPool
-    Properties:
-      UserPoolName: LockboxUserPool
-      UsernameAttributes:
-        - email
-      AutoVerifiedAttributes:
-        - email
-      Schema:
-        - Name: name
-          AttributeDataType: String
-          Mutable: true
-          Required: false
-        - Name: email
-          AttributeDataType: String
-          Mutable: true
-          Required: true
-        - Name: phone_number
-          AttributeDataType: String
-          Mutable: true
-          Required: false
-        - Name: picture
-          AttributeDataType: String
-          Mutable: true
-          Required: false
-        - Name: custom:devicePushId
-          AttributeDataType: String
-          Mutable: true
-          Required: false
-      Policies:
-        PasswordPolicy:
-          MinimumLength: 8
-          RequireLowercase: true
-          RequireNumbers: true
-          RequireSymbols: true
-          RequireUppercase: true
-      MfaConfiguration: "OFF"
-      EmailConfiguration:
-        EmailSendingAccount: "COGNITO_DEFAULT"
-      AdminCreateUserConfig:
-        AllowAdminCreateUserOnly: false
 
   # User Pool Client for Amplify integration
   UserPoolClient:
     Type: AWS::Cognito::UserPoolClient
     Properties:
       ClientName: LockboxAmplifyClient
-      UserPoolId: !Ref UserPool
+      UserPoolId: !Ref UserPoolId
       ExplicitAuthFlows:
         - ALLOW_USER_SRP_AUTH
         - ALLOW_REFRESH_TOKEN_AUTH
@@ -88,7 +51,7 @@ Resources:
     Type: AWS::Cognito::UserPoolDomain
     Properties:
       Domain: !Sub "lockbox-${AWS::AccountId}"
-      UserPoolId: !Ref UserPool
+      UserPoolId: !Ref UserPoolId
 
   LockboxFunction:
     Type: AWS::Serverless::Function
@@ -111,7 +74,7 @@ Resources:
         Variables:
           DYNAMODB_TABLE: !Ref BoxesTable
           RUST_LOG: info
-          COGNITO_USER_POOL_ID: !Ref UserPool
+          COGNITO_USER_POOL_ID: !Ref UserPoolId
           COGNITO_APP_CLIENT_ID: !Ref UserPoolClient
       Policies:
         - DynamoDBCrudPolicy:
@@ -122,7 +85,7 @@ Resources:
               Action:
                 - cognito-idp:AdminGetUser
                 - cognito-idp:ListUsers
-              Resource: !GetAtt UserPool.Arn
+              Resource: !Sub arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${UserPoolId}
 
   BoxesTable:
     Type: AWS::DynamoDB::Table
@@ -210,7 +173,7 @@ Outputs:
     Value: !Ref BoxesTable
   UserPoolId:
     Description: "Cognito User Pool ID"
-    Value: !Ref UserPool
+    Value: !Ref UserPoolId
   UserPoolClientId:
     Description: "Cognito User Pool Client ID"
     Value: !Ref UserPoolClient
