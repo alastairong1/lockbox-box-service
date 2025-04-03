@@ -26,14 +26,30 @@ pub enum AppError {
 
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
-        let (status, message) = match self {
-            AppError::Unauthorized(msg) => (StatusCode::UNAUTHORIZED, msg),
-            AppError::NotFound(msg) => (StatusCode::NOT_FOUND, msg),
-            AppError::BadRequest(msg) => (StatusCode::BAD_REQUEST, msg),
-            AppError::InternalServerError(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg),
-            AppError::SerializationError(err) => (StatusCode::BAD_REQUEST, err.to_string()),
+        let (status, message) = match &self {
+            AppError::Unauthorized(msg) => {
+                tracing::warn!("Unauthorized error: {}", msg);
+                (StatusCode::UNAUTHORIZED, msg.clone())
+            }
+            AppError::NotFound(msg) => {
+                tracing::warn!("Not found error: {}", msg);
+                (StatusCode::NOT_FOUND, msg.clone())
+            }
+            AppError::BadRequest(msg) => {
+                tracing::warn!("Bad request error: {}", msg);
+                (StatusCode::BAD_REQUEST, msg.clone())
+            }
+            AppError::InternalServerError(msg) => {
+                tracing::error!("Internal server error: {}", msg);
+                (StatusCode::INTERNAL_SERVER_ERROR, msg.clone())
+            }
+            AppError::SerializationError(err) => {
+                tracing::warn!("Serialization error: {}", err);
+                (StatusCode::BAD_REQUEST, err.to_string())
+            }
         };
 
+        tracing::info!("Returning error response: status={}, message={}", status, message);
         (status, Json(json!({ "error": message }))).into_response()
     }
 }

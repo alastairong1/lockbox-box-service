@@ -2,6 +2,7 @@ use axum::{
     middleware,
     routing::{get, patch},
     Router,
+    extract::Request,
 };
 use std::sync::Arc;
 use tower_http::cors::{Any, CorsLayer};
@@ -21,6 +22,8 @@ use crate::store::{dynamo::DynamoBoxStore, BoxStore};
 
 /// Creates a router with the default store
 pub async fn create_router() -> Router {
+    tracing::info!("Creating router with DynamoDB store");
+    
     // Create the DynamoDB store
     let dynamo_store = Arc::new(DynamoBoxStore::new().await);
 
@@ -32,14 +35,28 @@ pub fn create_router_with_store<S>(store: Arc<S>) -> Router
 where
     S: BoxStore + 'static,
 {
+    tracing::info!("Setting up API routes");
+    
     // Configure CORS
     let cors = CorsLayer::new()
         .allow_origin(Any)
         .allow_methods(Any)
         .allow_headers(Any);
 
+    tracing::debug!("CORS configured for all origins, methods and headers");
+
+    // Logging middleware to trace all requests
+    async fn logging_middleware(req: Request, next: axum::middleware::Next) -> impl axum::response::IntoResponse {
+        tracing::info!(
+            "Router received request: method={}, uri={}",
+            req.method(),
+            req.uri()
+        );
+        next.run(req).await
+    }
+
     // Create router with the store and routes
-    Router::new()
+    let router = Router::new()
         .route("/boxes/owned", get(get_boxes).post(create_box))
         .route(
             "/boxes/owned/:id",
@@ -67,6 +84,18 @@ where
             patch(respond_to_invitation),
         )
         .layer(cors)
+        .layer(middleware::from_fn(logging_middleware))
         .layer(middleware::from_fn(auth_middleware))
-        .with_state(store)
+        .with_state(store);
+
+    tracing::info!("Router configured with all routes and middleware");
+    
+    // Add a fallback handler for 404s
+    router.fallback(|req: Request| async move {
+        tracing::warn!("No route matched for: {} {}", req.method(), req.uri());
+        (
+            axum::http::StatusCode::NOT_FOUND,
+            "The requested resource was not found".to_string(),
+        )
+    })
 }

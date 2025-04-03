@@ -30,56 +30,104 @@ pub struct Claims {
 
 // Simple JWT decoder without verification
 pub fn decode_jwt_payload(token: &str) -> Result<Claims, AppError> {
+    tracing::debug!("Decoding JWT payload");
+    
     // Extract payload (second part of the JWT)
     let parts: Vec<&str> = token.split('.').collect();
     if parts.len() != 3 {
+        tracing::warn!("Invalid JWT format: expected 3 parts, got {}", parts.len());
         return Err(AppError::Unauthorized("Invalid JWT format".into()));
     }
+    
+    tracing::debug!("JWT structure verified, decoding payload part");
 
     // Decode the payload
-    let payload_data = URL_SAFE_NO_PAD
-        .decode(parts[1])
-        .map_err(|_| AppError::Unauthorized("Could not decode JWT payload".into()))?;
+    let payload_data = match URL_SAFE_NO_PAD.decode(parts[1]) {
+        Ok(data) => data,
+        Err(err) => {
+            tracing::warn!("Failed to base64 decode JWT payload: {:?}", err);
+            return Err(AppError::Unauthorized("Could not decode JWT payload".into()));
+        }
+    };
 
     // Parse the payload
-    let claims: Claims = serde_json::from_slice(&payload_data)
-        .map_err(|_| AppError::Unauthorized("Could not parse JWT claims".into()))?;
-
-    Ok(claims)
+    match serde_json::from_slice::<Claims>(&payload_data) {
+        Ok(claims) => {
+            tracing::debug!("JWT claims parsed successfully: sub={}", claims.sub);
+            Ok(claims)
+        }
+        Err(err) => {
+            tracing::warn!("Failed to parse JWT claims: {:?}", err);
+            
+            // Try to parse as generic JSON to see what fields are missing
+            if let Ok(value) = serde_json::from_slice::<serde_json::Value>(&payload_data) {
+                tracing::debug!("Raw JWT payload: {:?}", value);
+            }
+            
+            Err(AppError::Unauthorized("Could not parse JWT claims".into()))
+        }
+    }
 }
 
 // Original middleware to extract user_id from Cognito JWT in the request
 pub async fn auth_middleware(mut request: Request, next: Next) -> Result<Response, AppError> {
+    // Log request details
+    tracing::info!(
+        "Auth middleware: method={:?}, path={:?}, query_params={:?}",
+        request.method(),
+        request.uri().path(),
+        request.uri().query()
+    );
+
     // Extract the JWT from the Authorization header
-    let auth_header = request
-        .headers()
-        .get("authorization")
-        .ok_or_else(|| AppError::Unauthorized("Missing authorization header".into()))?;
+    let auth_header = match request.headers().get("authorization") {
+        Some(header) => header,
+        None => {
+            tracing::warn!("Missing authorization header in request");
+            return Err(AppError::Unauthorized("Missing authorization header".into()));
+        }
+    };
 
     // Parse the auth header to get the token
-    let bearer_token = auth_header
-        .to_str()
-        .map_err(|_| AppError::Unauthorized("Invalid authorization header".into()))?;
+    let bearer_token = match auth_header.to_str() {
+        Ok(token) => token,
+        Err(err) => {
+            tracing::warn!("Invalid authorization header format: {:?}", err);
+            return Err(AppError::Unauthorized("Invalid authorization header".into()));
+        }
+    };
 
     if !bearer_token.starts_with("Bearer ") {
+        tracing::warn!("Authorization header doesn't start with 'Bearer '");
         return Err(AppError::Unauthorized(
             "Invalid authorization format. Expected 'Bearer <token>'".into(),
         ));
     }
 
     let token = &bearer_token[7..]; // Skip "Bearer " prefix
+    tracing::debug!("JWT token length: {}", token.len());
 
     // Decode the JWT (without verification since API Gateway already did that)
-    let claims = decode_jwt_payload(token)?;
+    let claims = match decode_jwt_payload(token) {
+        Ok(claims) => claims,
+        Err(err) => {
+            tracing::warn!("Failed to decode JWT payload: {:?}", err);
+            return Err(err);
+        }
+    };
+    
     let user_id = claims.sub;
-
-    tracing::debug!("Authenticated user ID: {}", user_id);
+    tracing::info!("Authenticated user ID: {}", user_id);
 
     // Store the user_id in the request extensions for later retrieval
     request.extensions_mut().insert(user_id);
 
     // Continue to the handler
-    Ok(next.run(request).await)
+    tracing::debug!("Forwarding authenticated request to handler");
+    let response = next.run(request).await;
+    tracing::info!("Handler response status: {:?}", response.status());
+    
+    Ok(response)
 }
 
 #[cfg(test)]
