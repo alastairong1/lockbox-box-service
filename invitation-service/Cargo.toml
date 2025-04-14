@@ -1,5 +1,5 @@
 [package]
-name = "lockbox-box-service"
+name = "lockbox-invitation-service"
 version = "0.1.0"
 edition = "2021"
 
@@ -28,8 +28,9 @@ aws_lambda_events = { version = "0.11", default-features = false, features = ["a
 jsonwebtoken = "9.2.0"
 base64 = "0.21.7"
 axum-auth = "0.4.0"
+nanoid = "0.4.0"
 # Include the shared crate
 lockbox-shared = { path = "../shared" }
 
 [dev-dependencies]
-mockito = "1.3.0" # For mocking HTTP requests/responses if needed later
+mockito = "1.3.0" # For mocking HTTP requests/responses if needed later 

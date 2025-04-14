@@ -1,5 +1,7 @@
 [workspace]
 members = [
     "box-service",
+    "invitation-service",
+    "shared",
 ]
 resolver = "2"
