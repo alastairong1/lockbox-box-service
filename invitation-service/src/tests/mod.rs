@@ -1,1 +1,1 @@
-pub mod invitation_handlers_test; 
+pub mod invitation_handlers_test;

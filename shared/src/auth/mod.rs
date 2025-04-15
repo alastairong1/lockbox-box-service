@@ -246,8 +246,6 @@ mod tests {
         routing::get,
         Router,
     };
-    use jsonwebtoken::{encode, Algorithm, EncodingKey, Header};
-    use std::time::{SystemTime, UNIX_EPOCH};
     use tower::ServiceExt;
 
     // Dummy handler to check if user_id extension is present
