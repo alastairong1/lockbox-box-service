@@ -1,18 +1,17 @@
 use axum::{
     extract::Request,
     middleware,
-    routing::{get, post, put},
+    routing::{post, put},
     Router,
 };
 use std::sync::Arc;
 use tower_http::cors::{Any, CorsLayer};
 
-use crate::handlers::{
-    auth_middleware,
-    invitation_handlers::{
-        handle_invitation, create_invitation, refresh_invitation,
-    },
+use crate::handlers::invitation_handlers::{
+    create_invitation, handle_invitation, refresh_invitation,
 };
+// Import shared auth middleware
+use lockbox_shared::auth::auth_middleware;
 use lockbox_shared::store::{dynamo::DynamoInvitationStore, InvitationStore};
 
 /// Creates a router with the default store
@@ -85,4 +84,4 @@ where
             "The requested resource was not found".to_string(),
         )
     })
-} 
+}

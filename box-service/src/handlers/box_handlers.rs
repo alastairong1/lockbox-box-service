@@ -63,7 +63,7 @@ where
 
     // TODO: Is it safe to check here or should we do filter in the db query?
     if box_rec.owner_id != user_id {
-        return Err(AppError::Unauthorized(
+        return Err(AppError::unauthorized(
             "You don't have permission to view this box".into(),
         ));
     }
@@ -154,7 +154,7 @@ where
 
     // Check if the user is the owner
     if box_rec.owner_id != user_id {
-        return Err(AppError::Unauthorized(
+        return Err(AppError::unauthorized(
             "You don't have permission to update this box".into(),
         ));
     }
@@ -220,7 +220,7 @@ where
 
     // Check if the user is the owner
     if box_rec.owner_id != user_id {
-        return Err(AppError::Unauthorized(
+        return Err(AppError::unauthorized(
             "You don't have permission to delete this box".into(),
         ));
     }
@@ -249,7 +249,7 @@ where
 
     // Check if the user is the owner
     if box_rec.owner_id != owner_id {
-        return Err(AppError::Unauthorized(
+        return Err(AppError::unauthorized(
             "You don't have permission to update this box".into(),
         ));
     }
@@ -330,7 +330,7 @@ where
 
     // Check if the user is the owner
     if box_rec.owner_id != owner_id {
-        return Err(AppError::Unauthorized(
+        return Err(AppError::unauthorized(
             "You don't have permission to update this box".into(),
         ));
     }
@@ -396,7 +396,7 @@ where
 
     // Check if the user is the owner
     if box_rec.owner_id != owner_id {
-        return Err(AppError::Unauthorized(
+        return Err(AppError::unauthorized(
             "You don't have permission to delete documents from this box".into(),
         ));
     }
@@ -406,7 +406,7 @@ where
 
     // Return not found if document doesn't exist
     if document_index.is_none() {
-        return Err(AppError::NotFound(format!(
+        return Err(AppError::not_found(format!(
             "Document with ID {} not found in box {}",
             document_id, box_id
         )));
@@ -463,7 +463,7 @@ where
 
     // Check if the user is the owner
     if box_rec.owner_id != owner_id {
-        return Err(AppError::Unauthorized(
+        return Err(AppError::unauthorized(
             "You don't have permission to delete guardians from this box".into(),
         ));
     }
@@ -473,7 +473,7 @@ where
 
     // Return not found if guardian doesn't exist
     if guardian_index.is_none() {
-        return Err(AppError::NotFound(format!(
+        return Err(AppError::not_found(format!(
             "Guardian with ID {} not found in box {}",
             guardian_id, box_id
         )));

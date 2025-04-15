@@ -8,7 +8,6 @@ use std::sync::Arc;
 use tower_http::cors::{Any, CorsLayer};
 
 use crate::handlers::{
-    auth_middleware,
     box_handlers::{
         create_box, delete_box, delete_document, delete_guardian, get_box, get_boxes, update_box,
         update_document, update_guardian,
@@ -19,6 +18,9 @@ use crate::handlers::{
     },
 };
 use crate::store::{dynamo::DynamoBoxStore, BoxStore};
+
+// Import shared auth middleware
+use lockbox_shared::auth::auth_middleware;
 
 /// Creates a router with the default store
 pub async fn create_router() -> Router {

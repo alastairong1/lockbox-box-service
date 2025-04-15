@@ -1,3 +1,4 @@
-pub mod models;
+pub mod auth;
 pub mod error;
-pub mod store; 
+pub mod models;
+pub mod store;

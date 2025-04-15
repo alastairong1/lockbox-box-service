@@ -48,7 +48,8 @@ impl BoxStore for DynamoBoxStore {
     /// Creates a new box record in DynamoDB
     async fn create_box(&self, box_record: BoxRecord) -> Result<BoxRecord> {
         let item = to_item(&box_record).map_err(|e| {
-            AppError::InternalServerError(format!("Failed to serialize box: {}", e))
+            tracing::error!("Failed to serialize box: {}", e);
+            AppError::internal_server_error(format!("Failed to serialize box: {}", e))
         })?;
 
         self.client
@@ -77,10 +78,11 @@ impl BoxStore for DynamoBoxStore {
 
         let item = response
             .item()
-            .ok_or_else(|| AppError::NotFound(format!("Box not found: {}", id)))?;
+            .ok_or_else(|| AppError::not_found(format!("Box not found: {}", id)))?;
 
-        from_item(item.clone())
-            .map_err(|e| AppError::InternalServerError(format!("Failed to deserialize box: {}", e)))
+        from_item(item.clone()).map_err(|e| {
+            AppError::internal_server_error(format!("Failed to deserialize box: {}", e))
+        })
     }
 
     /// Gets all boxes owned by a user
@@ -110,7 +112,7 @@ impl BoxStore for DynamoBoxStore {
         let mut boxes = Vec::new();
         for item in items {
             let box_record = from_item(item.clone()).map_err(|e| {
-                AppError::InternalServerError(format!("Failed to deserialize box: {}", e))
+                AppError::internal_server_error(format!("Failed to deserialize box: {}", e))
             })?;
             boxes.push(box_record);
         }
@@ -128,7 +130,7 @@ impl BoxStore for DynamoBoxStore {
         };
 
         let item = to_item(&updated_box).map_err(|e| {
-            AppError::InternalServerError(format!("Failed to serialize box: {}", e))
+            AppError::internal_server_error(format!("Failed to serialize box: {}", e))
         })?;
 
         self.client
@@ -183,7 +185,7 @@ impl BoxStore for DynamoBoxStore {
         let mut boxes = Vec::new();
         for item in items {
             let box_record: BoxRecord = from_item(item.clone()).map_err(|e| {
-                AppError::InternalServerError(format!("Failed to deserialize box: {}", e))
+                AppError::internal_server_error(format!("Failed to deserialize box: {}", e))
             })?;
 
             // Check if the user is a guardian for this box
@@ -219,7 +221,7 @@ impl Default for DynamoBoxStore {
 
 /// Map DynamoDB put_item errors to application errors
 fn map_dynamo_error<E>(operation: &str, err: SdkError<E>) -> AppError {
-    AppError::InternalServerError(format!("DynamoDB {} error: {}", operation, err))
+    AppError::internal_server_error(format!("DynamoDB {} error: {}", operation, err))
 }
 
 /// Map DynamoDB get_item errors to application errors
@@ -227,26 +229,26 @@ fn map_get_dynamo_error(err: SdkError<GetItemError>, id: &str) -> AppError {
     match err {
         SdkError::ServiceError(ref service_err) => {
             if let GetItemError::ResourceNotFoundException(_) = service_err.err() {
-                AppError::NotFound(format!("Box not found: {}", id))
+                AppError::not_found(format!("Box not found: {}", id))
             } else {
-                AppError::InternalServerError(format!("DynamoDB get_item error: {}", err))
+                AppError::internal_server_error(format!("DynamoDB get_item error: {}", err))
             }
         }
-        _ => AppError::InternalServerError(format!("DynamoDB get_item error: {}", err)),
+        _ => AppError::internal_server_error(format!("DynamoDB get_item error: {}", err)),
     }
 }
 
 /// Map DynamoDB delete_item errors to application errors
 fn map_delete_dynamo_error(err: SdkError<DeleteItemError>) -> AppError {
-    AppError::InternalServerError(format!("DynamoDB delete_item error: {}", err))
+    AppError::internal_server_error(format!("DynamoDB delete_item error: {}", err))
 }
 
 /// Map DynamoDB query errors to application errors
 fn map_query_dynamo_error(err: SdkError<QueryError>) -> AppError {
-    AppError::InternalServerError(format!("DynamoDB query error: {}", err))
+    AppError::internal_server_error(format!("DynamoDB query error: {}", err))
 }
 
 /// Map DynamoDB scan errors to application errors
 fn map_scan_dynamo_error(err: SdkError<ScanError>) -> AppError {
-    AppError::InternalServerError(format!("DynamoDB scan error: {}", err))
+    AppError::internal_server_error(format!("DynamoDB scan error: {}", err))
 }

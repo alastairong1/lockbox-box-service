@@ -24,6 +24,29 @@ pub enum AppError {
     SerializationError(#[from] serde_json::Error),
 }
 
+// Add back compatibility methods
+impl AppError {
+    pub fn unauthorized(msg: String) -> Self {
+        AppError::Unauthorized(msg)
+    }
+
+    pub fn not_found(msg: String) -> Self {
+        AppError::NotFound(msg)
+    }
+
+    pub fn validation_error(msg: String) -> Self {
+        AppError::BadRequest(msg)
+    }
+
+    pub fn bad_request(msg: String) -> Self {
+        AppError::BadRequest(msg)
+    }
+
+    pub fn internal_server_error(msg: String) -> Self {
+        AppError::InternalServerError(msg)
+    }
+}
+
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
         let (status, message) = match &self {
@@ -55,6 +78,23 @@ impl IntoResponse for AppError {
             message
         );
         (status, Json(json!({ "error": message }))).into_response()
+    }
+}
+
+// Add conversion from shared StoreError to AppError
+impl From<lockbox_shared::error::StoreError> for AppError {
+    fn from(err: lockbox_shared::error::StoreError) -> Self {
+        match err {
+            lockbox_shared::error::StoreError::NotFound(msg) => AppError::NotFound(msg),
+            lockbox_shared::error::StoreError::ValidationError(msg) => AppError::BadRequest(msg),
+            lockbox_shared::error::StoreError::InternalError(msg) => {
+                AppError::InternalServerError(msg)
+            }
+            lockbox_shared::error::StoreError::InvitationExpired => {
+                AppError::BadRequest("Invitation has expired".into())
+            }
+            lockbox_shared::error::StoreError::AuthError(msg) => AppError::Unauthorized(msg),
+        }
     }
 }
 

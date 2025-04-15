@@ -64,11 +64,11 @@ impl BoxStore for MemoryBoxStore {
         let mut boxes = self
             .boxes
             .write()
-            .map_err(|_| AppError::InternalServerError("Failed to acquire write lock".into()))?;
+            .map_err(|_| AppError::internal_server_error("Failed to acquire write lock".into()))?;
 
         if boxes.contains_key(&box_record.id) {
-            return Err(AppError::BadRequest(format!(
-                "Box with ID {} already exists",
+            return Err(AppError::bad_request(format!(
+                "Box with id {} already exists",
                 box_record.id
             )));
         }
@@ -81,19 +81,19 @@ impl BoxStore for MemoryBoxStore {
         let boxes = self
             .boxes
             .read()
-            .map_err(|_| AppError::InternalServerError("Failed to acquire read lock".into()))?;
+            .map_err(|_| AppError::internal_server_error("Failed to acquire read lock".into()))?;
 
         boxes
             .get(id)
             .cloned()
-            .ok_or_else(|| AppError::NotFound(format!("Box not found: {}", id)))
+            .ok_or_else(|| AppError::not_found(format!("Box not found: {}", id)))
     }
 
     async fn get_boxes_by_owner(&self, owner_id: &str) -> Result<Vec<BoxRecord>> {
         let boxes = self
             .boxes
             .read()
-            .map_err(|_| AppError::InternalServerError("Failed to acquire read lock".into()))?;
+            .map_err(|_| AppError::internal_server_error("Failed to acquire read lock".into()))?;
 
         let owner_boxes: Vec<BoxRecord> = boxes
             .values()
@@ -108,11 +108,11 @@ impl BoxStore for MemoryBoxStore {
         let mut boxes = self
             .boxes
             .write()
-            .map_err(|_| AppError::InternalServerError("Failed to acquire write lock".into()))?;
+            .map_err(|_| AppError::internal_server_error("Failed to acquire write lock".into()))?;
 
         if !boxes.contains_key(&box_record.id) {
-            return Err(AppError::NotFound(format!(
-                "Box not found: {}",
+            return Err(AppError::not_found(format!(
+                "Box with id {} not found",
                 box_record.id
             )));
         }
@@ -130,10 +130,10 @@ impl BoxStore for MemoryBoxStore {
         let mut boxes = self
             .boxes
             .write()
-            .map_err(|_| AppError::InternalServerError("Failed to acquire write lock".into()))?;
+            .map_err(|_| AppError::internal_server_error("Failed to acquire write lock".into()))?;
 
         if boxes.remove(id).is_none() {
-            return Err(AppError::NotFound(format!("Box not found: {}", id)));
+            return Err(AppError::not_found(format!("Box not found: {}", id)));
         }
 
         Ok(())
@@ -143,7 +143,7 @@ impl BoxStore for MemoryBoxStore {
         let boxes = self
             .boxes
             .read()
-            .map_err(|_| AppError::InternalServerError("Failed to acquire read lock".into()))?;
+            .map_err(|_| AppError::internal_server_error("Failed to acquire read lock".into()))?;
 
         let guardian_boxes: Vec<BoxRecord> = boxes
             .values()

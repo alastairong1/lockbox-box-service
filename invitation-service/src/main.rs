@@ -1,5 +1,6 @@
 mod error;
 mod handlers;
+mod models;
 mod routes;
 
 use axum::{body::Body, extract::Request, response::Response};
@@ -107,7 +108,8 @@ async fn response_to_lambda(response: Response) -> Result<LambdaResponse<LambdaB
 #[tokio::main]
 async fn main() -> Result<(), Error> {
     // Initialize tracing with enhanced configuration
-    let log_level = std::env::var("RUST_LOG").unwrap_or_else(|_| "info,invitation_service=debug".into());
+    let log_level =
+        std::env::var("RUST_LOG").unwrap_or_else(|_| "info,invitation_service=debug".into());
 
     // Configure and initialize tracing
     tracing_subscriber::fmt()
@@ -137,4 +139,4 @@ async fn main() -> Result<(), Error> {
 
     tracing::info!("Lambda function completed");
     Ok(())
-} 
+}

@@ -59,7 +59,7 @@ where
         return Ok(Json(serde_json::json!({ "box": guardian_box })));
     }
 
-    Err(AppError::Unauthorized(
+    Err(AppError::unauthorized(
         "Unauthorized or Box not found".into(),
     ))
 }
@@ -85,7 +85,8 @@ where
         .is_some();
 
     if !is_guardian {
-        return Err(AppError::Unauthorized("Not a guardian for this box".into()));
+        tracing::warn!("User {} is not a guardian for box {}", user_id, box_id);
+        return Err(AppError::unauthorized("Not a guardian for this box".into()));
     }
 
     // Check if user is a lead guardian
@@ -112,13 +113,13 @@ where
         if let Some(guard_box) = convert_to_guardian_box(&updated_box, &user_id) {
             return Ok(Json(serde_json::json!({ "box": guard_box })));
         } else {
-            return Err(AppError::InternalServerError(
+            return Err(AppError::internal_server_error(
                 "Failed to render guardian box".into(),
             ));
         }
     }
 
-    Err(AppError::BadRequest(
+    Err(AppError::bad_request(
         "User is not a lead guardian for this box".into(),
     ))
 }
@@ -143,12 +144,12 @@ where
         .find(|g| g.id == user_id && g.status != "rejected")
         .is_none()
     {
-        return Err(AppError::Unauthorized("Not a guardian for this box".into()));
+        return Err(AppError::unauthorized("Not a guardian for this box".into()));
     }
 
     // Check if there's an unlock request to respond to
     if box_record.unlock_request.is_none() {
-        return Err(AppError::BadRequest(
+        return Err(AppError::bad_request(
             "No unlock request exists to update".into(),
         ));
     }
@@ -171,7 +172,7 @@ where
         }
 
         if !updated {
-            return Err(AppError::BadRequest(
+            return Err(AppError::bad_request(
                 "No valid update field provided".into(),
             ));
         }
@@ -185,7 +186,7 @@ where
     if let Some(guard_box) = convert_to_guardian_box(&updated_box, &user_id) {
         return Ok(Json(serde_json::json!({ "box": guard_box })));
     } else {
-        return Err(AppError::InternalServerError(
+        return Err(AppError::internal_server_error(
             "Failed to render guardian box".into(),
         ));
     }
@@ -225,7 +226,7 @@ where
                     "box": guard_box
                 })));
             } else {
-                return Err(AppError::InternalServerError(
+                return Err(AppError::internal_server_error(
                     "Failed to render guardian box".into(),
                 ));
             }
@@ -244,7 +245,7 @@ where
     }
 
     // If we get here, the user isn't a pending guardian for this box
-    Err(AppError::BadRequest(
+    Err(AppError::bad_request(
         "No pending invitation found for this box".into(),
     ))
 }

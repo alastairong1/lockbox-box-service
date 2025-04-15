@@ -1,76 +1,47 @@
-use aws_sdk_dynamodb::error::SdkError;
-use aws_sdk_dynamodb::operation::delete_item::DeleteItemError;
-use aws_sdk_dynamodb::operation::get_item::GetItemError;
-use aws_sdk_dynamodb::operation::put_item::PutItemError;
-use aws_sdk_dynamodb::operation::query::QueryError;
-use thiserror::Error;
+// This file exists primarily to provide a Result type for trait interfaces
+// Each service should implement its own error handling
 
-pub type Result<T> = std::result::Result<T, ServiceError>;
-
-#[derive(Error, Debug)]
-pub enum ServiceError {
-    #[error("Resource not found: {0}")]
+// Define a simple error type that services can map from
+#[derive(Debug)]
+pub enum StoreError {
     NotFound(String),
-
-    #[error("Unauthorized: {0}")]
-    Unauthorized(String),
-
-    #[error("Validation error: {0}")]
-    ValidationError(String),
-
-    #[error("Internal server error: {0}")]
     InternalError(String),
-
-    #[error("Invitation expired")]
+    ValidationError(String),
     InvitationExpired,
-
-    #[error("Request timeout: {0}")]
-    Timeout(String),
+    AuthError(String),
 }
 
-// Helper function to map general DynamoDB errors
-pub fn map_dynamo_error<E>(operation: &str, err: SdkError<E>) -> ServiceError {
-    ServiceError::InternalError(format!("DynamoDB {} error: {}", operation, err))
-}
-
-// Helper function to map GetItem errors
-pub fn map_get_dynamo_error(err: SdkError<GetItemError>, id: &str) -> ServiceError {
-    match &err {
-        SdkError::ServiceError(service_err) => {
-            if service_err.err().is_resource_not_found_exception() {
-                ServiceError::NotFound(format!("Resource not found with ID: {}", id))
-            } else {
-                ServiceError::InternalError(format!("DynamoDB get_item error: {}", err))
-            }
+impl std::fmt::Display for StoreError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            StoreError::NotFound(msg) => write!(f, "Not found: {}", msg),
+            StoreError::InternalError(msg) => write!(f, "Internal error: {}", msg),
+            StoreError::ValidationError(msg) => write!(f, "Validation error: {}", msg),
+            StoreError::InvitationExpired => write!(f, "Invitation expired"),
+            StoreError::AuthError(msg) => write!(f, "Authentication error: {}", msg),
         }
-        _ => ServiceError::InternalError(format!("DynamoDB get_item error: {}", err)),
     }
 }
 
-// Helper function to map DeleteItem errors
-pub fn map_delete_dynamo_error(err: SdkError<DeleteItemError>) -> ServiceError {
-    ServiceError::InternalError(format!("DynamoDB delete_item error: {}", err))
-}
+impl std::error::Error for StoreError {}
 
-// Helper function to map Query errors
-pub fn map_query_dynamo_error(err: SdkError<QueryError>) -> ServiceError {
-    ServiceError::InternalError(format!("DynamoDB query error: {}", err))
-}
+// Define a result type for store interfaces
+pub type Result<T> = std::result::Result<T, StoreError>;
 
-// Helper function to map PutItem errors
-pub fn map_put_dynamo_error(err: SdkError<PutItemError>) -> ServiceError {
-    ServiceError::InternalError(format!("DynamoDB put_item error: {}", err))
-}
-
-// Keep conversion for compatibility
-impl From<serde_dynamo::Error> for ServiceError {
+// Useful conversions
+impl From<serde_dynamo::Error> for StoreError {
     fn from(err: serde_dynamo::Error) -> Self {
-        ServiceError::InternalError(format!("DynamoDB serialization error: {}", err))
+        StoreError::InternalError(format!("DynamoDB serialization error: {}", err))
     }
 }
 
-impl From<serde_json::Error> for ServiceError {
+impl From<serde_json::Error> for StoreError {
     fn from(err: serde_json::Error) -> Self {
-        ServiceError::InternalError(format!("JSON serialization error: {}", err))
+        StoreError::InternalError(format!("JSON serialization error: {}", err))
     }
-} 
+}
+
+// Basic error mapping functions that store implementations may use
+pub fn map_dynamo_error(operation: &str, err: impl std::fmt::Display) -> StoreError {
+    StoreError::InternalError(format!("DynamoDB {} error: {}", operation, err))
+}

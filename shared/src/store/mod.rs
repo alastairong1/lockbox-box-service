@@ -23,7 +23,7 @@ pub trait InvitationStore: Send + Sync + 'static {
 
     /// Deletes an invitation
     async fn delete_invitation(&self, id: &str) -> Result<()>;
-    
+
     /// Gets all invitations for a box
     async fn get_invitations_by_box_id(&self, box_id: &str) -> Result<Vec<Invitation>>;
-} 
+}
