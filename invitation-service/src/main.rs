@@ -2,6 +2,8 @@ mod error;
 mod handlers;
 mod models;
 mod routes;
+#[cfg(test)]
+mod tests;
 
 use axum::{body::Body, extract::Request, response::Response};
 use lambda_http::{
