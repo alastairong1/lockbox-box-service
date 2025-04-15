@@ -26,4 +26,7 @@ pub trait InvitationStore: Send + Sync + 'static {
 
     /// Gets all invitations for a box
     async fn get_invitations_by_box_id(&self, box_id: &str) -> Result<Vec<Invitation>>;
+
+    /// Gets all invitations created by a specific user
+    async fn get_invitations_by_creator_id(&self, creator_id: &str) -> Result<Vec<Invitation>>;
 }

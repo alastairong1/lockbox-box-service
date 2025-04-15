@@ -29,8 +29,14 @@ pub async fn create_router() -> Router {
     // Create the DynamoDB store
     let dynamo_store = Arc::new(DynamoBoxStore::new().await);
 
-    // Hardcode the prefix as "/Prod"
-    let prefix = "/Prod";
+    // Check if we should remove the base path prefix
+    let remove_base_path = std::env::var("REMOVE_BASE_PATH")
+        .map(|v| v.to_lowercase() == "true")
+        .unwrap_or(false);
+    
+    // If REMOVE_BASE_PATH is set to true, don't add the /Prod prefix
+    let prefix = if remove_base_path { "" } else { "/Prod" };
+    tracing::info!("Using API route prefix: {}", prefix);
 
     create_router_with_store(dynamo_store, prefix)
 }

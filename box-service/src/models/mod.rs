@@ -13,14 +13,14 @@ pub struct Document {
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Guardian {
-    pub id: String,
+    pub id: String, // user_id
     pub name: String,
-    pub email: String,
-    #[serde(rename = "leadGuardian")]
     pub lead: bool,
-    pub status: String, // "pending", "accepted", "rejected"
+    pub status: String, // "sent", "viewed", "accepted", "rejected"
     #[serde(rename = "addedAt")]
     pub added_at: String,
+    #[serde(rename = "invitationId")]
+    pub invitation_id: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]

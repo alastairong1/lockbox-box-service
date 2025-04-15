@@ -13,6 +13,7 @@ use crate::models::Invitation;
 const TABLE_NAME: &str = "invitation-table";
 const GSI_BOX_ID: &str = "box_id-index";
 const GSI_INVITE_CODE: &str = "invite_code-index";
+const GSI_CREATOR_ID: &str = "creator_id-index";
 
 pub struct DynamoInvitationStore {
     client: Client,
@@ -183,6 +184,42 @@ impl super::InvitationStore for DynamoInvitationStore {
             .table_name(&self.table_name)
             .index_name(GSI_BOX_ID)
             .key_condition_expression("box_id = :box_id")
+            .set_expression_attribute_values(Some(expr_attr_values))
+            .send()
+            .await
+            .map_err(|e| map_dynamo_error("query", e))?;
+
+        let items = result.items();
+
+        let mut invitations = Vec::new();
+        for item in items {
+            let invitation: Invitation = from_item(item.clone())?;
+            // Filter out expired invitations
+            let expires_at =
+                chrono::DateTime::parse_from_rfc3339(&invitation.expires_at).map_err(|_| {
+                    StoreError::InternalError("Invalid expiration date format".to_string())
+                })?;
+
+            if Utc::now() <= expires_at {
+                invitations.push(invitation);
+            }
+        }
+
+        Ok(invitations)
+    }
+
+    async fn get_invitations_by_creator_id(&self, creator_id: &str) -> Result<Vec<Invitation>> {
+        // Create expression attribute values
+        let expr_attr_values = HashMap::from([
+            (":creator_id".to_string(), AttributeValue::S(creator_id.to_string()))
+        ]);
+
+        let result = self
+            .client
+            .query()
+            .table_name(&self.table_name)
+            .index_name(GSI_CREATOR_ID)
+            .key_condition_expression("creator_id = :creator_id")
             .set_expression_attribute_values(Some(expr_attr_values))
             .send()
             .await

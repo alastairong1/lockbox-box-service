@@ -78,7 +78,23 @@ Resources:
       Architectures:
         - x86_64
       Events:
-        ApiEvent:
+        ApiEventRoot:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGatewayApi
+            Path: /boxes
+            Method: ANY
+            Auth:
+              Authorizer: CognitoAuthorizer
+        ApiEventWithId:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGatewayApi
+            Path: /boxes/{id}
+            Method: ANY
+            Auth:
+              Authorizer: CognitoAuthorizer
+        ApiEventWithSubpaths:
           Type: Api
           Properties:
             RestApiId: !Ref ApiGatewayApi
@@ -114,7 +130,23 @@ Resources:
       Architectures:
         - x86_64
       Events:
-        ApiEvent:
+        ApiEventRoot:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGatewayApi
+            Path: /invitations
+            Method: ANY
+            Auth:
+              Authorizer: CognitoAuthorizer
+        ApiEventWithId:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGatewayApi
+            Path: /invitations/{id}
+            Method: ANY
+            Auth:
+              Authorizer: CognitoAuthorizer
+        ApiEventWithSubpaths:
           Type: Api
           Properties:
             RestApiId: !Ref ApiGatewayApi
@@ -184,6 +216,8 @@ Resources:
           AttributeType: S
         - AttributeName: box_id
           AttributeType: S
+        - AttributeName: creator_id
+          AttributeType: S
       KeySchema:
         - AttributeName: id
           KeyType: HASH
@@ -197,6 +231,12 @@ Resources:
         - IndexName: box_id-index
           KeySchema:
             - AttributeName: box_id
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+        - IndexName: creator_id-index
+          KeySchema:
+            - AttributeName: creator_id
               KeyType: HASH
           Projection:
             ProjectionType: ALL

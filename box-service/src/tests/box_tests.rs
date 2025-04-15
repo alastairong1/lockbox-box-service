@@ -802,7 +802,6 @@ async fn test_update_box_add_guardians() {
                     {
                         "id": "guardian_a",
                         "name": "Guardian A",
-                        "email": "guardiana@example.com",
                         "leadGuardian": false,
                         "status": "pending",
                         "addedAt": "2023-01-01T12:00:00Z"
@@ -810,7 +809,6 @@ async fn test_update_box_add_guardians() {
                     {
                         "id": "guardian_b",
                         "name": "Guardian B",
-                        "email": "guardianb@example.com",
                         "leadGuardian": true,
                         "status": "pending",
                         "addedAt": "2023-01-02T12:00:00Z"
@@ -820,7 +818,6 @@ async fn test_update_box_add_guardians() {
                     {
                         "id": "guardian_b",
                         "name": "Guardian B",
-                        "email": "guardianb@example.com",
                         "leadGuardian": true,
                         "status": "pending",
                         "addedAt": "2023-01-02T12:00:00Z"
@@ -1169,7 +1166,6 @@ async fn test_update_single_guardian() {
         "guardian": {
             "id": "guardian_a",
             "name": "Guardian A",
-            "email": "guardiana@example.com",
             "leadGuardian": false,
             "status": "pending",
             "addedAt": "2023-01-01T12:00:00Z"
@@ -1240,7 +1236,6 @@ async fn test_update_lead_guardian() {
         "guardian": {
             "id": "guardian_lead",
             "name": "Lead Guardian",
-            "email": "leadguardian@example.com",
             "leadGuardian": true,
             "status": "pending",
             "addedAt": "2023-01-01T12:00:00Z"
@@ -1279,7 +1274,6 @@ async fn test_update_existing_guardian() {
         "guardian": {
             "id": "guardian_to_update",
             "name": "Initial Name",
-            "email": "initial@example.com",
             "leadGuardian": false,
             "status": "pending",
             "addedAt": "2023-01-01T12:00:00Z"
@@ -1304,7 +1298,6 @@ async fn test_update_existing_guardian() {
         "guardian": {
             "id": "guardian_to_update",
             "name": "Updated Name",
-            "email": "updated@example.com",
             "leadGuardian": true, // Now promoting to lead
             "status": "accepted",
             "addedAt": "2023-01-01T12:00:00Z"
@@ -1339,10 +1332,6 @@ async fn test_update_existing_guardian() {
 
     // Verify each field was updated correctly
     assert_eq!(updated_guard["name"].as_str().unwrap(), "Updated Name");
-    assert_eq!(
-        updated_guard["email"].as_str().unwrap(),
-        "updated@example.com"
-    );
     assert_eq!(updated_guard["leadGuardian"].as_bool().unwrap(), true);
     assert_eq!(updated_guard["status"].as_str().unwrap(), "accepted");
 }
@@ -1360,7 +1349,6 @@ async fn test_update_guardian_unauthorized() {
         "guardian": {
             "id": "unauthorized_guardian",
             "name": "Unauthorized Guardian",
-            "email": "unauthorized@example.com",
             "leadGuardian": false,
             "status": "pending",
             "addedAt": "2023-01-01T12:00:00Z"
@@ -1789,7 +1777,6 @@ async fn test_delete_guardian() {
         "guardian": {
             "id": "guardian_to_delete",
             "name": "Guardian to Delete",
-            "email": "guardian_delete@example.com",
             "leadGuardian": false,
             "status": "accepted",
             "addedAt": "2023-01-01T12:00:00Z"
@@ -1873,7 +1860,6 @@ async fn test_delete_lead_guardian() {
         "guardian": {
             "id": "lead_guardian_to_delete",
             "name": "Lead Guardian to Delete",
-            "email": "lead_guardian_delete@example.com",
             "leadGuardian": true,
             "status": "accepted",
             "addedAt": "2023-01-01T12:00:00Z"
@@ -2013,7 +1999,6 @@ async fn test_delete_guardian_unauthorized() {
         "guardian": {
             "id": "guardian_in_box_2",
             "name": "Guardian in Box 2",
-            "email": "guardian_box2@example.com",
             "leadGuardian": false,
             "status": "accepted",
             "addedAt": "2023-01-01T12:00:00Z"

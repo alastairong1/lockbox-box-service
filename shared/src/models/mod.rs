@@ -16,6 +16,8 @@ pub struct Invitation {
     pub opened: bool,
     #[serde(rename = "linkedUserId")]
     pub linked_user_id: Option<String>, // To be filled upon open
+    #[serde(rename = "creatorId")]
+    pub creator_id: String, // ID of the user who created the invitation
 }
 
 // Response DTOs for general use across services

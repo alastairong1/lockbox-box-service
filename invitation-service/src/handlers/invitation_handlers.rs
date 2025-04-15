@@ -1,5 +1,5 @@
 use axum::{
-    extract::{Path, State},
+    extract::{Path, State, Extension},
     Json,
 };
 use chrono::{Duration, Utc};
@@ -24,7 +24,8 @@ const CODE_ALPHABET: [char; 26] = [
 // POST /invitation - Create a new invitation
 pub async fn create_invitation<S: InvitationStore>(
     State(store): State<Arc<S>>,
-    Json(request): Json<CreateInvitationRequest>,
+    Extension(user_id): Extension<String>,
+    Json(create_request): Json<CreateInvitationRequest>,
 ) -> Result<Json<InvitationCodeResponse>> {
     // Generate a user-friendly code for the invitation (8 characters)
     let invite_code = nanoid::nanoid!(8, &CODE_ALPHABET);
@@ -37,12 +38,13 @@ pub async fn create_invitation<S: InvitationStore>(
     let invitation = Invitation {
         id: Uuid::new_v4().to_string(),
         invite_code,
-        invited_name: request.invited_name,
-        box_id: request.box_id,
+        invited_name: create_request.invited_name,
+        box_id: create_request.box_id,
         created_at,
         expires_at,
         opened: false,
         linked_user_id: None,
+        creator_id: user_id,
     };
 
     // Save to database
@@ -125,4 +127,18 @@ pub async fn refresh_invitation<S: InvitationStore>(
     };
 
     Ok(Json(response))
+}
+
+// GET /invitations/me - Get all invitations created by the current user
+pub async fn get_my_invitations<S: InvitationStore>(
+    State(store): State<Arc<S>>,
+    Extension(user_id): Extension<String>,
+) -> Result<Json<Vec<Invitation>>> {
+    // Fetch all invitations created by this user
+    let invitations = store
+        .get_invitations_by_creator_id(&user_id)
+        .await
+        .map_err(|e| map_dynamo_error("get_invitations_by_creator_id", e))?;
+
+    Ok(Json(invitations))
 }

@@ -44,7 +44,6 @@ Returns all boxes owned by the user, including complete details such as document
         {
           "id": "guardian_id",
           "name": "Guardian Name",
-          "email": "guardian@example.com",
           "leadGuardian": false,
           "status": "accepted",
           "addedAt": "timestamp"
@@ -54,7 +53,6 @@ Returns all boxes owned by the user, including complete details such as document
         {
           "id": "lead_guardian_id",
           "name": "Lead Guardian",
-          "email": "lead@example.com",
           "leadGuardian": true,
           "status": "accepted",
           "addedAt": "timestamp"
@@ -119,7 +117,6 @@ Returns complete details of a specific box owned by the user, including all docu
       {
         "id": "guardian_id",
         "name": "Guardian Name",
-        "email": "guardian@example.com",
         "leadGuardian": false,
         "status": "accepted",
         "addedAt": "timestamp"
@@ -129,7 +126,6 @@ Returns complete details of a specific box owned by the user, including all docu
       {
         "id": "lead_guardian_id",
         "name": "Lead Guardian",
-        "email": "lead@example.com",
         "leadGuardian": true,
         "status": "accepted",
         "addedAt": "timestamp"
@@ -201,7 +197,6 @@ Allows box owners to add or update a guardian for their box. This is the dedicat
   "guardian": {
     "id": "guardian_id",
     "name": "Guardian Name",
-    "email": "guardian@example.com",
     "leadGuardian": true,
     "status": "pending",
     "addedAt": "2023-05-25T12:00:00Z"
@@ -217,15 +212,13 @@ Allows box owners to add or update a guardian for their box. This is the dedicat
       {
         "id": "guardian_id",
         "name": "Guardian Name",
-        "email": "guardian@example.com",
-        "leadGuardian": true,
-        "status": "pending",
-        "addedAt": "2023-05-25T12:00:00Z"
+        "leadGuardian": false,
+        "status": "accepted",
+        "addedAt": "timestamp"
       },
       {
         "id": "guardian_id_2",
         "name": "Guardian Two",
-        "email": "guardian2@example.com",
         "leadGuardian": false,
         "status": "accepted",
         "addedAt": "2023-05-20T11:30:00Z"
@@ -261,7 +254,6 @@ Allows box owners to delete a specific guardian from their box. This is a dedica
       {
         "id": "guardian_id_2",
         "name": "Guardian Two",
-        "email": "guardian2@example.com",
         "leadGuardian": false,
         "status": "accepted",
         "addedAt": "2023-05-20T11:30:00Z"
@@ -399,7 +391,6 @@ Returns all boxes where the authenticated user is a guardian (excluding rejected
         {
           "id": "guardian_id",
           "name": "Guardian Name",
-          "email": "guardian@example.com",
           "leadGuardian": false,
           "status": "accepted",
           "addedAt": "timestamp"
@@ -409,7 +400,6 @@ Returns all boxes where the authenticated user is a guardian (excluding rejected
         {
           "id": "lead_guardian_id",
           "name": "Lead Guardian",
-          "email": "lead@example.com",
           "leadGuardian": true,
           "status": "accepted",
           "addedAt": "timestamp"
@@ -467,7 +457,6 @@ Get a specific box where you are a guardian, including complete details of docum
       {
         "id": "guardian_id",
         "name": "Guardian Name",
-        "email": "guardian@example.com",
         "leadGuardian": false,
         "status": "accepted",
         "addedAt": "timestamp"
@@ -477,7 +466,6 @@ Get a specific box where you are a guardian, including complete details of docum
       {
         "id": "lead_guardian_id",
         "name": "Lead Guardian",
-        "email": "lead@example.com",
         "leadGuardian": true,
         "status": "accepted",
         "addedAt": "timestamp"

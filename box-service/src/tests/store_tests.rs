@@ -360,30 +360,30 @@ mod dynamo_tests {
         box1.guardians = vec![crate::models::Guardian {
             id: "guardian1".to_string(),
             name: "Guardian One".to_string(),
-            email: "guardian1@example.com".to_string(),
             lead: false,
             status: "accepted".to_string(),
             added_at: crate::models::now_str(),
+            invitation_id: "invitation_1".to_string(),
         }];
 
         let mut box2 = create_test_box("Another Box with Guardian", "owner2");
         box2.guardians = vec![crate::models::Guardian {
             id: "guardian1".to_string(),
             name: "Guardian One".to_string(),
-            email: "guardian1@example.com".to_string(),
             lead: false,
             status: "accepted".to_string(),
             added_at: crate::models::now_str(),
+            invitation_id: "invitation_2".to_string(),
         }];
 
         let mut box3 = create_test_box("Box with Rejected Guardian", "owner3");
         box3.guardians = vec![crate::models::Guardian {
             id: "guardian1".to_string(),
             name: "Guardian One".to_string(),
-            email: "guardian1@example.com".to_string(),
             lead: false,
             status: "rejected".to_string(), // This should be filtered out
             added_at: crate::models::now_str(),
+            invitation_id: "invitation_3".to_string(),
         }];
 
         store.create_box(box1).await.unwrap();
