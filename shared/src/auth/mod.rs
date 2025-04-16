@@ -246,7 +246,7 @@ mod tests {
         routing::get,
         Router,
     };
-    use tower::ServiceExt;
+    use tower::util::ServiceExt;
 
     // Dummy handler to check if user_id extension is present
     async fn check_user_id_handler(Extension(user_id): Extension<String>) -> impl IntoResponse {

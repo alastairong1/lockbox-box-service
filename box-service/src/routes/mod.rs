@@ -17,7 +17,7 @@ use crate::handlers::{
         respond_to_unlock_request,
     },
 };
-use crate::store::{dynamo::DynamoBoxStore, BoxStore};
+use lockbox_shared::store::{dynamo::DynamoBoxStore, BoxStore};
 
 // Import shared auth middleware
 use lockbox_shared::auth::auth_middleware;

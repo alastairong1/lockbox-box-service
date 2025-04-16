@@ -1,159 +1,18 @@
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
-use async_trait::async_trait;
-use axum::extract::{Path, State, Extension};
+use axum::extract::{Extension, Path, State};
 use axum::Json;
+use async_trait::async_trait;
 
-use lockbox_shared::error::StoreError;
 use lockbox_shared::models::Invitation;
+use lockbox_shared::test_utils::mock_invitation_store::MockInvitationStore;
+use lockbox_shared::error::StoreError;
 use lockbox_shared::store::InvitationStore;
 
 use crate::handlers::invitation_handlers::{
-    create_invitation, handle_invitation, refresh_invitation, get_my_invitations,
+    create_invitation, get_my_invitations, handle_invitation, refresh_invitation,
 };
 use crate::models::{ConnectToUserRequest, CreateInvitationRequest};
-
-// Mock implementation of InvitationStore for testing
-struct MockInvitationStore {
-    invitations: Mutex<HashMap<String, Invitation>>,
-    invitation_codes: Mutex<HashMap<String, String>>, // Maps invite_code -> id
-}
-
-impl MockInvitationStore {
-    fn new() -> Self {
-        Self {
-            invitations: Mutex::new(HashMap::new()),
-            invitation_codes: Mutex::new(HashMap::new()),
-        }
-    }
-}
-
-#[async_trait]
-impl InvitationStore for MockInvitationStore {
-    async fn create_invitation(
-        &self,
-        invitation: Invitation,
-    ) -> lockbox_shared::error::Result<Invitation> {
-        let id = invitation.id.clone();
-        let invite_code = invitation.invite_code.clone();
-
-        // Store by ID
-        self.invitations
-            .lock()
-            .unwrap()
-            .insert(id.clone(), invitation.clone());
-
-        // Store by invite code for lookups
-        self.invitation_codes
-            .lock()
-            .unwrap()
-            .insert(invite_code, id);
-
-        Ok(invitation)
-    }
-
-    async fn get_invitation(&self, id: &str) -> lockbox_shared::error::Result<Invitation> {
-        self.invitations
-            .lock()
-            .unwrap()
-            .get(id)
-            .cloned()
-            .ok_or_else(|| StoreError::NotFound(format!("Invitation not found: {}", id)))
-    }
-
-    async fn get_invitation_by_code(
-        &self,
-        invite_code: &str,
-    ) -> lockbox_shared::error::Result<Invitation> {
-        let id = self
-            .invitation_codes
-            .lock()
-            .unwrap()
-            .get(invite_code)
-            .cloned()
-            .ok_or_else(|| {
-                StoreError::NotFound(format!("Invitation not found with code: {}", invite_code))
-            })?;
-
-        self.get_invitation(&id).await
-    }
-
-    async fn update_invitation(
-        &self,
-        invitation: Invitation,
-    ) -> lockbox_shared::error::Result<Invitation> {
-        let id = invitation.id.clone();
-        let old_invite_code = self
-            .invitations
-            .lock()
-            .unwrap()
-            .get(&id)
-            .map(|inv| inv.invite_code.clone());
-
-        // If invite code changed, update the code mapping
-        if let Some(old_code) = old_invite_code {
-            if old_code != invitation.invite_code {
-                self.invitation_codes.lock().unwrap().remove(&old_code);
-                self.invitation_codes
-                    .lock()
-                    .unwrap()
-                    .insert(invitation.invite_code.clone(), id.clone());
-            }
-        }
-
-        // Update the invitation
-        self.invitations
-            .lock()
-            .unwrap()
-            .insert(id, invitation.clone());
-
-        Ok(invitation)
-    }
-
-    async fn delete_invitation(&self, id: &str) -> lockbox_shared::error::Result<()> {
-        if let Some(invitation) = self.invitations.lock().unwrap().remove(id) {
-            self.invitation_codes
-                .lock()
-                .unwrap()
-                .remove(&invitation.invite_code);
-        }
-
-        Ok(())
-    }
-
-    async fn get_invitations_by_box_id(
-        &self,
-        box_id: &str,
-    ) -> lockbox_shared::error::Result<Vec<Invitation>> {
-        let invitations = self
-            .invitations
-            .lock()
-            .unwrap()
-            .values()
-            .filter(|inv| inv.box_id == box_id)
-            .cloned()
-            .collect();
-
-        Ok(invitations)
-    }
-
-    async fn get_invitations_by_creator_id(
-        &self,
-        creator_id: &str,
-    ) -> lockbox_shared::error::Result<Vec<Invitation>> {
-        let invitations = self
-            .invitations
-            .lock()
-            .unwrap()
-            .values()
-            .filter(|inv| inv.creator_id == creator_id)
-            .cloned()
-            .collect();
-
-        Ok(invitations)
-    }
-}
 
 #[tokio::test]
 async fn test_create_invitation() {
@@ -180,11 +39,11 @@ async fn test_create_invitation() {
     assert!(!response.0.invite_code.is_empty());
     assert!(!response.0.expires_at.is_empty());
 
-    // Verify invitation was stored
-    let invitations = store.invitations.lock().unwrap();
+    // Verify invitation was stored by creator ID
+    let invitations = store.get_invitations_by_creator_id("test-user-id").await.unwrap();
     assert_eq!(invitations.len(), 1);
 
-    let invitation = invitations.values().next().unwrap();
+    let invitation = &invitations[0];
     assert_eq!(invitation.invited_name, "Test User");
     assert_eq!(invitation.box_id, "box-123");
     assert_eq!(invitation.opened, false);
@@ -250,10 +109,8 @@ async fn test_refresh_invitation() {
     .unwrap();
 
     // Get the ID of the created invitation
-    let invitation_id = {
-        let invitations = store.invitations.lock().unwrap();
-        invitations.keys().next().unwrap().clone()
-    };
+    let invitations = store.get_invitations_by_creator_id("test-user-id").await.unwrap();
+    let invitation_id = invitations[0].id.clone();
 
     // Connect it to a user
     let original_code = create_result.0.invite_code.clone();
@@ -316,13 +173,13 @@ async fn test_refresh_invitation_invalid_id() {
 async fn test_get_my_invitations() {
     // Setup
     let store = Arc::new(MockInvitationStore::new());
-    
+
     // Create first invitation
     let invite_request1 = CreateInvitationRequest {
         invited_name: "Test User 1".to_string(),
         box_id: "box-123".to_string(),
     };
-    
+
     let _ = create_invitation(
         State(store.clone()),
         Extension("test-user-id".to_string()),
@@ -330,13 +187,13 @@ async fn test_get_my_invitations() {
     )
     .await
     .unwrap();
-    
+
     // Create second invitation with same creator
     let invite_request2 = CreateInvitationRequest {
         invited_name: "Test User 2".to_string(),
         box_id: "box-456".to_string(),
     };
-    
+
     let _ = create_invitation(
         State(store.clone()),
         Extension("test-user-id".to_string()),
@@ -344,13 +201,13 @@ async fn test_get_my_invitations() {
     )
     .await
     .unwrap();
-    
+
     // Create third invitation with different creator
     let invite_request3 = CreateInvitationRequest {
         invited_name: "Test User 3".to_string(),
         box_id: "box-789".to_string(),
     };
-    
+
     let _ = create_invitation(
         State(store.clone()),
         Extension("other-user-id".to_string()),
@@ -358,21 +215,18 @@ async fn test_get_my_invitations() {
     )
     .await
     .unwrap();
-    
+
     // Execute - get invitations for test-user-id
-    let result = get_my_invitations(
-        State(store.clone()),
-        Extension("test-user-id".to_string()),
-    )
-    .await;
-    
+    let result =
+        get_my_invitations(State(store.clone()), Extension("test-user-id".to_string())).await;
+
     // Verify
     assert!(result.is_ok());
     let invitations = result.unwrap().0;
-    
+
     // Should only return the 2 invitations created by test-user-id
     assert_eq!(invitations.len(), 2);
-    
+
     // All should have the correct creator_id
     for invitation in invitations {
         assert_eq!(invitation.creator_id, "test-user-id");
@@ -384,13 +238,13 @@ async fn test_get_my_invitations() {
 async fn test_get_my_invitations_empty() {
     // Setup
     let store = Arc::new(MockInvitationStore::new());
-    
+
     // Create invitations for a different user only
     let invite_request = CreateInvitationRequest {
         invited_name: "Test User".to_string(),
         box_id: "box-123".to_string(),
     };
-    
+
     let _ = create_invitation(
         State(store.clone()),
         Extension("other-user-id".to_string()),
@@ -398,18 +252,15 @@ async fn test_get_my_invitations_empty() {
     )
     .await
     .unwrap();
-    
+
     // Execute - get invitations for a user with no invitations
-    let result = get_my_invitations(
-        State(store.clone()),
-        Extension("test-user-id".to_string()),
-    )
-    .await;
-    
+    let result =
+        get_my_invitations(State(store.clone()), Extension("test-user-id".to_string())).await;
+
     // Verify
     assert!(result.is_ok());
     let invitations = result.unwrap().0;
-    
+
     // Should return an empty list, not null
     assert_eq!(invitations.len(), 0);
 }
@@ -467,14 +318,10 @@ impl InvitationStore for ErrorMockInvitationStore {
 async fn test_get_my_invitations_error() {
     // Setup
     let store = Arc::new(ErrorMockInvitationStore);
-    
+
     // Execute - attempt to get invitations
-    let result = get_my_invitations(
-        State(store),
-        Extension("test-user-id".to_string()),
-    )
-    .await;
-    
+    let result = get_my_invitations(State(store), Extension("test-user-id".to_string())).await;
+
     // Verify the error is properly handled
     assert!(result.is_err());
 }

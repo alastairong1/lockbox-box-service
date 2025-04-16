@@ -9,8 +9,8 @@ use crate::{
     error::{AppError, Result},
     models::{
         now_str, GuardianInvitationResponse, GuardianResponseRequest, LeadGuardianUpdateRequest,
-        UnlockRequest,
     },
+    shared_models::UnlockRequest,
     store::{convert_to_guardian_box, BoxStore},
 };
 

@@ -3,14 +3,15 @@ use axum::{
     http::{Request, StatusCode},
 };
 use lockbox_shared::auth::create_test_request;
+use lockbox_shared::test_utils::mock_box_store::MockBoxStore;
 use serde_json::{json, Value};
 use std::sync::Arc;
 use tower::ServiceExt;
 
 use crate::{
-    models::{now_str, BoxRecord},
+    models::now_str,
+    shared_models::BoxRecord,
     routes,
-    store::memory::MemoryBoxStore,
 };
 
 // Helper function to extract JSON from response
@@ -64,7 +65,7 @@ fn create_test_app() -> axum::Router {
     boxes.push(box_2);
 
     // Create memory store with mock data
-    let store = Arc::new(MemoryBoxStore::with_data(boxes));
+    let store = Arc::new(MockBoxStore::with_data(boxes));
 
     // Create router with memory store for testing
     routes::create_router_with_store(store, "")

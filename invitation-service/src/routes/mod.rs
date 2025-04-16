@@ -1,14 +1,14 @@
 use axum::{
     extract::Request,
     middleware,
-    routing::{post, put, get},
+    routing::{get, post, put},
     Router,
 };
 use std::sync::Arc;
 use tower_http::cors::{Any, CorsLayer};
 
 use crate::handlers::invitation_handlers::{
-    create_invitation, handle_invitation, refresh_invitation, get_my_invitations,
+    create_invitation, get_my_invitations, handle_invitation, refresh_invitation,
 };
 // Import shared auth middleware
 use lockbox_shared::auth::auth_middleware;
@@ -25,7 +25,7 @@ pub async fn create_router() -> Router {
     let remove_base_path = std::env::var("REMOVE_BASE_PATH")
         .map(|v| v.to_lowercase() == "true")
         .unwrap_or(false);
-    
+
     // If REMOVE_BASE_PATH is set to true, don't add the /Prod prefix
     let prefix = if remove_base_path { "" } else { "/Prod" };
     tracing::info!("Using API route prefix: {}", prefix);

@@ -160,9 +160,12 @@ Resources:
           RUST_LOG: info
           COGNITO_USER_POOL_ID: !Ref UserPoolId
           COGNITO_APP_CLIENT_ID: !Ref UserPoolClient
+          SNS_TOPIC_ARN: !Ref InvitationEventsTopic
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref InvitationsTable
+        - SNSPublishMessagePolicy:
+            TopicName: !GetAtt InvitationEventsTopic.TopicName
         - Version: '2012-10-17'
           Statement:
             - Effect: Allow
@@ -243,6 +246,37 @@ Resources:
       # Enable point-in-time recovery for continuous backup
       PointInTimeRecoverySpecification:
         PointInTimeRecoveryEnabled: true
+
+  # SNS Topic for Invitation Events
+  InvitationEventsTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: invitation-events
+      DisplayName: Invitation Events
+      
+  # Lambda function to process invitation events and update box records
+  BoxInvitationHandlerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: box-invitation-handler.zip
+      Handler: bootstrap
+      Runtime: provided.al2
+      Architectures:
+        - x86_64
+      Events:
+        InvitationAccepted:
+          Type: SNS
+          Properties:
+            Topic: !Ref InvitationEventsTopic
+      Environment:
+        Variables:
+          DYNAMODB_TABLE: !Ref BoxesTable
+          RUST_LOG: info
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref BoxesTable
+        - SNSPublishMessagePolicy:
+            TopicName: !GetAtt InvitationEventsTopic.TopicName
 
   # Setup daily backups using AWS Backup
   BoxesTableBackupPlan:

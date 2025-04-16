@@ -1,17 +1,19 @@
 use axum::http::StatusCode;
 use lockbox_shared::auth::create_test_request;
+use lockbox_shared::test_utils::mock_box_store::MockBoxStore;
 use serde_json::{json, Value};
 use std::sync::Arc;
 use tower::ServiceExt;
 
 use crate::{
-    models::{now_str, BoxRecord, Guardian, UnlockRequest},
+    models::now_str,
+    shared_models::{BoxRecord, Guardian, UnlockRequest},
     routes,
-    store::memory::MemoryBoxStore,
 };
 
+
 // Create mock data for testing
-fn setup_test_data() -> Arc<MemoryBoxStore> {
+fn setup_test_data() -> Arc<MockBoxStore> {
     let now = now_str();
 
     // Box 1: Regular guardian (guardian_1)
@@ -149,8 +151,8 @@ fn setup_test_data() -> Arc<MemoryBoxStore> {
         unlock_request: None,
     };
 
-    // Create MemoryBoxStore with the test data
-    Arc::new(MemoryBoxStore::with_data(vec![box_1, box_2, box_3]))
+    // Create MockBoxStore with the test data
+    Arc::new(MockBoxStore::with_data(vec![box_1, box_2, box_3]))
 }
 
 // Inject the test data into the router

@@ -1,10 +1,13 @@
 use axum::{
-    extract::{Path, State, Extension},
+    extract::{Extension, Path, State},
     Json,
 };
 use chrono::{Duration, Utc};
 use std::sync::Arc;
 use uuid::Uuid;
+use aws_sdk_sns::Client as SnsClient;
+use serde_json::json;
+use std::env;
 
 use lockbox_shared::{models::Invitation, store::InvitationStore};
 
@@ -75,20 +78,74 @@ pub async fn handle_invitation<S: InvitationStore>(
 
     // Set as opened and connect to user
     invitation.opened = true;
-    invitation.linked_user_id = Some(request.user_id);
+    invitation.linked_user_id = Some(request.user_id.clone());
 
     // Save the updated invitation
-    store
-        .update_invitation(invitation)
+    let updated_invitation = store
+        .update_invitation(invitation.clone())
         .await
         .map_err(|e| map_dynamo_error("update_invitation", e))?;
 
-    // Return simple success message
+    // Publish event to SNS
+    publish_invitation_accepted_event(&updated_invitation).await?;
+
+    // Return response with box_id to help frontend
     let response = MessageResponse {
-        message: "User successfully connected to invitation".to_string(),
+        message: format!("User successfully bound to invitation for box {}", updated_invitation.box_id),
+        box_id: Some(updated_invitation.box_id),
     };
 
     Ok(Json(response))
+}
+
+// Helper function to publish an invitation accepted event to SNS
+async fn publish_invitation_accepted_event(invitation: &Invitation) -> Result<()> {
+    // Get SNS topic ARN from environment variable
+    let topic_arn = env::var("SNS_TOPIC_ARN").map_err(|_| {
+        map_dynamo_error(
+            "publish_invitation_accepted_event", 
+            anyhow::anyhow!("SNS_TOPIC_ARN environment variable not set")
+        )
+    })?;
+
+    // Create SNS client
+    let config = aws_config::load_from_env().await;
+    let sns_client = SnsClient::new(&config);
+
+    // Create the event payload
+    let event_payload = json!({
+        "event_type": "invitation_accepted",
+        "invitation_id": invitation.id,
+        "box_id": invitation.box_id,
+        "user_id": invitation.linked_user_id,
+        "invite_code": invitation.invite_code,
+        "timestamp": Utc::now().to_rfc3339()
+    });
+
+    // Convert to string
+    let message = serde_json::to_string(&event_payload).map_err(|e| {
+        map_dynamo_error(
+            "publish_invitation_accepted_event",
+            anyhow::anyhow!("Failed to serialize event payload: {}", e)
+        )
+    })?;
+
+    // Publish to SNS
+    sns_client
+        .publish()
+        .topic_arn(topic_arn)
+        .message(message)
+        .subject("Invitation Accepted")
+        .send()
+        .await
+        .map_err(|e| {
+            map_dynamo_error(
+                "publish_invitation_accepted_event",
+                anyhow::anyhow!("Failed to publish to SNS: {}", e)
+            )
+        })?;
+
+    Ok(())
 }
 
 // POST /invitations/:inviteId/refresh - Refresh the invitation

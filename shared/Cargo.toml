@@ -3,6 +3,11 @@ name = "lockbox-shared"
 version = "0.1.0"
 edition = "2021"
 
+# Define features
+[features]
+default = []
+test_utils = []
+
 [dependencies]
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
@@ -20,5 +25,5 @@ base64 = "0.21.7"
 tracing = "0.1"
 jsonwebtoken = "9.2.0"
 http = "1.0.0"
-tower = "0.4.13"
+tower = { version = "0.4.13", features = ["util"] }
 tower-http = { version = "0.5.0", features = ["trace", "cors"] } 

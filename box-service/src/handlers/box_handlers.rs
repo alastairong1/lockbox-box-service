@@ -6,15 +6,19 @@ use axum::{
 use std::sync::Arc;
 use uuid::Uuid;
 
-use crate::{
-    error::{AppError, Result},
-    models::{
-        now_str, BoxRecord, BoxResponse, CreateBoxRequest, Document, DocumentUpdateRequest,
-        DocumentUpdateResponse, Guardian, GuardianUpdateRequest, GuardianUpdateResponse,
-        UpdateBoxRequest,
-    },
-    store::BoxStore,
+use crate::error::{AppError, Result};
+// Import models from shared crate
+use crate::shared_models::{
+    BoxRecord, Document, Guardian, now_str,
 };
+// Import request/response types from local models
+use crate::models::{
+    BoxResponse, CreateBoxRequest, DocumentUpdateRequest,
+    DocumentUpdateResponse, GuardianUpdateRequest, GuardianUpdateResponse,
+    UpdateBoxRequest,
+};
+// Import BoxStore from shared crate
+use lockbox_shared::store::BoxStore;
 
 // GET /boxes
 pub async fn get_boxes<S>(
