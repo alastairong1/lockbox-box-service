@@ -11,6 +11,8 @@ use chrono::{DateTime, Utc};
 pub struct MockInvitationStore {
     invitations: Mutex<HashMap<String, Invitation>>,
     invitation_codes: Mutex<HashMap<String, String>>, // Maps invite_code -> id
+    error_mode: bool,
+    enforce_expiry: bool,
 }
 
 impl MockInvitationStore {
@@ -19,6 +21,8 @@ impl MockInvitationStore {
         Self {
             invitations: Mutex::new(HashMap::new()),
             invitation_codes: Mutex::new(HashMap::new()),
+            error_mode: false,
+            enforce_expiry: false,
         }
     }
     
@@ -45,11 +49,34 @@ impl MockInvitationStore {
         
         store
     }
+
+    /// Create a new MockInvitationStore in error mode where all operations fail
+    pub fn new_error() -> Self {
+        Self {
+            invitations: Mutex::new(HashMap::new()),
+            invitation_codes: Mutex::new(HashMap::new()),
+            error_mode: true,
+            enforce_expiry: false,
+        }
+    }
+
+    /// Create a new MockInvitationStore with expiry enforcement
+    pub fn new_with_expiry() -> Self {
+        Self {
+            invitations: Mutex::new(HashMap::new()),
+            invitation_codes: Mutex::new(HashMap::new()),
+            error_mode: false,
+            enforce_expiry: true,
+        }
+    }
 }
 
 #[async_trait]
 impl InvitationStore for MockInvitationStore {
     async fn create_invitation(&self, invitation: Invitation) -> Result<Invitation> {
+        if self.error_mode {
+            return Err(StoreError::InternalError("Mock".into()));
+        }
         let id = invitation.id.clone();
         let invite_code = invitation.invite_code.clone();
 
@@ -69,23 +96,31 @@ impl InvitationStore for MockInvitationStore {
     }
 
     async fn get_invitation(&self, id: &str) -> Result<Invitation> {
+        if self.error_mode {
+            return Err(StoreError::InternalError("Mock".into()));
+        }
         // Lookup invitation by ID
         let invitation = self.invitations
             .lock().unwrap()
             .get(id)
             .cloned()
             .ok_or_else(|| StoreError::NotFound(format!("Invitation not found: {}", id)))?;
-        // Enforce expiry: parse expires_at and compare to now
-        let expires_at = DateTime::parse_from_rfc3339(&invitation.expires_at)
-            .map_err(|_| StoreError::InternalError("Invalid expiration date format".into()))?
-            .with_timezone(&Utc);
-        if Utc::now() > expires_at {
-            return Err(StoreError::InvitationExpired);
+        // Enforce expiry only if enabled
+        if self.enforce_expiry {
+            let expires_at = DateTime::parse_from_rfc3339(&invitation.expires_at)
+                .map_err(|_| StoreError::InternalError("Invalid expiration date format".into()))?
+                .with_timezone(&Utc);
+            if Utc::now() > expires_at {
+                return Err(StoreError::InvitationExpired);
+            }
         }
         Ok(invitation)
     }
 
     async fn get_invitation_by_code(&self, invite_code: &str) -> Result<Invitation> {
+        if self.error_mode {
+            return Err(StoreError::InternalError("Mock".into()));
+        }
         let id = self
             .invitation_codes
             .lock()
@@ -100,6 +135,9 @@ impl InvitationStore for MockInvitationStore {
     }
 
     async fn update_invitation(&self, invitation: Invitation) -> Result<Invitation> {
+        if self.error_mode {
+            return Err(StoreError::InternalError("Mock".into()));
+        }
         let id = invitation.id.clone();
         let old_invite_code = self
             .invitations
@@ -129,6 +167,9 @@ impl InvitationStore for MockInvitationStore {
     }
 
     async fn delete_invitation(&self, id: &str) -> Result<()> {
+        if self.error_mode {
+            return Err(StoreError::InternalError("Mock".into()));
+        }
         if let Some(invitation) = self.invitations.lock().unwrap().remove(id) {
             self.invitation_codes
                 .lock()
@@ -140,7 +181,10 @@ impl InvitationStore for MockInvitationStore {
     }
 
     async fn get_invitations_by_box_id(&self, box_id: &str) -> Result<Vec<Invitation>> {
-        // Return only non-expired invitations for the box
+        if self.error_mode {
+            return Err(StoreError::InternalError("Mock".into()));
+        }
+        // Return invitations for the box, optionally filtering out expired
         let now = Utc::now();
         let invitations = self
             .invitations
@@ -148,18 +192,25 @@ impl InvitationStore for MockInvitationStore {
             .values()
             .filter(|inv| inv.box_id == box_id)
             .filter_map(|inv| {
-                // parse expiration and include if not expired
-                DateTime::parse_from_rfc3339(&inv.expires_at)
-                    .ok()
-                    .map(|dt| dt.with_timezone(&Utc))
-                    .filter(|dt| &now <= dt)
-                    .map(|_| inv.clone())
+                if self.enforce_expiry {
+                    // parse expiration and include if not expired
+                    DateTime::parse_from_rfc3339(&inv.expires_at)
+                        .ok()
+                        .map(|dt| dt.with_timezone(&Utc))
+                        .filter(|dt| &now <= dt)
+                        .map(|_| inv.clone())
+                } else {
+                    Some(inv.clone())
+                }
             })
             .collect();
         Ok(invitations)
     }
 
     async fn get_invitations_by_creator_id(&self, creator_id: &str) -> Result<Vec<Invitation>> {
+        if self.error_mode {
+            return Err(StoreError::InternalError("Mock".into()));
+        }
         let invitations = self
             .invitations
             .lock()

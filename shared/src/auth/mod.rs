@@ -81,11 +81,9 @@ pub fn decode_jwt_payload(token: &str) -> Result<Claims> {
 
 // Auth middleware for both services
 pub async fn auth_middleware(mut request: Request, next: Next) -> Response {
-    // Allow health checks and other public endpoints without authentication
+    // Allow only health checks without authentication
     let path = request.uri().path();
-    if path.ends_with("/health")
-        || (path.contains("/invitations/") && request.method() == http::Method::GET)
-    {
+    if path.ends_with("/health") {
         return next.run(request).await;
     }
 

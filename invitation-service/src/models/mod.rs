@@ -31,6 +31,6 @@ pub struct InvitationCodeResponse {
 #[derive(Serialize, Debug)]
 pub struct MessageResponse {
     pub message: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "boxId", skip_serializing_if = "Option::is_none")]
     pub box_id: Option<String>,
 }

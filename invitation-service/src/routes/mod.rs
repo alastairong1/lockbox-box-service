@@ -36,7 +36,7 @@ pub async fn create_router() -> Router {
 /// Creates a router with a given store implementation
 pub fn create_router_with_store<S>(store: Arc<S>, prefix: &str) -> Router
 where
-    S: InvitationStore + 'static,
+    S: InvitationStore + ?Sized + 'static,
 {
     tracing::info!("Setting up API routes with prefix: {}", prefix);
 

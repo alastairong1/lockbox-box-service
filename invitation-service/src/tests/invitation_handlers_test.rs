@@ -1,14 +1,12 @@
 use std::sync::Arc;
-use std::env;
-
 use axum::{http::StatusCode, response::Response, Router};
 use serde_json::{json, Value};
 use tower::ServiceExt;
 
-use lockbox_shared::test_utils::mock_invitation_store::MockInvitationStore;
-use lockbox_shared::error::StoreError;
 use lockbox_shared::store::InvitationStore;
 use lockbox_shared::auth::create_test_request;
+use lockbox_shared::test_utils::integration_setup::build_invitation_store;
+use lockbox_shared::test_utils::mock_invitation_store::MockInvitationStore;
 
 use crate::routes::create_router_with_store;
 use chrono::{DateTime, Duration, Utc};
@@ -26,33 +24,14 @@ async fn response_to_json(response: Response) -> Value {
 // Helper to build a test application with a given InvitationStore implementation
 fn create_test_app<S>(store: Arc<S>) -> Router
 where
-    S: InvitationStore + 'static,
+    S: InvitationStore + ?Sized + 'static,
 {
     create_router_with_store(store, "")
 }
 
-// Setup the test environment, including a mock store and required env vars
-fn setup_test_env() -> Arc<MockInvitationStore> {
-    env::set_var("SNS_TOPIC_ARN", "arn:aws:sns:us-east-1:123456789012:test-topic");
-    Arc::new(MockInvitationStore::new())
-}
-
-// A store that simulates an expired invitation
-struct ExpiredMockInvitationStore;
-#[async_trait::async_trait]
-impl InvitationStore for ExpiredMockInvitationStore {
-    async fn create_invitation(&self, _i: lockbox_shared::models::Invitation) -> lockbox_shared::error::Result<lockbox_shared::models::Invitation> { unimplemented!() }
-    async fn get_invitation(&self, _id: &str) -> lockbox_shared::error::Result<lockbox_shared::models::Invitation> { Err(StoreError::InvitationExpired) }
-    async fn get_invitation_by_code(&self, _c: &str) -> lockbox_shared::error::Result<lockbox_shared::models::Invitation> { Err(StoreError::InvitationExpired) }
-    async fn update_invitation(&self, _i: lockbox_shared::models::Invitation) -> lockbox_shared::error::Result<lockbox_shared::models::Invitation> { unimplemented!() }
-    async fn delete_invitation(&self, _id: &str) -> lockbox_shared::error::Result<()> { unimplemented!() }
-    async fn get_invitations_by_box_id(&self, _b: &str) -> lockbox_shared::error::Result<Vec<lockbox_shared::models::Invitation>> { unimplemented!() }
-    async fn get_invitations_by_creator_id(&self, _c: &str) -> lockbox_shared::error::Result<Vec<lockbox_shared::models::Invitation>> { unimplemented!() }
-}
-
 #[tokio::test]
 async fn test_create_invitation() {
-    let store = setup_test_env();
+    let store = build_invitation_store().await;
     let app = create_test_app(store.clone());
 
     let payload = json!({
@@ -99,7 +78,8 @@ async fn test_create_invitation() {
 
 #[tokio::test]
 async fn test_handle_invitation() {
-    let _ = setup_test_env();
+    let store = build_invitation_store().await;
+    // seed an invitation directly
     let now = Utc::now();
     let id = Uuid::new_v4().to_string();
     let invite_code = "TESTCODE".to_string();
@@ -114,7 +94,7 @@ async fn test_handle_invitation() {
         linked_user_id: None,
         creator_id: "creator-id".to_string(),
     };
-    let store = Arc::new(MockInvitationStore::with_data(vec![invitation.clone()]));
+    store.create_invitation(invitation.clone()).await.unwrap();
     let app = create_test_app(store.clone());
 
     let handle_payload = json!({
@@ -143,7 +123,23 @@ async fn test_handle_invitation() {
 
 #[tokio::test]
 async fn test_handle_invitation_expired_code() {
-    let store = Arc::new(ExpiredMockInvitationStore);
+    let store = build_invitation_store().await;
+    // seed an expired invitation
+    let now = Utc::now();
+    let id = Uuid::new_v4().to_string();
+    let invite_code = "EXPIRED".to_string();
+    let invitation = Invitation {
+        id: id.clone(),
+        invite_code: invite_code.clone(),
+        invited_name: "Test User".to_string(),
+        box_id: "box-123".to_string(),
+        created_at: now.to_rfc3339(),
+        expires_at: (now - Duration::hours(1)).to_rfc3339(),
+        opened: false,
+        linked_user_id: None,
+        creator_id: "creator-id".to_string(),
+    };
+    store.create_invitation(invitation.clone()).await.unwrap();
     let app = create_test_app(store.clone());
 
     let bad_payload = json!({
@@ -166,7 +162,7 @@ async fn test_handle_invitation_expired_code() {
 
 #[tokio::test]
 async fn test_refresh_invitation() {
-    let _ = setup_test_env();
+    let store = build_invitation_store().await;
     let now = Utc::now();
     let id = Uuid::new_v4().to_string();
     let old_code = "OLDCODE1".to_string();
@@ -181,7 +177,7 @@ async fn test_refresh_invitation() {
         linked_user_id: Some("user-456".to_string()),
         creator_id: "test-user-id".to_string(),
     };
-    let store = Arc::new(MockInvitationStore::with_data(vec![invitation.clone()]));
+    store.create_invitation(invitation.clone()).await.unwrap();
     let app = create_test_app(store.clone());
 
     let path = format!("/invitations/{}/refresh", id);
@@ -215,7 +211,7 @@ async fn test_refresh_invitation() {
 
 #[tokio::test]
 async fn test_refresh_invitation_invalid_id() {
-    let _ = setup_test_env();
+    let store = build_invitation_store().await;
     let now = Utc::now();
     let id = Uuid::new_v4().to_string();
     let invitation = Invitation {
@@ -229,7 +225,7 @@ async fn test_refresh_invitation_invalid_id() {
         linked_user_id: None,
         creator_id: "owner-id".to_string(),
     };
-    let store = Arc::new(MockInvitationStore::with_data(vec![invitation.clone()]));
+    store.create_invitation(invitation.clone()).await.unwrap();
     let app = create_test_app(store.clone());
 
     let path = format!("/invitations/{}/refresh", id);
@@ -249,7 +245,7 @@ async fn test_refresh_invitation_invalid_id() {
 
 #[tokio::test]
 async fn test_handle_invitation_invalid_code() {
-    let _ = setup_test_env();
+    let store = build_invitation_store().await;
     let now = Utc::now();
     let id = Uuid::new_v4().to_string();
     let invitation = Invitation {
@@ -263,7 +259,7 @@ async fn test_handle_invitation_invalid_code() {
         linked_user_id: None,
         creator_id: "creator-id".to_string(),
     };
-    let store = Arc::new(MockInvitationStore::with_data(vec![invitation.clone()]));
+    store.create_invitation(invitation.clone()).await.unwrap();
     let app = create_test_app(store.clone());
 
     let bad_payload = json!({
@@ -286,7 +282,7 @@ async fn test_handle_invitation_invalid_code() {
 
 #[tokio::test]
 async fn test_get_my_invitations() {
-    let store = setup_test_env();
+    let store = build_invitation_store().await;
     let app = create_test_app(store.clone());
 
     // Seed multiple invitations
@@ -319,7 +315,7 @@ async fn test_get_my_invitations() {
 
 #[tokio::test]
 async fn test_get_my_invitations_empty() {
-    let store = setup_test_env();
+    let store = build_invitation_store().await;
     let app = create_test_app(store.clone());
 
     let response = app
@@ -333,22 +329,9 @@ async fn test_get_my_invitations_empty() {
     assert!(json_resp.as_array().unwrap().is_empty());
 }
 
-// A store that always errors, to test error paths
-struct ErrorMockInvitationStore;
-#[async_trait::async_trait]
-impl InvitationStore for ErrorMockInvitationStore {
-    async fn create_invitation(&self, _i: lockbox_shared::models::Invitation) -> lockbox_shared::error::Result<lockbox_shared::models::Invitation> { Err(StoreError::InternalError("Mock".into())) }
-    async fn get_invitation(&self, _id: &str) -> lockbox_shared::error::Result<lockbox_shared::models::Invitation> { Err(StoreError::InternalError("Mock".into())) }
-    async fn get_invitation_by_code(&self, _c: &str) -> lockbox_shared::error::Result<lockbox_shared::models::Invitation> { Err(StoreError::InternalError("Mock".into())) }
-    async fn update_invitation(&self, _i: lockbox_shared::models::Invitation) -> lockbox_shared::error::Result<lockbox_shared::models::Invitation> { Err(StoreError::InternalError("Mock".into())) }
-    async fn delete_invitation(&self, _id: &str) -> lockbox_shared::error::Result<()> { Err(StoreError::InternalError("Mock".into())) }
-    async fn get_invitations_by_box_id(&self, _b: &str) -> lockbox_shared::error::Result<Vec<lockbox_shared::models::Invitation>> { Err(StoreError::InternalError("Mock".into())) }
-    async fn get_invitations_by_creator_id(&self, _c: &str) -> lockbox_shared::error::Result<Vec<lockbox_shared::models::Invitation>> { Err(StoreError::InternalError("Mock".into())) }
-}
-
 #[tokio::test]
 async fn test_get_my_invitations_error() {
-    let store = Arc::new(ErrorMockInvitationStore);
+    let store = Arc::new(MockInvitationStore::new_error()) as Arc<dyn InvitationStore>;
     let app = create_test_app(store.clone());
 
     let response = app

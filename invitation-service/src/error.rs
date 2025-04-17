@@ -26,6 +26,9 @@ pub enum AppError {
     #[error("Internal server error: {0}")]
     InternalServerError(String),
 
+    #[error("Forbidden: {0}")]
+    Forbidden(String),
+
     #[error("Serialization error: {0}")]
     SerializationError(#[from] serde_json::Error),
 }
@@ -59,6 +62,10 @@ impl IntoResponse for AppError {
                     StatusCode::INTERNAL_SERVER_ERROR,
                     "Internal server error".to_string(),
                 )
+            }
+            AppError::Forbidden(msg) => {
+                tracing::warn!("Forbidden: {}", msg);
+                (StatusCode::FORBIDDEN, msg)
             }
             AppError::SerializationError(err) => {
                 tracing::warn!("Serialization error: {}", err);
