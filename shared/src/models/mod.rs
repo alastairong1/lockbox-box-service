@@ -35,7 +35,8 @@ pub struct Document {
 pub struct Guardian {
     pub id: String, // user_id
     pub name: String,
-    pub lead: bool,
+    #[serde(rename = "leadGuardian")]
+    pub lead_guardian: bool,
     pub status: String, // "sent", "viewed", "accepted", "rejected"
     #[serde(rename = "addedAt")]
     pub added_at: String,
@@ -63,15 +64,23 @@ pub struct BoxRecord {
     pub id: String,
     pub name: String,
     pub description: String,
+    #[serde(rename = "isLocked")]
     pub is_locked: bool,
+    #[serde(rename = "createdAt")]
     pub created_at: String,
+    #[serde(rename = "updatedAt")]
     pub updated_at: String,
+    #[serde(rename = "ownerId")]
     pub owner_id: String,
+    #[serde(rename = "ownerName")]
     pub owner_name: Option<String>,
     pub documents: Vec<Document>,
     pub guardians: Vec<Guardian>,
+    #[serde(rename = "leadGuardians")]
     pub lead_guardians: Vec<Guardian>,
+    #[serde(rename = "unlockInstructions")]
     pub unlock_instructions: Option<String>,
+    #[serde(rename = "unlockRequest")]
     pub unlock_request: Option<UnlockRequest>,
 }
 

@@ -87,7 +87,7 @@ pub async fn handle_invitation<S: InvitationStore>(
         .map_err(|e| map_dynamo_error("update_invitation", e))?;
 
     // Publish event to SNS
-    publish_invitation_accepted_event(&updated_invitation).await?;
+    publish_invitation_event(&updated_invitation).await?;
 
     // Return response with box_id to help frontend
     let response = MessageResponse {
@@ -98,23 +98,30 @@ pub async fn handle_invitation<S: InvitationStore>(
     Ok(Json(response))
 }
 
-// Helper function to publish an invitation accepted event to SNS
-async fn publish_invitation_accepted_event(invitation: &Invitation) -> Result<()> {
+// Helper function to publish an invitation event to SNS
+pub async fn publish_invitation_event(invitation: &Invitation) -> Result<()> {
     // Get SNS topic ARN from environment variable
-    let topic_arn = env::var("SNS_TOPIC_ARN").map_err(|_| {
-        map_dynamo_error(
-            "publish_invitation_accepted_event", 
-            anyhow::anyhow!("SNS_TOPIC_ARN environment variable not set")
-        )
+    let topic_arn = env::var("SNS_TOPIC_ARN").map_err(|e| {
+        map_dynamo_error("get_sns_topic_arn", e)
     })?;
 
     // Create SNS client
-    let config = aws_config::load_from_env().await;
+    let config = aws_config::load_defaults(aws_config::BehaviorVersion::latest()).await;
     let sns_client = SnsClient::new(&config);
 
+    // Call the internal implementation with the client
+    publish_invitation_event_with_client(invitation, sns_client, &topic_arn).await
+}
+
+// Internal implementation that can be mocked for testing
+async fn publish_invitation_event_with_client(
+    invitation: &Invitation,
+    sns_client: SnsClient,
+    topic_arn: &str,
+) -> Result<()> {
     // Create the event payload
     let event_payload = json!({
-        "event_type": "invitation_accepted",
+        "event_type": "invitation_viewed",
         "invitation_id": invitation.id,
         "box_id": invitation.box_id,
         "user_id": invitation.linked_user_id,
@@ -124,25 +131,31 @@ async fn publish_invitation_accepted_event(invitation: &Invitation) -> Result<()
 
     // Convert to string
     let message = serde_json::to_string(&event_payload).map_err(|e| {
-        map_dynamo_error(
-            "publish_invitation_accepted_event",
-            anyhow::anyhow!("Failed to serialize event payload: {}", e)
-        )
+        map_dynamo_error("serialize_event_payload", e)
     })?;
 
-    // Publish to SNS
-    sns_client
+    // Create message attribute
+    let message_attribute = aws_sdk_sns::types::MessageAttributeValue::builder()
+        .data_type("String")
+        .string_value("invitation_viewed")
+        .build()
+        .map_err(|e| map_dynamo_error("build_message_attribute", e))?;
+    
+    let mut publish_request = sns_client
         .publish()
         .topic_arn(topic_arn)
         .message(message)
-        .subject("Invitation Accepted")
+        .subject("Invitation Viewed");
+        
+    // Add message attribute with the proper method call
+    publish_request = publish_request.message_attributes("eventType", message_attribute);
+    
+    // Send the request
+    publish_request
         .send()
         .await
         .map_err(|e| {
-            map_dynamo_error(
-                "publish_invitation_accepted_event",
-                anyhow::anyhow!("Failed to publish to SNS: {}", e)
-            )
+            map_dynamo_error("publish_to_sns", e)
         })?;
 
     Ok(())

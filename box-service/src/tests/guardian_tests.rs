@@ -32,7 +32,7 @@ fn setup_test_data() -> Arc<MockBoxStore> {
             Guardian {
                 id: "guardian_1".into(),
                 name: "Guardian One".into(),
-                lead: false,
+                lead_guardian: false,
                 status: "accepted".into(),
                 added_at: now.clone(),
                 invitation_id: "invitation_1".into(),
@@ -40,7 +40,7 @@ fn setup_test_data() -> Arc<MockBoxStore> {
             Guardian {
                 id: "guardian_2".into(),
                 name: "Guardian Two".into(),
-                lead: false,
+                lead_guardian: false,
                 status: "accepted".into(),
                 added_at: now.clone(),
                 invitation_id: "invitation_2".into(),
@@ -48,7 +48,7 @@ fn setup_test_data() -> Arc<MockBoxStore> {
             Guardian {
                 id: "lead_guardian_1".into(),
                 name: "Lead Guardian One".into(),
-                lead: true,
+                lead_guardian: true,
                 status: "accepted".into(),
                 added_at: now.clone(),
                 invitation_id: "invitation_3".into(),
@@ -57,7 +57,7 @@ fn setup_test_data() -> Arc<MockBoxStore> {
         lead_guardians: vec![Guardian {
             id: "lead_guardian_1".into(),
             name: "Lead Guardian One".into(),
-            lead: true,
+            lead_guardian: true,
             status: "accepted".into(),
             added_at: now.clone(),
             invitation_id: "invitation_4".into(),
@@ -92,7 +92,7 @@ fn setup_test_data() -> Arc<MockBoxStore> {
             Guardian {
                 id: "guardian_1".into(),
                 name: "Guardian One".into(),
-                lead: false,
+                lead_guardian: false,
                 status: "accepted".into(),
                 added_at: now.clone(),
                 invitation_id: "invitation_5".into(),
@@ -100,7 +100,7 @@ fn setup_test_data() -> Arc<MockBoxStore> {
             Guardian {
                 id: "guardian_3".into(),
                 name: "Guardian Three".into(),
-                lead: false,
+                lead_guardian: false,
                 status: "accepted".into(),
                 added_at: now.clone(),
                 invitation_id: "invitation_6".into(),
@@ -108,7 +108,7 @@ fn setup_test_data() -> Arc<MockBoxStore> {
             Guardian {
                 id: "lead_guardian_1".into(),
                 name: "Lead Guardian One".into(),
-                lead: true,
+                lead_guardian: true,
                 status: "accepted".into(),
                 added_at: now.clone(),
                 invitation_id: "invitation_7".into(),
@@ -117,7 +117,7 @@ fn setup_test_data() -> Arc<MockBoxStore> {
         lead_guardians: vec![Guardian {
             id: "lead_guardian_1".into(),
             name: "Lead Guardian One".into(),
-            lead: true,
+            lead_guardian: true,
             status: "accepted".into(),
             added_at: now.clone(),
             invitation_id: "invitation_8".into(),
@@ -141,7 +141,7 @@ fn setup_test_data() -> Arc<MockBoxStore> {
         guardians: vec![Guardian {
             id: "guardian_2".into(),
             name: "Guardian Two".into(),
-            lead: false,
+            lead_guardian: false,
             status: "accepted".into(),
             added_at: now.clone(),
             invitation_id: "invitation_9".into(),

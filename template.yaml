@@ -160,12 +160,12 @@ Resources:
           RUST_LOG: info
           COGNITO_USER_POOL_ID: !Ref UserPoolId
           COGNITO_APP_CLIENT_ID: !Ref UserPoolClient
-          SNS_TOPIC_ARN: !Ref InvitationEventsTopic
+          SNS_TOPIC_ARN: !Ref LockboxEventsTopic
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref InvitationsTable
         - SNSPublishMessagePolicy:
-            TopicName: !GetAtt InvitationEventsTopic.TopicName
+            TopicName: !GetAtt LockboxEventsTopic.TopicName
         - Version: '2012-10-17'
           Statement:
             - Effect: Allow
@@ -247,12 +247,12 @@ Resources:
       PointInTimeRecoverySpecification:
         PointInTimeRecoveryEnabled: true
 
-  # SNS Topic for Invitation Events
-  InvitationEventsTopic:
+  # SNS Topic for Lockbox Events
+  LockboxEventsTopic:
     Type: AWS::SNS::Topic
     Properties:
-      TopicName: invitation-events
-      DisplayName: Invitation Events
+      TopicName: lockbox-events
+      DisplayName: Lockbox Events
       
   # Lambda function to process invitation events and update box records
   BoxInvitationHandlerFunction:
@@ -264,10 +264,14 @@ Resources:
       Architectures:
         - x86_64
       Events:
-        InvitationAccepted:
+        InvitationEvents:
           Type: SNS
           Properties:
-            Topic: !Ref InvitationEventsTopic
+            Topic: !Ref LockboxEventsTopic
+            FilterPolicy:
+              eventType:
+                - invitation_created
+                - invitation_viewed
       Environment:
         Variables:
           DYNAMODB_TABLE: !Ref BoxesTable
@@ -276,7 +280,7 @@ Resources:
         - DynamoDBCrudPolicy:
             TableName: !Ref BoxesTable
         - SNSPublishMessagePolicy:
-            TopicName: !GetAtt InvitationEventsTopic.TopicName
+            TopicName: !GetAtt LockboxEventsTopic.TopicName
 
   # Setup daily backups using AWS Backup
   BoxesTableBackupPlan:
@@ -347,3 +351,6 @@ Outputs:
   UserPoolDomain:
     Description: "Cognito User Pool Domain"
     Value: !Sub "https://${UserPoolDomain}.auth.${AWS::Region}.amazoncognito.com"
+  LockboxEventsTopicArn:
+    Description: "Lockbox Events SNS Topic ARN"
+    Value: !Ref LockboxEventsTopic

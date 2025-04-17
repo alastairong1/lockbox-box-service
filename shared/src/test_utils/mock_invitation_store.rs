@@ -5,6 +5,7 @@ use async_trait::async_trait;
 use crate::error::{Result, StoreError};
 use crate::models::Invitation;
 use crate::store::InvitationStore;
+use chrono::{DateTime, Utc};
 
 /// Mock implementation of InvitationStore for testing
 pub struct MockInvitationStore {
@@ -68,12 +69,20 @@ impl InvitationStore for MockInvitationStore {
     }
 
     async fn get_invitation(&self, id: &str) -> Result<Invitation> {
-        self.invitations
-            .lock()
-            .unwrap()
+        // Lookup invitation by ID
+        let invitation = self.invitations
+            .lock().unwrap()
             .get(id)
             .cloned()
-            .ok_or_else(|| StoreError::NotFound(format!("Invitation not found: {}", id)))
+            .ok_or_else(|| StoreError::NotFound(format!("Invitation not found: {}", id)))?;
+        // Enforce expiry: parse expires_at and compare to now
+        let expires_at = DateTime::parse_from_rfc3339(&invitation.expires_at)
+            .map_err(|_| StoreError::InternalError("Invalid expiration date format".into()))?
+            .with_timezone(&Utc);
+        if Utc::now() > expires_at {
+            return Err(StoreError::InvitationExpired);
+        }
+        Ok(invitation)
     }
 
     async fn get_invitation_by_code(&self, invite_code: &str) -> Result<Invitation> {
@@ -131,15 +140,22 @@ impl InvitationStore for MockInvitationStore {
     }
 
     async fn get_invitations_by_box_id(&self, box_id: &str) -> Result<Vec<Invitation>> {
+        // Return only non-expired invitations for the box
+        let now = Utc::now();
         let invitations = self
             .invitations
-            .lock()
-            .unwrap()
+            .lock().unwrap()
             .values()
             .filter(|inv| inv.box_id == box_id)
-            .cloned()
+            .filter_map(|inv| {
+                // parse expiration and include if not expired
+                DateTime::parse_from_rfc3339(&inv.expires_at)
+                    .ok()
+                    .map(|dt| dt.with_timezone(&Utc))
+                    .filter(|dt| &now <= dt)
+                    .map(|_| inv.clone())
+            })
             .collect();
-
         Ok(invitations)
     }
 

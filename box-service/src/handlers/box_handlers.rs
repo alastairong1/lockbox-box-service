@@ -266,7 +266,7 @@ where
         box_rec.guardians[index] = guardian.clone();
 
         // Update lead_guardians array if needed
-        if guardian.lead {
+        if guardian.lead_guardian {
             if !box_rec.lead_guardians.iter().any(|g| g.id == guardian.id) {
                 box_rec.lead_guardians.push(guardian.clone());
             }
@@ -280,7 +280,7 @@ where
         box_rec.guardians.push(guardian.clone());
 
         // Add to lead_guardians if needed
-        if guardian.lead {
+        if guardian.lead_guardian {
             box_rec.lead_guardians.push(guardian.clone());
         }
         true
@@ -484,7 +484,7 @@ where
     }
 
     // Check if guardian is also a lead guardian and remove from lead_guardians if needed
-    let is_lead = box_rec.guardians[guardian_index.unwrap()].lead;
+    let is_lead = box_rec.guardians[guardian_index.unwrap()].lead_guardian;
     if is_lead {
         box_rec.lead_guardians.retain(|g| g.id != guardian_id);
     }

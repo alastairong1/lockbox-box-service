@@ -369,7 +369,7 @@ mod dynamo_tests {
             id: guardian_id.to_string(),
             name: "Test Guardian".to_string(),
             status: "accepted".to_string(),
-            lead: false,
+            lead_guardian: false,
             added_at: crate::models::now_str(),
             invitation_id: Uuid::new_v4().to_string(),
         });
@@ -380,7 +380,7 @@ mod dynamo_tests {
             id: guardian_id.to_string(),
             name: "Test Guardian".to_string(),
             status: "rejected".to_string(), // Rejected status
-            lead: false,
+            lead_guardian: false,
             added_at: crate::models::now_str(),
             invitation_id: Uuid::new_v4().to_string(),
         });
@@ -391,7 +391,7 @@ mod dynamo_tests {
             id: "other_guardian".to_string(),
             name: "Other Guardian".to_string(),
             status: "accepted".to_string(),
-            lead: false,
+            lead_guardian: false,
             added_at: crate::models::now_str(),
             invitation_id: Uuid::new_v4().to_string(),
         });

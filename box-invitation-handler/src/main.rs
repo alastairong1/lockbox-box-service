@@ -11,7 +11,7 @@ use lockbox_shared::store::dynamo::DynamoBoxStore;
 
 // Event received from SNS
 #[derive(Deserialize, Debug)]
-struct InvitationAcceptedEvent {
+struct InvitationEvent {
     event_type: String,
     invitation_id: String,
     box_id: String,
@@ -44,17 +44,29 @@ async fn handler(event: LambdaEvent<SnsEvent>) -> Result<(), Error> {
         // Extract and parse the SNS message
         let message = record.sns;
         
-        // Try to parse the message as an InvitationAcceptedEvent
-        if let Ok(invitation_event) = serde_json::from_str::<InvitationAcceptedEvent>(&message.message) {
-            if invitation_event.event_type == "invitation_accepted" {
-                info!(
-                    "Processing invitation_accepted event for box_id={}, user_id={:?}",
-                    invitation_event.box_id, invitation_event.user_id
-                );
-                
-                // Process invitation acceptance
-                if let Err(err) = process_invitation_acceptance(&invitation_event).await {
-                    error!("Error processing invitation: {:?}", err);
+        // Try to parse the message as an InvitationEvent
+        if let Ok(invitation_event) = serde_json::from_str::<InvitationEvent>(&message.message) {
+            match invitation_event.event_type.as_str() {
+                "invitation_created" => {
+                    info!(
+                        "Processing invitation_created event for box_id={}",
+                        invitation_event.box_id
+                    );
+                    // Handle invitation creation if needed
+                },
+                "invitation_viewed" => {
+                    info!(
+                        "Processing invitation_viewed event for box_id={}, user_id={:?}",
+                        invitation_event.box_id, invitation_event.user_id
+                    );
+                    
+                    // Process invitation viewing (connecting user to invitation)
+                    if let Err(err) = process_invitation_viewing(&invitation_event).await {
+                        error!("Error processing invitation viewing: {:?}", err);
+                    }
+                },
+                _ => {
+                    error!("Unknown event type: {}", invitation_event.event_type);
                 }
             }
         } else {
@@ -65,8 +77,8 @@ async fn handler(event: LambdaEvent<SnsEvent>) -> Result<(), Error> {
     Ok(())
 }
 
-// Core business logic to update the box when an invitation is accepted
-async fn process_invitation_acceptance(event: &InvitationAcceptedEvent) -> Result<(), Error> {
+// Core business logic to update the box when an invitation is viewed/connected to a user
+async fn process_invitation_viewing(event: &InvitationEvent) -> Result<(), Error> {
     // Check if user_id is present
     let user_id = match &event.user_id {
         Some(id) => id,
