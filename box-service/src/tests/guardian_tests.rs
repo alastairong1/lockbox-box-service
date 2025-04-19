@@ -1,20 +1,19 @@
-use axum::{
-    body::Body,
-    http::{header, Request, StatusCode},
-};
+use axum::http::StatusCode;
+use lockbox_shared::auth::create_test_request;
+use lockbox_shared::test_utils::mock_box_store::MockBoxStore;
 use serde_json::{json, Value};
 use std::sync::Arc;
 use tower::ServiceExt;
 
 use crate::{
-    models::{now_str, BoxRecord, Guardian, UnlockRequest},
+    models::now_str,
+    shared_models::{BoxRecord, Guardian, UnlockRequest},
     routes,
-    store::memory::MemoryBoxStore,
-    tests::utils,
 };
 
+
 // Create mock data for testing
-fn setup_test_data() -> Arc<MemoryBoxStore> {
+fn setup_test_data() -> Arc<MockBoxStore> {
     let now = now_str();
 
     // Box 1: Regular guardian (guardian_1)
@@ -33,35 +32,35 @@ fn setup_test_data() -> Arc<MemoryBoxStore> {
             Guardian {
                 id: "guardian_1".into(),
                 name: "Guardian One".into(),
-                email: "guardian1@example.com".into(),
-                lead: false,
+                lead_guardian: false,
                 status: "accepted".into(),
                 added_at: now.clone(),
+                invitation_id: "invitation_1".into(),
             },
             Guardian {
                 id: "guardian_2".into(),
                 name: "Guardian Two".into(),
-                email: "guardian2@example.com".into(),
-                lead: false,
+                lead_guardian: false,
                 status: "accepted".into(),
                 added_at: now.clone(),
+                invitation_id: "invitation_2".into(),
             },
             Guardian {
                 id: "lead_guardian_1".into(),
                 name: "Lead Guardian One".into(),
-                email: "leadguardian1@example.com".into(),
-                lead: true,
+                lead_guardian: true,
                 status: "accepted".into(),
                 added_at: now.clone(),
+                invitation_id: "invitation_3".into(),
             },
         ],
         lead_guardians: vec![Guardian {
             id: "lead_guardian_1".into(),
             name: "Lead Guardian One".into(),
-            email: "leadguardian1@example.com".into(),
-            lead: true,
+            lead_guardian: true,
             status: "accepted".into(),
             added_at: now.clone(),
+            invitation_id: "invitation_4".into(),
         }],
         unlock_instructions: Some("Contact all guardians".into()),
         unlock_request: None,
@@ -93,35 +92,35 @@ fn setup_test_data() -> Arc<MemoryBoxStore> {
             Guardian {
                 id: "guardian_1".into(),
                 name: "Guardian One".into(),
-                email: "guardian1@example.com".into(),
-                lead: false,
+                lead_guardian: false,
                 status: "accepted".into(),
                 added_at: now.clone(),
+                invitation_id: "invitation_5".into(),
             },
             Guardian {
                 id: "guardian_3".into(),
                 name: "Guardian Three".into(),
-                email: "guardian3@example.com".into(),
-                lead: false,
+                lead_guardian: false,
                 status: "accepted".into(),
                 added_at: now.clone(),
+                invitation_id: "invitation_6".into(),
             },
             Guardian {
                 id: "lead_guardian_1".into(),
                 name: "Lead Guardian One".into(),
-                email: "leadguardian1@example.com".into(),
-                lead: true,
+                lead_guardian: true,
                 status: "accepted".into(),
                 added_at: now.clone(),
+                invitation_id: "invitation_7".into(),
             },
         ],
         lead_guardians: vec![Guardian {
             id: "lead_guardian_1".into(),
             name: "Lead Guardian One".into(),
-            email: "leadguardian1@example.com".into(),
-            lead: true,
+            lead_guardian: true,
             status: "accepted".into(),
             added_at: now.clone(),
+            invitation_id: "invitation_8".into(),
         }],
         unlock_instructions: Some("Call emergency contact".into()),
         unlock_request: Some(unlock_request),
@@ -142,18 +141,18 @@ fn setup_test_data() -> Arc<MemoryBoxStore> {
         guardians: vec![Guardian {
             id: "guardian_2".into(),
             name: "Guardian Two".into(),
-            email: "guardian2@example.com".into(),
-            lead: false,
+            lead_guardian: false,
             status: "accepted".into(),
             added_at: now.clone(),
+            invitation_id: "invitation_9".into(),
         }],
         lead_guardians: vec![],
         unlock_instructions: None,
         unlock_request: None,
     };
 
-    // Create MemoryBoxStore with the test data
-    Arc::new(MemoryBoxStore::with_data(vec![box_1, box_2, box_3]))
+    // Create MockBoxStore with the test data
+    Arc::new(MockBoxStore::with_data(vec![box_1, box_2, box_3]))
 }
 
 // Inject the test data into the router
@@ -161,23 +160,6 @@ fn create_test_app() -> axum::Router {
     let store = setup_test_data();
     // Create router with memory store for testing
     routes::create_router_with_store(store, "")
-}
-
-// Helper function to create test request
-fn create_request(method: &str, uri: &str, user_id: &str, body: Option<Value>) -> Request<Body> {
-    let (auth_header, auth_value) = utils::create_auth_header(user_id);
-
-    let mut builder = Request::builder()
-        .uri(uri)
-        .method(method)
-        .header(auth_header, auth_value);
-
-    if let Some(json_body) = body {
-        builder = builder.header(header::CONTENT_TYPE, "application/json");
-        builder.body(Body::from(json_body.to_string())).unwrap()
-    } else {
-        builder.body(Body::empty()).unwrap()
-    }
 }
 
 // Helper function to extract JSON from response
@@ -194,7 +176,12 @@ async fn test_get_guardian_boxes() {
 
     // Execute
     let response = app
-        .oneshot(create_request("GET", "/boxes/guardian", "guardian_1", None))
+        .oneshot(create_test_request(
+            "GET",
+            "/boxes/guardian",
+            "guardian_1",
+            None,
+        ))
         .await
         .unwrap();
 
@@ -253,7 +240,7 @@ async fn test_get_guardian_boxes_empty_for_non_guardian() {
 
     // Execute
     let response = app
-        .oneshot(create_request(
+        .oneshot(create_test_request(
             "GET",
             "/boxes/guardian",
             "not_a_guardian",
@@ -278,7 +265,7 @@ async fn test_get_guardian_box_found() {
 
     // Execute
     let response = app
-        .oneshot(create_request(
+        .oneshot(create_test_request(
             "GET",
             &format!("/boxes/guardian/{}", box_id),
             "guardian_1",
@@ -308,7 +295,7 @@ async fn test_get_guardian_box_unauthorized() {
 
     // Execute with a non-guardian user
     let response = app
-        .oneshot(create_request(
+        .oneshot(create_test_request(
             "GET",
             &format!("/boxes/guardian/{}", box_id),
             "not_a_guardian",
@@ -329,7 +316,7 @@ async fn test_get_guardian_box_not_found() {
 
     // Execute with a non-existent box ID
     let response = app
-        .oneshot(create_request(
+        .oneshot(create_test_request(
             "GET",
             &format!("/boxes/guardian/{}", non_existent_box_id),
             "guardian_1",
@@ -355,7 +342,7 @@ async fn test_lead_guardian_unlock_request() {
 
     // Execute the PATCH request to initiate unlock
     let response = app
-        .oneshot(create_request(
+        .oneshot(create_test_request(
             "PATCH",
             &format!("/boxes/guardian/{}/request", box_id),
             "lead_guardian_1",
@@ -405,7 +392,7 @@ async fn test_non_lead_guardian_cannot_initiate_unlock() {
 
     // Execute the PATCH request with a non-lead guardian
     let response = app
-        .oneshot(create_request(
+        .oneshot(create_test_request(
             "PATCH",
             &format!("/boxes/guardian/{}/request", box_id),
             "guardian_1", // Not a lead guardian
@@ -431,7 +418,7 @@ async fn test_accept_unlock_request() {
 
     // Execute the PATCH request to respond to an unlock request
     let response = app
-        .oneshot(create_request(
+        .oneshot(create_test_request(
             "PATCH",
             &format!("/boxes/guardian/{}/respond", box_id),
             "guardian_1",
@@ -478,7 +465,7 @@ async fn test_reject_unlock_request() {
 
     // Execute the PATCH request to reject an unlock request
     let response = app
-        .oneshot(create_request(
+        .oneshot(create_test_request(
             "PATCH",
             &format!("/boxes/guardian/{}/respond", box_id),
             "guardian_1",
@@ -520,7 +507,7 @@ async fn test_respond_to_unlock_request_invalid_payload() {
 
     // Send an invalid response payload (missing both approve and reject)
     let response = app
-        .oneshot(create_request(
+        .oneshot(create_test_request(
             "PATCH",
             &format!("/boxes/guardian/{}/respond", box_id),
             "guardian_1",
@@ -549,7 +536,7 @@ async fn test_respond_without_unlock_request() {
 
     // Execute the PATCH request to respond when no request exists
     let response = app
-        .oneshot(create_request(
+        .oneshot(create_test_request(
             "PATCH",
             &format!("/boxes/guardian/{}/respond", box_id),
             "guardian_1",
@@ -575,7 +562,7 @@ async fn test_non_guardian_cannot_respond() {
 
     // Execute the PATCH request as a non-guardian
     let response = app
-        .oneshot(create_request(
+        .oneshot(create_test_request(
             "PATCH",
             &format!("/boxes/guardian/{}/respond", box_id),
             "not_a_guardian",

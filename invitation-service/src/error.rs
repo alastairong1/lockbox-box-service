@@ -8,63 +8,64 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum AppError {
-    #[error("Unauthorized: {0}")]
-    Unauthorized(String),
-
     #[error("Not found: {0}")]
     NotFound(String),
+
+    #[error("Unauthorized: {0}")]
+    Unauthorized(String),
 
     #[error("Bad request: {0}")]
     BadRequest(String),
 
+    #[error("Invitation expired")]
+    InvitationExpired,
+
+    #[error("Request timeout: {0}")]
+    Timeout(String),
+
     #[error("Internal server error: {0}")]
     InternalServerError(String),
+
+    #[error("Forbidden: {0}")]
+    Forbidden(String),
 
     #[error("Serialization error: {0}")]
     SerializationError(#[from] serde_json::Error),
 }
 
-// Add back compatibility methods
-impl AppError {
-    pub fn unauthorized(msg: String) -> Self {
-        AppError::Unauthorized(msg)
-    }
-
-    pub fn not_found(msg: String) -> Self {
-        AppError::NotFound(msg)
-    }
-
-    pub fn validation_error(msg: String) -> Self {
-        AppError::BadRequest(msg)
-    }
-
-    pub fn bad_request(msg: String) -> Self {
-        AppError::BadRequest(msg)
-    }
-
-    pub fn internal_server_error(msg: String) -> Self {
-        AppError::InternalServerError(msg)
-    }
-}
-
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
-        let (status, message) = match &self {
-            AppError::Unauthorized(msg) => {
-                tracing::warn!("Unauthorized error: {}", msg);
-                (StatusCode::UNAUTHORIZED, msg.clone())
-            }
+        let (status, message) = match self {
             AppError::NotFound(msg) => {
                 tracing::warn!("Not found error: {}", msg);
-                (StatusCode::NOT_FOUND, msg.clone())
+                (StatusCode::NOT_FOUND, msg)
+            }
+            AppError::Unauthorized(msg) => {
+                tracing::warn!("Unauthorized error: {}", msg);
+                (StatusCode::UNAUTHORIZED, msg)
             }
             AppError::BadRequest(msg) => {
                 tracing::warn!("Bad request error: {}", msg);
-                (StatusCode::BAD_REQUEST, msg.clone())
+                (StatusCode::BAD_REQUEST, msg)
+            }
+            AppError::InvitationExpired => {
+                tracing::warn!("Invitation expired");
+                (StatusCode::GONE, "Invitation has expired".to_string())
+            }
+            AppError::Timeout(msg) => {
+                tracing::warn!("Request timeout: {}", msg);
+                (StatusCode::REQUEST_TIMEOUT, msg)
             }
             AppError::InternalServerError(msg) => {
                 tracing::error!("Internal server error: {}", msg);
-                (StatusCode::INTERNAL_SERVER_ERROR, msg.clone())
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "Internal server error".to_string(),
+                )
+            }
+            AppError::Forbidden(msg) => {
+                tracing::warn!("Forbidden: {}", msg);
+                (StatusCode::FORBIDDEN, msg)
             }
             AppError::SerializationError(err) => {
                 tracing::warn!("Serialization error: {}", err);
@@ -72,13 +73,14 @@ impl IntoResponse for AppError {
             }
         };
 
-        tracing::info!(
-            "Returning error response: status={}, message={}",
-            status,
-            message
-        );
+        // Build the error response
         (status, Json(json!({ "error": message }))).into_response()
     }
+}
+
+// Helper function to map DynamoDB errors to our application errors
+pub fn map_dynamo_error(operation: &str, err: impl std::fmt::Display) -> AppError {
+    AppError::InternalServerError(format!("DynamoDB {} error: {}", operation, err))
 }
 
 // Add conversion from shared StoreError to AppError
@@ -90,9 +92,7 @@ impl From<lockbox_shared::error::StoreError> for AppError {
             lockbox_shared::error::StoreError::InternalError(msg) => {
                 AppError::InternalServerError(msg)
             }
-            lockbox_shared::error::StoreError::InvitationExpired => {
-                AppError::BadRequest("Invitation has expired".into())
-            }
+            lockbox_shared::error::StoreError::InvitationExpired => AppError::InvitationExpired,
             lockbox_shared::error::StoreError::AuthError(msg) => AppError::Unauthorized(msg),
         }
     }

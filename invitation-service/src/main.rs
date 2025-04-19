@@ -1,9 +1,7 @@
 mod error;
 mod handlers;
-// Keep models for request/response types
 mod models;
 mod routes;
-
 #[cfg(test)]
 mod tests;
 
@@ -13,10 +11,6 @@ use lambda_http::{
     Response as LambdaResponse,
 };
 use tower::ServiceExt;
-
-// Export shared models and store for the rest of the crate to use
-pub use lockbox_shared::models as shared_models;
-pub use lockbox_shared::store;
 
 // The Lambda handler function
 async fn function_handler(event: LambdaRequest) -> Result<LambdaResponse<LambdaBody>, Error> {
@@ -116,7 +110,8 @@ async fn response_to_lambda(response: Response) -> Result<LambdaResponse<LambdaB
 #[tokio::main]
 async fn main() -> Result<(), Error> {
     // Initialize tracing with enhanced configuration
-    let log_level = std::env::var("RUST_LOG").unwrap_or_else(|_| "info,box_service=debug".into());
+    let log_level =
+        std::env::var("RUST_LOG").unwrap_or_else(|_| "info,invitation_service=debug".into());
 
     // Configure and initialize tracing
     tracing_subscriber::fmt()

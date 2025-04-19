@@ -6,15 +6,19 @@ use axum::{
 use std::sync::Arc;
 use uuid::Uuid;
 
-use crate::{
-    error::{AppError, Result},
-    models::{
-        now_str, BoxRecord, BoxResponse, CreateBoxRequest, Document, DocumentUpdateRequest,
-        DocumentUpdateResponse, Guardian, GuardianUpdateRequest, GuardianUpdateResponse,
-        UpdateBoxRequest,
-    },
-    store::BoxStore,
+use crate::error::{AppError, Result};
+// Import models from shared crate
+use crate::shared_models::{
+    BoxRecord, Document, Guardian, now_str,
 };
+// Import request/response types from local models
+use crate::models::{
+    BoxResponse, CreateBoxRequest, DocumentUpdateRequest,
+    DocumentUpdateResponse, GuardianUpdateRequest, GuardianUpdateResponse,
+    UpdateBoxRequest,
+};
+// Import BoxStore from shared crate
+use lockbox_shared::store::BoxStore;
 
 // GET /boxes
 pub async fn get_boxes<S>(
@@ -63,7 +67,7 @@ where
 
     // TODO: Is it safe to check here or should we do filter in the db query?
     if box_rec.owner_id != user_id {
-        return Err(AppError::Unauthorized(
+        return Err(AppError::unauthorized(
             "You don't have permission to view this box".into(),
         ));
     }
@@ -154,7 +158,7 @@ where
 
     // Check if the user is the owner
     if box_rec.owner_id != user_id {
-        return Err(AppError::Unauthorized(
+        return Err(AppError::unauthorized(
             "You don't have permission to update this box".into(),
         ));
     }
@@ -220,7 +224,7 @@ where
 
     // Check if the user is the owner
     if box_rec.owner_id != user_id {
-        return Err(AppError::Unauthorized(
+        return Err(AppError::unauthorized(
             "You don't have permission to delete this box".into(),
         ));
     }
@@ -249,7 +253,7 @@ where
 
     // Check if the user is the owner
     if box_rec.owner_id != owner_id {
-        return Err(AppError::Unauthorized(
+        return Err(AppError::unauthorized(
             "You don't have permission to update this box".into(),
         ));
     }
@@ -262,7 +266,7 @@ where
         box_rec.guardians[index] = guardian.clone();
 
         // Update lead_guardians array if needed
-        if guardian.lead {
+        if guardian.lead_guardian {
             if !box_rec.lead_guardians.iter().any(|g| g.id == guardian.id) {
                 box_rec.lead_guardians.push(guardian.clone());
             }
@@ -276,7 +280,7 @@ where
         box_rec.guardians.push(guardian.clone());
 
         // Add to lead_guardians if needed
-        if guardian.lead {
+        if guardian.lead_guardian {
             box_rec.lead_guardians.push(guardian.clone());
         }
         true
@@ -330,7 +334,7 @@ where
 
     // Check if the user is the owner
     if box_rec.owner_id != owner_id {
-        return Err(AppError::Unauthorized(
+        return Err(AppError::unauthorized(
             "You don't have permission to update this box".into(),
         ));
     }
@@ -396,7 +400,7 @@ where
 
     // Check if the user is the owner
     if box_rec.owner_id != owner_id {
-        return Err(AppError::Unauthorized(
+        return Err(AppError::unauthorized(
             "You don't have permission to delete documents from this box".into(),
         ));
     }
@@ -406,7 +410,7 @@ where
 
     // Return not found if document doesn't exist
     if document_index.is_none() {
-        return Err(AppError::NotFound(format!(
+        return Err(AppError::not_found(format!(
             "Document with ID {} not found in box {}",
             document_id, box_id
         )));
@@ -463,7 +467,7 @@ where
 
     // Check if the user is the owner
     if box_rec.owner_id != owner_id {
-        return Err(AppError::Unauthorized(
+        return Err(AppError::unauthorized(
             "You don't have permission to delete guardians from this box".into(),
         ));
     }
@@ -473,14 +477,14 @@ where
 
     // Return not found if guardian doesn't exist
     if guardian_index.is_none() {
-        return Err(AppError::NotFound(format!(
+        return Err(AppError::not_found(format!(
             "Guardian with ID {} not found in box {}",
             guardian_id, box_id
         )));
     }
 
     // Check if guardian is also a lead guardian and remove from lead_guardians if needed
-    let is_lead = box_rec.guardians[guardian_index.unwrap()].lead;
+    let is_lead = box_rec.guardians[guardian_index.unwrap()].lead_guardian;
     if is_lead {
         box_rec.lead_guardians.retain(|g| g.id != guardian_id);
     }

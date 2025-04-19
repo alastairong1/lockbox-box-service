@@ -27,7 +27,6 @@ struct Document {
 struct Guardian {
     id: String,
     name: String,
-    email: String,
     lead: bool,
     status: String, // "pending", "accepted", "rejected"
     added_at: String,
@@ -98,7 +97,6 @@ static BOXES: Lazy<Mutex<Vec<BoxRecord>>> = Lazy::new(|| {
                 Guardian {
                     id: "guardian_1".into(),
                     name: "Guardian One".into(),
-                    email: "guardian1@example.com".into(),
                     lead: false,
                     status: "pending".into(),
                     added_at: now.clone(),

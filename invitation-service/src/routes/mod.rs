@@ -1,39 +1,31 @@
 use axum::{
     extract::Request,
     middleware,
-    routing::{get, patch},
+    routing::{get, post, put},
     Router,
 };
 use std::sync::Arc;
 use tower_http::cors::{Any, CorsLayer};
 
-use crate::handlers::{
-    box_handlers::{
-        create_box, delete_box, delete_document, delete_guardian, get_box, get_boxes, update_box,
-        update_document, update_guardian,
-    },
-    guardian_handlers::{
-        get_guardian_box, get_guardian_boxes, request_unlock, respond_to_invitation,
-        respond_to_unlock_request,
-    },
+use crate::handlers::invitation_handlers::{
+    create_invitation, get_my_invitations, handle_invitation, refresh_invitation,
 };
-use lockbox_shared::store::{dynamo::DynamoBoxStore, BoxStore};
-
 // Import shared auth middleware
 use lockbox_shared::auth::auth_middleware;
+use lockbox_shared::store::{dynamo::DynamoInvitationStore, InvitationStore};
 
 /// Creates a router with the default store
 pub async fn create_router() -> Router {
     tracing::info!("Creating router with DynamoDB store");
 
     // Create the DynamoDB store
-    let dynamo_store = Arc::new(DynamoBoxStore::new().await);
+    let dynamo_store = Arc::new(DynamoInvitationStore::new().await);
 
     // Check if we should remove the base path prefix
     let remove_base_path = std::env::var("REMOVE_BASE_PATH")
         .map(|v| v.to_lowercase() == "true")
         .unwrap_or(false);
-    
+
     // If REMOVE_BASE_PATH is set to true, don't add the /Prod prefix
     let prefix = if remove_base_path { "" } else { "/Prod" };
     tracing::info!("Using API route prefix: {}", prefix);
@@ -44,7 +36,7 @@ pub async fn create_router() -> Router {
 /// Creates a router with a given store implementation
 pub fn create_router_with_store<S>(store: Arc<S>, prefix: &str) -> Router
 where
-    S: BoxStore + 'static,
+    S: InvitationStore + ?Sized + 'static,
 {
     tracing::info!("Setting up API routes with prefix: {}", prefix);
 
@@ -73,32 +65,10 @@ where
 
     // Create the API routes
     let api_routes = Router::new()
-        .route("/boxes/owned", get(get_boxes).post(create_box))
-        .route(
-            "/boxes/owned/:id",
-            get(get_box).patch(update_box).delete(delete_box),
-        )
-        .route("/boxes/owned/:id/guardian", patch(update_guardian))
-        .route(
-            "/boxes/owned/:id/guardian/:guardian_id",
-            axum::routing::delete(delete_guardian),
-        )
-        .route("/boxes/owned/:id/document", patch(update_document))
-        .route(
-            "/boxes/owned/:id/document/:document_id",
-            axum::routing::delete(delete_document),
-        )
-        .route("/boxes/guardian", get(get_guardian_boxes))
-        .route("/boxes/guardian/:id", get(get_guardian_box))
-        .route("/boxes/guardian/:id/request", patch(request_unlock))
-        .route(
-            "/boxes/guardian/:id/respond",
-            patch(respond_to_unlock_request),
-        )
-        .route(
-            "/boxes/guardian/:id/invitation",
-            patch(respond_to_invitation),
-        )
+        .route("/invitation", post(create_invitation))
+        .route("/invitation/handle", put(handle_invitation))
+        .route("/invitations/:inviteId/refresh", post(refresh_invitation))
+        .route("/invitations/me", get(get_my_invitations))
         .layer(middleware::from_fn(auth_middleware))
         .with_state(store);
 
