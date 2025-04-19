@@ -71,7 +71,7 @@ mod dynamo_tests {
 
         // Owner ID attribute (for GSI)
         let owner_id_attr = AttributeDefinition::builder()
-            .attribute_name("owner_id")
+            .attribute_name("ownerId")
             .attribute_type(ScalarAttributeType::S)
             .build()?;
 
@@ -83,7 +83,7 @@ mod dynamo_tests {
 
         // GSI key schema for owner_id
         let owner_id_key = KeySchemaElement::builder()
-            .attribute_name("owner_id")
+            .attribute_name("ownerId")
             .key_type(KeyType::Hash)
             .build()?;
 

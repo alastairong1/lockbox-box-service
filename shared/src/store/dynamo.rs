@@ -19,7 +19,6 @@ use crate::models::{BoxRecord, Invitation, now_str};
 const TABLE_NAME: &str = "invitation-table";
 const GSI_BOX_ID: &str = "box_id-index";
 const GSI_INVITE_CODE: &str = "invite_code-index";
-const GSI_CREATOR_ID: &str = "creator_id-index";
 
 // Box Store Constants
 const BOX_TABLE_NAME: &str = "box-table";
@@ -125,7 +124,7 @@ impl super::BoxStore for DynamoBoxStore {
 
     /// Gets all boxes owned by a user
     async fn get_boxes_by_owner(&self, owner_id: &str) -> Result<Vec<BoxRecord>> {
-        let expr_attr_names = HashMap::from([("#owner_id".to_string(), "owner_id".to_string())]);
+        let expr_attr_names = HashMap::from([("#owner_id".to_string(), "ownerId".to_string())]);
 
         let expr_attr_values = HashMap::from([(
             ":owner_id".to_string(),

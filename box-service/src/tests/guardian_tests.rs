@@ -1,6 +1,12 @@
 use axum::http::StatusCode;
+use axum::Router;
 use lockbox_shared::auth::create_test_request;
 use lockbox_shared::test_utils::mock_box_store::MockBoxStore;
+use lockbox_shared::test_utils::dynamo_test_utils::{
+    use_dynamodb, create_dynamo_client, create_box_table, clear_dynamo_table
+};
+use lockbox_shared::store::dynamo::DynamoBoxStore;
+use lockbox_shared::store::BoxStore;
 use serde_json::{json, Value};
 use std::sync::Arc;
 use tower::ServiceExt;
@@ -11,11 +17,18 @@ use crate::{
     routes,
 };
 
+// Constants for DynamoDB tests
+const TEST_TABLE_NAME: &str = "guardian-test-table";
+
+// Helper function to extract JSON from response
+async fn response_to_json(response: axum::response::Response) -> Value {
+    let body = response.into_body();
+    let bytes = axum::body::to_bytes(body, usize::MAX).await.unwrap();
+    serde_json::from_slice(&bytes).unwrap()
+}
 
 // Create mock data for testing
-fn setup_test_data() -> Arc<MockBoxStore> {
-    let now = now_str();
-
+fn create_test_data(now: &str) -> Vec<BoxRecord> {
     // Box 1: Regular guardian (guardian_1)
     let box_1_id = "11111111-1111-1111-1111-111111111111".to_string();
     let box_1 = BoxRecord {
@@ -23,8 +36,8 @@ fn setup_test_data() -> Arc<MockBoxStore> {
         name: "Guardian Test Box 1".into(),
         description: "Box for guardian tests".into(),
         is_locked: true,
-        created_at: now.clone(),
-        updated_at: now.clone(),
+        created_at: now.to_string(),
+        updated_at: now.to_string(),
         owner_id: "owner_1".into(),
         owner_name: Some("Owner One".into()),
         documents: vec![],
@@ -34,7 +47,7 @@ fn setup_test_data() -> Arc<MockBoxStore> {
                 name: "Guardian One".into(),
                 lead_guardian: false,
                 status: "accepted".into(),
-                added_at: now.clone(),
+                added_at: now.to_string(),
                 invitation_id: "invitation_1".into(),
             },
             Guardian {
@@ -42,7 +55,7 @@ fn setup_test_data() -> Arc<MockBoxStore> {
                 name: "Guardian Two".into(),
                 lead_guardian: false,
                 status: "accepted".into(),
-                added_at: now.clone(),
+                added_at: now.to_string(),
                 invitation_id: "invitation_2".into(),
             },
             Guardian {
@@ -50,7 +63,7 @@ fn setup_test_data() -> Arc<MockBoxStore> {
                 name: "Lead Guardian One".into(),
                 lead_guardian: true,
                 status: "accepted".into(),
-                added_at: now.clone(),
+                added_at: now.to_string(),
                 invitation_id: "invitation_3".into(),
             },
         ],
@@ -59,7 +72,7 @@ fn setup_test_data() -> Arc<MockBoxStore> {
             name: "Lead Guardian One".into(),
             lead_guardian: true,
             status: "accepted".into(),
-            added_at: now.clone(),
+            added_at: now.to_string(),
             invitation_id: "invitation_4".into(),
         }],
         unlock_instructions: Some("Contact all guardians".into()),
@@ -70,7 +83,7 @@ fn setup_test_data() -> Arc<MockBoxStore> {
     let box_2_id = "22222222-2222-2222-2222-222222222222".to_string();
     let unlock_request = UnlockRequest {
         id: "unlock-111".into(),
-        requested_at: now.clone(),
+        requested_at: now.to_string(),
         status: "pending".into(),
         message: Some("Emergency access needed".into()),
         initiated_by: Some("lead_guardian_1".into()),
@@ -83,8 +96,8 @@ fn setup_test_data() -> Arc<MockBoxStore> {
         name: "Guardian Test Box 2".into(),
         description: "Box with unlock request".into(),
         is_locked: true,
-        created_at: now.clone(),
-        updated_at: now.clone(),
+        created_at: now.to_string(),
+        updated_at: now.to_string(),
         owner_id: "owner_1".into(),
         owner_name: Some("Owner One".into()),
         documents: vec![],
@@ -94,7 +107,7 @@ fn setup_test_data() -> Arc<MockBoxStore> {
                 name: "Guardian One".into(),
                 lead_guardian: false,
                 status: "accepted".into(),
-                added_at: now.clone(),
+                added_at: now.to_string(),
                 invitation_id: "invitation_5".into(),
             },
             Guardian {
@@ -102,7 +115,7 @@ fn setup_test_data() -> Arc<MockBoxStore> {
                 name: "Guardian Three".into(),
                 lead_guardian: false,
                 status: "accepted".into(),
-                added_at: now.clone(),
+                added_at: now.to_string(),
                 invitation_id: "invitation_6".into(),
             },
             Guardian {
@@ -110,7 +123,7 @@ fn setup_test_data() -> Arc<MockBoxStore> {
                 name: "Lead Guardian One".into(),
                 lead_guardian: true,
                 status: "accepted".into(),
-                added_at: now.clone(),
+                added_at: now.to_string(),
                 invitation_id: "invitation_7".into(),
             },
         ],
@@ -119,7 +132,7 @@ fn setup_test_data() -> Arc<MockBoxStore> {
             name: "Lead Guardian One".into(),
             lead_guardian: true,
             status: "accepted".into(),
-            added_at: now.clone(),
+            added_at: now.to_string(),
             invitation_id: "invitation_8".into(),
         }],
         unlock_instructions: Some("Call emergency contact".into()),
@@ -133,8 +146,8 @@ fn setup_test_data() -> Arc<MockBoxStore> {
         name: "Guardian Test Box 3".into(),
         description: "Box without guardian_1".into(),
         is_locked: true,
-        created_at: now.clone(),
-        updated_at: now.clone(),
+        created_at: now.to_string(),
+        updated_at: now.to_string(),
         owner_id: "owner_2".into(),
         owner_name: Some("Owner Two".into()),
         documents: vec![],
@@ -143,7 +156,7 @@ fn setup_test_data() -> Arc<MockBoxStore> {
             name: "Guardian Two".into(),
             lead_guardian: false,
             status: "accepted".into(),
-            added_at: now.clone(),
+            added_at: now.to_string(),
             invitation_id: "invitation_9".into(),
         }],
         lead_guardians: vec![],
@@ -151,28 +164,51 @@ fn setup_test_data() -> Arc<MockBoxStore> {
         unlock_request: None,
     };
 
-    // Create MockBoxStore with the test data
-    Arc::new(MockBoxStore::with_data(vec![box_1, box_2, box_3]))
+    vec![box_1, box_2, box_3]
 }
 
-// Inject the test data into the router
-fn create_test_app() -> axum::Router {
-    let store = setup_test_data();
-    // Create router with memory store for testing
-    routes::create_router_with_store(store, "")
+// Create test app with either mock or DynamoDB store
+async fn create_test_app() -> Router {
+    if use_dynamodb() {
+        // Set up DynamoDB store
+        let client = create_dynamo_client().await;
+        
+        // Create the table (ignore errors if table already exists)
+        let _ = create_box_table(&client, TEST_TABLE_NAME).await;
+        
+        // Clean the table to start fresh
+        clear_dynamo_table(&client, TEST_TABLE_NAME).await;
+        
+        // Create the DynamoDB store with our test table
+        let store = Arc::new(
+            DynamoBoxStore::with_client_and_table(client.clone(), TEST_TABLE_NAME.to_string())
+        );
+        
+        // Add test data to DynamoDB
+        let now = now_str();
+        let test_boxes = create_test_data(&now);
+        for box_record in test_boxes {
+            let _ = store.create_box(box_record).await;
+        }
+        
+        routes::create_router_with_store(store, "")
+    } else {
+        // Use mock store
+        let now = now_str();
+        let store = Arc::new(MockBoxStore::with_data(create_test_data(&now)));
+        routes::create_router_with_store(store, "")
+    }
 }
 
-// Helper function to extract JSON from response
-async fn response_to_json(response: axum::response::Response) -> Value {
-    let body = response.into_body();
-    let bytes = axum::body::to_bytes(body, usize::MAX).await.unwrap();
-    serde_json::from_slice(&bytes).unwrap()
+// Convenience function to get a testing app
+async fn test_app() -> Router {
+    create_test_app().await
 }
 
 #[tokio::test]
 async fn test_get_guardian_boxes() {
-    // Setup with mock data
-    let app = create_test_app();
+    // Setup with test data
+    let app = test_app().await;
 
     // Execute
     let response = app
@@ -235,8 +271,8 @@ async fn test_get_guardian_boxes() {
 
 #[tokio::test]
 async fn test_get_guardian_boxes_empty_for_non_guardian() {
-    // Setup with mock data
-    let app = create_test_app();
+    // Setup with test data
+    let app = test_app().await;
 
     // Execute
     let response = app
@@ -259,8 +295,8 @@ async fn test_get_guardian_boxes_empty_for_non_guardian() {
 
 #[tokio::test]
 async fn test_get_guardian_box_found() {
-    // Setup with mock data
-    let app = create_test_app();
+    // Setup with test data
+    let app = test_app().await;
     let box_id = "11111111-1111-1111-1111-111111111111";
 
     // Execute
@@ -289,8 +325,8 @@ async fn test_get_guardian_box_found() {
 
 #[tokio::test]
 async fn test_get_guardian_box_unauthorized() {
-    // Setup with mock data
-    let app = create_test_app();
+    // Setup with test data
+    let app = create_test_app().await;
     let box_id = "11111111-1111-1111-1111-111111111111";
 
     // Execute with a non-guardian user
@@ -310,8 +346,8 @@ async fn test_get_guardian_box_unauthorized() {
 
 #[tokio::test]
 async fn test_get_guardian_box_not_found() {
-    // Setup with mock data
-    let app = create_test_app();
+    // Setup with test data
+    let app = create_test_app().await;
     let non_existent_box_id = "99999999-9999-9999-9999-999999999999";
 
     // Execute with a non-existent box ID
@@ -331,8 +367,8 @@ async fn test_get_guardian_box_not_found() {
 
 #[tokio::test]
 async fn test_lead_guardian_unlock_request() {
-    // Setup with mock data
-    let app = create_test_app();
+    // Setup with test data
+    let app = create_test_app().await;
     let box_id = "11111111-1111-1111-1111-111111111111";
 
     // Create unlock request payload
@@ -381,8 +417,8 @@ async fn test_lead_guardian_unlock_request() {
 
 #[tokio::test]
 async fn test_non_lead_guardian_cannot_initiate_unlock() {
-    // Setup with mock data
-    let app = create_test_app();
+    // Setup with test data
+    let app = create_test_app().await;
     let box_id = "11111111-1111-1111-1111-111111111111";
 
     // Create unlock request payload
@@ -407,8 +443,8 @@ async fn test_non_lead_guardian_cannot_initiate_unlock() {
 
 #[tokio::test]
 async fn test_accept_unlock_request() {
-    // Setup with mock data
-    let app = create_test_app();
+    // Setup with test data
+    let app = create_test_app().await;
     let box_id = "22222222-2222-2222-2222-222222222222"; // Box with existing unlock request
 
     // Create response payload
@@ -454,8 +490,8 @@ async fn test_accept_unlock_request() {
 
 #[tokio::test]
 async fn test_reject_unlock_request() {
-    // Setup with mock data
-    let app = create_test_app();
+    // Setup with test data
+    let app = create_test_app().await;
     let box_id = "22222222-2222-2222-2222-222222222222"; // Box with existing unlock request
 
     // Create response payload to reject
@@ -501,8 +537,8 @@ async fn test_reject_unlock_request() {
 
 #[tokio::test]
 async fn test_respond_to_unlock_request_invalid_payload() {
-    // Setup with mock data
-    let app = create_test_app();
+    // Setup with test data
+    let app = create_test_app().await;
     let box_id = "22222222-2222-2222-2222-222222222222"; // Box with existing unlock request
 
     // Send an invalid response payload (missing both approve and reject)
@@ -525,8 +561,8 @@ async fn test_respond_to_unlock_request_invalid_payload() {
 
 #[tokio::test]
 async fn test_respond_without_unlock_request() {
-    // Setup with mock data
-    let app = create_test_app();
+    // Setup with test data
+    let app = create_test_app().await;
     let box_id = "11111111-1111-1111-1111-111111111111"; // Box WITHOUT unlock request
 
     // Create response payload
@@ -551,8 +587,8 @@ async fn test_respond_without_unlock_request() {
 
 #[tokio::test]
 async fn test_non_guardian_cannot_respond() {
-    // Setup with mock data
-    let app = create_test_app();
+    // Setup with test data
+    let app = create_test_app().await;
     let box_id = "22222222-2222-2222-2222-222222222222"; // Box with existing unlock request
 
     // Create response payload
