@@ -5,7 +5,6 @@ use tower::ServiceExt;
 
 use lockbox_shared::store::InvitationStore;
 use lockbox_shared::auth::create_test_request;
-use lockbox_shared::test_utils::integration_setup::build_invitation_store;
 use lockbox_shared::test_utils::mock_invitation_store::MockInvitationStore;
 
 use crate::routes::create_router_with_store;
@@ -21,18 +20,16 @@ async fn response_to_json(response: Response) -> Value {
     serde_json::from_slice(&bytes).unwrap()
 }
 
-// Helper to build a test application with a given InvitationStore implementation
-fn create_test_app<S>(store: Arc<S>) -> Router
-where
-    S: InvitationStore + ?Sized + 'static,
-{
-    create_router_with_store(store, "")
+// Helper to set up test application with a MockInvitationStore
+fn create_test_app() -> (Router, Arc<MockInvitationStore>) {
+    let store = Arc::new(MockInvitationStore::new_with_expiry());
+    let app = create_router_with_store(store.clone(), "");
+    (app, store)
 }
 
 #[tokio::test]
 async fn test_create_invitation() {
-    let store = build_invitation_store().await;
-    let app = create_test_app(store.clone());
+    let (app, store) = create_test_app();
 
     let payload = json!({
         "invitedName": "Test User",
@@ -78,7 +75,8 @@ async fn test_create_invitation() {
 
 #[tokio::test]
 async fn test_handle_invitation() {
-    let store = build_invitation_store().await;
+    let (app, store) = create_test_app();
+
     // seed an invitation directly
     let now = Utc::now();
     let id = Uuid::new_v4().to_string();
@@ -95,7 +93,6 @@ async fn test_handle_invitation() {
         creator_id: "creator-id".to_string(),
     };
     store.create_invitation(invitation.clone()).await.unwrap();
-    let app = create_test_app(store.clone());
 
     let handle_payload = json!({
         "userId": "user-456",
@@ -123,7 +120,7 @@ async fn test_handle_invitation() {
 
 #[tokio::test]
 async fn test_handle_invitation_expired_code() {
-    let store = build_invitation_store().await;
+    let (app, store) = create_test_app();
     // seed an expired invitation
     let now = Utc::now();
     let id = Uuid::new_v4().to_string();
@@ -140,7 +137,6 @@ async fn test_handle_invitation_expired_code() {
         creator_id: "creator-id".to_string(),
     };
     store.create_invitation(invitation.clone()).await.unwrap();
-    let app = create_test_app(store.clone());
 
     let bad_payload = json!({
         "userId": "user-456",
@@ -162,7 +158,7 @@ async fn test_handle_invitation_expired_code() {
 
 #[tokio::test]
 async fn test_refresh_invitation() {
-    let store = build_invitation_store().await;
+    let (app, store) = create_test_app();
     let now = Utc::now();
     let id = Uuid::new_v4().to_string();
     let old_code = "OLDCODE1".to_string();
@@ -178,7 +174,6 @@ async fn test_refresh_invitation() {
         creator_id: "test-user-id".to_string(),
     };
     store.create_invitation(invitation.clone()).await.unwrap();
-    let app = create_test_app(store.clone());
 
     let path = format!("/invitations/{}/refresh", id);
     let response = app
@@ -211,7 +206,7 @@ async fn test_refresh_invitation() {
 
 #[tokio::test]
 async fn test_refresh_invitation_invalid_id() {
-    let store = build_invitation_store().await;
+    let (app, store) = create_test_app();
     let now = Utc::now();
     let id = Uuid::new_v4().to_string();
     let invitation = Invitation {
@@ -226,7 +221,6 @@ async fn test_refresh_invitation_invalid_id() {
         creator_id: "owner-id".to_string(),
     };
     store.create_invitation(invitation.clone()).await.unwrap();
-    let app = create_test_app(store.clone());
 
     let path = format!("/invitations/{}/refresh", id);
     let response = app
@@ -245,7 +239,7 @@ async fn test_refresh_invitation_invalid_id() {
 
 #[tokio::test]
 async fn test_handle_invitation_invalid_code() {
-    let store = build_invitation_store().await;
+    let (app, store) = create_test_app();
     let now = Utc::now();
     let id = Uuid::new_v4().to_string();
     let invitation = Invitation {
@@ -260,7 +254,6 @@ async fn test_handle_invitation_invalid_code() {
         creator_id: "creator-id".to_string(),
     };
     store.create_invitation(invitation.clone()).await.unwrap();
-    let app = create_test_app(store.clone());
 
     let bad_payload = json!({
         "userId": "user-456",
@@ -282,8 +275,7 @@ async fn test_handle_invitation_invalid_code() {
 
 #[tokio::test]
 async fn test_get_my_invitations() {
-    let store = build_invitation_store().await;
-    let app = create_test_app(store.clone());
+    let (app, _store) = create_test_app();
 
     // Seed multiple invitations
     for (name, box_id, user) in [
@@ -315,8 +307,7 @@ async fn test_get_my_invitations() {
 
 #[tokio::test]
 async fn test_get_my_invitations_empty() {
-    let store = build_invitation_store().await;
-    let app = create_test_app(store.clone());
+    let (app, _store) = create_test_app();
 
     let response = app
         .clone()
@@ -331,8 +322,8 @@ async fn test_get_my_invitations_empty() {
 
 #[tokio::test]
 async fn test_get_my_invitations_error() {
-    let store = Arc::new(MockInvitationStore::new_error()) as Arc<dyn InvitationStore>;
-    let app = create_test_app(store.clone());
+    let store = Arc::new(MockInvitationStore::new_error());
+    let app = create_router_with_store(store.clone(), "");
 
     let response = app
         .oneshot(create_test_request("GET", "/invitations/me", "test-user-id", None))

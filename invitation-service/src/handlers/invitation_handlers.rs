@@ -171,7 +171,7 @@ pub async fn refresh_invitation<S: InvitationStore + ?Sized>(
         .get_invitations_by_creator_id(&user_id)
         .await?;
     // Only allow refresh if this user is the creator
-    let mut invitation = if let Some(mut inv) = invitations.into_iter().find(|inv| inv.id == invite_id) {
+    let mut invitation = if let Some(inv) = invitations.into_iter().find(|inv| inv.id == invite_id) {
         inv
     } else {
         return Err(AppError::Forbidden(format!("Invitation {} is not owned by user", invite_id)));
