@@ -403,31 +403,24 @@ impl super::InvitationStore for DynamoInvitationStore {
     }
 
     async fn get_invitations_by_creator_id(&self, creator_id: &str) -> Result<Vec<Invitation>> {
-        // Create expression attribute values
-        let expr_attr_values = HashMap::from([(
-            ":creator_id".to_string(),
-            AttributeValue::S(creator_id.to_string()),
-        )]);
-
+        // Scan the entire table with strong consistency and parse items
         let result = self
             .client
-            .query()
+            .scan()
             .table_name(&self.table_name)
-            .index_name(GSI_CREATOR_ID)
-            .key_condition_expression("creator_id = :creator_id")
-            .set_expression_attribute_values(Some(expr_attr_values))
+            .consistent_read(true)
             .send()
             .await
-            .map_err(|e| map_dynamo_error("query", e))?;
-
+            .map_err(|e| map_scan_dynamo_error(e))?;
         let items = result.items();
-
         let mut invitations = Vec::new();
         for item in items {
             let invitation: Invitation = from_item(item.clone())?;
-            invitations.push(invitation);
+            // Only include invitations created by this user
+            if invitation.creator_id == creator_id {
+                invitations.push(invitation);
+            }
         }
-
         Ok(invitations)
     }
 }
