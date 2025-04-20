@@ -113,7 +113,7 @@ pub async fn publish_invitation_event(invitation: &Invitation) -> Result<()> {
 }
 
 // Internal implementation that can be mocked for testing
-async fn publish_invitation_event_with_client(
+pub async fn publish_invitation_event_with_client(
     invitation: &Invitation,
     sns_client: SnsClient,
     topic_arn: &str,

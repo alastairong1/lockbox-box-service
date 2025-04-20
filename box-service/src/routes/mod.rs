@@ -46,7 +46,7 @@ pub fn create_router_with_store<S>(store: Arc<S>, prefix: &str) -> Router
 where
     S: BoxStore + 'static,
 {
-    tracing::info!("Setting up API routes with prefix: {}", prefix);
+    tracing::info!("Setting up API routes with prefix: '{}'", prefix);
 
     // Configure CORS
     let cors = CorsLayer::new()
@@ -102,14 +102,22 @@ where
         .layer(middleware::from_fn(auth_middleware))
         .with_state(store);
 
-    // Create the main router with the prefix
-    let router = Router::new()
-        .nest(prefix, api_routes)
-        .layer(cors)
-        .layer(middleware::from_fn(logging_middleware));
+    // Create the main router
+    let router = if prefix.is_empty() {
+        // For tests or when no prefix is needed, don't nest the routes
+        api_routes
+            .layer(cors)
+            .layer(middleware::from_fn(logging_middleware))
+    } else {
+        // For production, nest the routes under the prefix
+        Router::new()
+            .nest(prefix, api_routes)
+            .layer(cors)
+            .layer(middleware::from_fn(logging_middleware))
+    };
 
     tracing::info!(
-        "Router configured with all routes and middleware under prefix: {}",
+        "Router configured with all routes and middleware under prefix: '{}'",
         prefix
     );
 

@@ -3,6 +3,8 @@ use axum::{
     http::StatusCode,
     Json,
 };
+use lockbox_shared::store::BoxStore;
+use serde_json;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -15,10 +17,8 @@ use crate::shared_models::{
 use crate::models::{
     BoxResponse, CreateBoxRequest, DocumentUpdateRequest,
     DocumentUpdateResponse, GuardianUpdateRequest, GuardianUpdateResponse,
-    UpdateBoxRequest,
+    OptionalField, UpdateBoxRequest,
 };
-// Import BoxStore from shared crate
-use lockbox_shared::store::BoxStore;
 
 // GET /boxes
 pub async fn get_boxes<S>(
@@ -172,14 +172,13 @@ where
         box_rec.description = description;
     }
 
-    // Handle unlock_instructions with our new NullableField
-    // If the field was present in the request, update it (even if null)
-    if payload.unlock_instructions.was_present() {
-        println!(
-            "unlockInstructions was present in request: {:?}",
-            payload.unlock_instructions
-        );
-        box_rec.unlock_instructions = payload.unlock_instructions.into_option();
+    // For unlock_instructions, we need to handle both the case of setting it to a value
+    // or explicitly clearing it by setting it to None
+    if let Some(field) = &payload.unlock_instructions {
+        match field {
+            OptionalField::Value(val) => box_rec.unlock_instructions = Some(val.clone()),
+            OptionalField::Null => box_rec.unlock_instructions = None,
+        }
     }
 
     if let Some(is_locked) = payload.is_locked {

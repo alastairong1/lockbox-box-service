@@ -1,6 +1,5 @@
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
-use std::fmt;
 
 // Import shared models for direct use in response types
 use crate::shared_models::{Document, Guardian, UnlockRequest};
@@ -14,11 +13,13 @@ pub struct CreateBoxRequest {
 
 #[derive(Deserialize, Debug)]
 pub struct UpdateBoxRequest {
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
-    #[serde(rename = "unlockInstructions")]
-    pub unlock_instructions: NullableField<String>,
-    #[serde(rename = "isLocked")]
+    #[serde(rename = "unlockInstructions", skip_serializing_if = "Option::is_none", default, with = "optional_field_serde")]
+    pub unlock_instructions: Option<OptionalField<String>>,
+    #[serde(rename = "isLocked", skip_serializing_if = "Option::is_none")]
     pub is_locked: Option<bool>,
 }
 
@@ -73,43 +74,39 @@ pub struct GuardianUpdateResponse {
 }
 
 // Helper for null vs. not-present in JSON
-#[derive(Deserialize, Debug)]
-#[serde(untagged)]
-pub enum NullableField<T> {
-    Null,
+// Custom wrapper type to differentiate between field not present and field present but null
+#[derive(Debug)]
+pub enum OptionalField<T> {
     Value(T),
-    #[serde(skip_deserializing)]
-    NotPresent,
+    Null,
 }
 
-impl<T> Default for NullableField<T> {
-    fn default() -> Self {
-        NullableField::NotPresent
-    }
-}
+// Custom serde module for optional fields that need to distinguish between null and absent
+mod optional_field_serde {
+    use super::OptionalField;
+    use serde::{Deserialize, Deserializer, Serializer};
 
-impl<T> NullableField<T> {
-    pub fn into_option(self) -> Option<T> {
-        match self {
-            NullableField::Value(v) => Some(v),
-            _ => None,
+    pub fn deserialize<'de, D, T>(deserializer: D) -> Result<Option<OptionalField<T>>, D::Error>
+    where
+        D: Deserializer<'de>,
+        T: Deserialize<'de>,
+    {
+        let option = Option::<T>::deserialize(deserializer)?;
+        match option {
+            Some(val) => Ok(Some(OptionalField::Value(val))),
+            None => Ok(Some(OptionalField::Null)), // null was explicitly provided
         }
     }
 
-    pub fn was_present(&self) -> bool {
-        match self {
-            NullableField::NotPresent => false,
-            _ => true,
-        }
-    }
-}
-
-impl<T: fmt::Debug> fmt::Display for NullableField<T> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            NullableField::Null => write!(f, "null"),
-            NullableField::Value(v) => write!(f, "{:?}", v),
-            NullableField::NotPresent => write!(f, "[not present]"),
+    pub fn serialize<S, T>(value: &Option<OptionalField<T>>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+        T: serde::Serialize,
+    {
+        match value {
+            Some(OptionalField::Value(val)) => serializer.serialize_some(val),
+            Some(OptionalField::Null) => serializer.serialize_none(),
+            None => serializer.serialize_none(),
         }
     }
 }

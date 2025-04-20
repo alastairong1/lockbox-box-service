@@ -35,4 +35,6 @@ anyhow = "1.0"
 lockbox-shared = { path = "../shared", features = ["test_utils"] }
 
 [dev-dependencies]
-mockito = "1.3.0" # For mocking HTTP requests/responses if needed later 
+mockito = "1.3.0" # For mocking HTTP requests/responses if needed later
+uuid = { version = "1.6.1", features = ["v4"] }
+env_logger = "0.10.1" 

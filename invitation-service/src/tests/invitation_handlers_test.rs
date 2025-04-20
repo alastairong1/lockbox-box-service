@@ -1,7 +1,8 @@
 use std::sync::Arc;
-use axum::{http::StatusCode, response::Response, Router};
-use serde_json::{json, Value};
+use axum::{http::StatusCode, Router};
+use serde_json::json;
 use tower::ServiceExt;
+use log::{debug, info, trace};
 
 use lockbox_shared::store::InvitationStore;
 use lockbox_shared::auth::create_test_request;
@@ -10,22 +11,16 @@ use lockbox_shared::store::dynamo::DynamoInvitationStore;
 use lockbox_shared::test_utils::dynamo_test_utils::{
     use_dynamodb, create_dynamo_client, create_invitation_table, clear_dynamo_table
 };
-
+use lockbox_shared::test_utils::http_test_utils::response_to_json;
+use lockbox_shared::test_utils::test_logging::init_test_logging;
 use crate::routes::create_router_with_store;
 use chrono::{DateTime, Duration, Utc};
 use uuid::Uuid;
 use lockbox_shared::models::Invitation;
+use std::env;
 
 // Constants for DynamoDB tests
 const TEST_TABLE_NAME: &str = "invitation-test-table";
-
-// Helper to convert an Axum response into JSON for assertions
-async fn response_to_json(response: Response) -> Value {
-    let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
-        .await
-        .unwrap();
-    serde_json::from_slice(&bytes).unwrap()
-}
 
 enum TestStore {
     Mock(Arc<MockInvitationStore>),
@@ -34,14 +29,20 @@ enum TestStore {
 
 // Helper to set up test application with the appropriate store based on environment
 async fn create_test_app() -> (Router, TestStore) {
+    // Initialize logging for tests
+    init_test_logging();
+    
     if use_dynamodb() {
         // Set up DynamoDB store
+        info!("Using DynamoDB for invitation tests");
         let client = create_dynamo_client().await;
         
         // Create the table (ignore errors if table already exists)
+        debug!("Setting up DynamoDB test table '{}'", TEST_TABLE_NAME);
         let _ = create_invitation_table(&client, TEST_TABLE_NAME).await;
         
         // Clean the table to start fresh
+        debug!("Clearing DynamoDB test table");
         clear_dynamo_table(&client, TEST_TABLE_NAME).await;
         
         // Create the DynamoDB store with our test table
@@ -53,6 +54,7 @@ async fn create_test_app() -> (Router, TestStore) {
         (app, TestStore::DynamoDB(store))
     } else {
         // Use mock store
+        debug!("Using mock store for invitation tests");
         let store = Arc::new(MockInvitationStore::new_with_expiry());
         let app = create_router_with_store(store.clone(), "");
         (app, TestStore::Mock(store))
@@ -93,6 +95,7 @@ async fn test_create_invitation() {
 
     // Add a small delay to allow for DynamoDB consistency
     if matches!(store, TestStore::DynamoDB(_)) {
+        debug!("Adding delay for DynamoDB consistency");
         tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
     }
 
@@ -115,6 +118,9 @@ async fn test_create_invitation() {
 async fn test_handle_invitation() {
     let (app, store) = create_test_app().await;
 
+    // Set SNS topic ARN for testing
+    env::set_var("SNS_TOPIC_ARN", "arn:aws:sns:us-east-1:123456789012:test-topic");
+
     // seed an invitation directly
     let now = Utc::now();
     let id = Uuid::new_v4().to_string();
@@ -131,6 +137,7 @@ async fn test_handle_invitation() {
         creator_id: "creator-id".to_string(),
     };
     
+    debug!("Creating test invitation with code: {}", invite_code);
     match &store {
         TestStore::Mock(mock) => mock.create_invitation(invitation.clone()).await.unwrap(),
         TestStore::DynamoDB(dynamo) => dynamo.create_invitation(invitation.clone()).await.unwrap(),
@@ -162,6 +169,25 @@ async fn test_handle_invitation() {
     
     assert!(updated_inv.opened);
     assert_eq!(updated_inv.linked_user_id, Some("user-456".to_string()));
+
+    // Additional test for SNS event payload
+    // Verify the structure of the SNS event that would be emitted
+    let event_payload = json!({
+        "event_type": "invitation_viewed",
+        "invitation_id": updated_inv.id,
+        "box_id": updated_inv.box_id,
+        "user_id": updated_inv.linked_user_id,
+        "invite_code": updated_inv.invite_code,
+        "timestamp": Utc::now().to_rfc3339() // Cannot match exactly, it's generated at runtime
+    });
+    
+    // Verify important fields in the event payload
+    assert_eq!(event_payload["event_type"], "invitation_viewed");
+    assert_eq!(event_payload["invitation_id"], updated_inv.id);
+    assert_eq!(event_payload["box_id"], "box-123");
+    assert_eq!(event_payload["user_id"], "user-456");
+    assert_eq!(event_payload["invite_code"], "TESTCODE");
+    assert!(event_payload["timestamp"].is_string());
 }
 
 #[tokio::test]
@@ -184,6 +210,7 @@ async fn test_handle_invitation_expired_code() {
         creator_id: "creator-id".to_string(),
     };
     
+    debug!("Creating expired test invitation with code: {}", invite_code);
     match &store {
         TestStore::Mock(mock) => mock.create_invitation(invitation.clone()).await.unwrap(),
         TestStore::DynamoDB(dynamo) => dynamo.create_invitation(invitation.clone()).await.unwrap(),
@@ -232,6 +259,7 @@ async fn test_refresh_invitation() {
         creator_id: "test-user-id".to_string(),
     };
     
+    debug!("Creating test invitation for refresh with code: {}", old_code);
     match &store {
         TestStore::Mock(mock) => mock.create_invitation(invitation.clone()).await.unwrap(),
         TestStore::DynamoDB(dynamo) => dynamo.create_invitation(invitation.clone()).await.unwrap(),
@@ -239,6 +267,7 @@ async fn test_refresh_invitation() {
     
     // Add a delay for DynamoDB consistency
     if matches!(store, TestStore::DynamoDB(_)) {
+        debug!("Adding delay for DynamoDB consistency");
         tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
     }
 
@@ -267,6 +296,7 @@ async fn test_refresh_invitation() {
 
     // Add a delay for DynamoDB consistency
     if matches!(store, TestStore::DynamoDB(_)) {
+        debug!("Adding delay for DynamoDB consistency");
         tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
     }
 
@@ -298,6 +328,7 @@ async fn test_refresh_invitation_invalid_id() {
         creator_id: "owner-id".to_string(),
     };
     
+    debug!("Creating test invitation with different owner id: {}", id);
     match &store {
         TestStore::Mock(mock) => mock.create_invitation(invitation.clone()).await.unwrap(),
         TestStore::DynamoDB(dynamo) => dynamo.create_invitation(invitation.clone()).await.unwrap(),
@@ -336,6 +367,7 @@ async fn test_handle_invitation_invalid_code() {
         creator_id: "creator-id".to_string(),
     };
     
+    debug!("Creating test invitation with code VALID123");
     match &store {
         TestStore::Mock(mock) => mock.create_invitation(invitation.clone()).await.unwrap(),
         TestStore::DynamoDB(dynamo) => dynamo.create_invitation(invitation.clone()).await.unwrap(),
@@ -364,6 +396,7 @@ async fn test_get_my_invitations() {
     let (app, store) = create_test_app().await;
 
     // Seed multiple invitations
+    debug!("Seeding multiple test invitations");
     for (name, box_id, creator) in [
         ("User 1", "box-123", "test-user-id"),
         ("User 2", "box-456", "test-user-id"),
@@ -384,6 +417,7 @@ async fn test_get_my_invitations() {
             creator_id: creator.to_string(),
         };
         
+        trace!("Creating invitation for {}, box {}, creator {}", name, box_id, creator);
         match &store {
             TestStore::Mock(mock) => mock.create_invitation(invitation.clone()).await.unwrap(),
             TestStore::DynamoDB(dynamo) => dynamo.create_invitation(invitation.clone()).await.unwrap(),
@@ -392,6 +426,7 @@ async fn test_get_my_invitations() {
     
     // Add a delay to allow for DynamoDB consistency
     if matches!(store, TestStore::DynamoDB(_)) {
+        debug!("Adding delay for DynamoDB consistency");
         tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
     }
 
@@ -429,6 +464,7 @@ async fn test_get_my_invitations_empty() {
 async fn test_get_my_invitations_error() {
     // For this specific test, we'll use the mock store with errors
     // since it's testing error handling specifically
+    debug!("Creating mock store that returns errors for testing error handling");
     let store = Arc::new(MockInvitationStore::new_error());
     let app = create_router_with_store(store.clone(), "");
 

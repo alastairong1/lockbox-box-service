@@ -5,6 +5,35 @@ use aws_sdk_dynamodb::types::{
     AttributeValue, TableStatus, IndexStatus,
 };
 use std::error::Error;
+// Use log macros, but ensure test_logging::init_test_logging() is called in test files
+use log::{info, error, debug};
+// Reference to our test logging initialization
+use super::test_logging;
+
+/// # DynamoDB test utilities
+/// 
+/// These utilities help set up and manage DynamoDB tables for testing.
+/// 
+/// ## Logging
+/// This module uses the standard `log` crate macros for logging, but requires 
+/// test_logging::init_test_logging() to be called in your test file for logs to appear.
+/// 
+/// ## Example
+/// ```rust
+/// use lockbox_shared::test_utils::test_logging::init_test_logging;
+/// use lockbox_shared::test_utils::dynamo_test_utils;
+/// 
+/// #[tokio::test]
+/// async fn my_dynamo_test() {
+///     // Initialize test logging
+///     init_test_logging();
+///     
+///     // Now the log messages from dynamo_test_utils will be displayed
+///     // based on the LOG_LEVEL environment variable
+///     let client = dynamo_test_utils::create_dynamo_client().await;
+///     // ...
+/// }
+/// ```
 
 // Constants for DynamoDB tests
 pub const DYNAMO_LOCAL_URI: &str = "http://localhost:8000";
@@ -25,23 +54,30 @@ pub async fn create_dynamo_client() -> Client {
 }
 
 // Helper to create a table with the given name and GSIs
+// Note: Make sure to call test_utils::test_logging::init_test_logging() in your test file
+// for these logs to be properly configured and displayed.
 pub async fn create_dynamo_table(
     client: &Client, 
     table_name: &str,
     gsi_configs: Vec<(&str, &str, KeyType)>,
 ) -> Result<(), Box<dyn Error>> {
+    info!("Creating dynamo table '{}' with GSIs...", table_name);
+    
     // Check if table already exists
     let tables = client.list_tables().send().await?;
     let table_names = tables.table_names();
     if table_names.contains(&table_name.to_string()) {
+        info!("Table '{}' already exists, deleting it first...", table_name);
         // Delete table if it exists
         client.delete_table().table_name(table_name).send().await?;
         // Wait for table deletion to complete
         loop {
             let tables = client.list_tables().send().await?;
             if !tables.table_names().contains(&table_name.to_string()) {
+                info!("Table '{}' successfully deleted!", table_name);
                 break;
             }
+            debug!("Table '{}' still exists, waiting...", table_name);
             tokio::time::sleep(std::time::Duration::from_secs(1)).await;
         }
     }
@@ -121,9 +157,11 @@ pub async fn create_dynamo_table(
     );
 
     // Create the table
+    info!("Creating table '{}'...", table_name);
     create_table_req.send().await?;
 
     // Wait for the table (and GSIs) to become ACTIVE before running tests
+    info!("Waiting for table '{}' to become ACTIVE...", table_name);
     loop {
         let resp = client.describe_table().table_name(table_name).send().await?;
         if let Some(table_desc) = resp.table() {
@@ -131,13 +169,19 @@ pub async fn create_dynamo_table(
                 // ensure all global secondary indexes are active
                 let gsi_descs = table_desc.global_secondary_indexes();
                 if gsi_descs.is_empty() || gsi_descs.iter().all(|idx| idx.index_status() == Some(&IndexStatus::Active)) {
+                    info!("Table '{}' and all GSIs are now ACTIVE!", table_name);
                     break;
+                } else {
+                    debug!("Table '{}' is ACTIVE but waiting for GSIs...", table_name);
                 }
+            } else {
+                debug!("Table '{}' status: {:?}", table_name, table_desc.table_status());
             }
         }
         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
     }
 
+    info!("Table '{}' is ready for testing!", table_name);
     Ok(())
 }
 
@@ -164,6 +208,8 @@ pub async fn clear_dynamo_table(client: &Client, table_name: &str) {
 
 // Helper to create the invitation table for testing
 pub async fn create_invitation_table(client: &Client, table_name: &str) -> Result<(), Box<dyn Error>> {
+    info!("Creating invitation table '{}'...", table_name);
+    
     let gsi_configs = vec![
         ("box_id-index", "box_id", KeyType::Hash),
         ("invite_code-index", "invite_code", KeyType::Hash),
@@ -175,34 +221,34 @@ pub async fn create_invitation_table(client: &Client, table_name: &str) -> Resul
 
 // Helper to create the box table for testing
 pub async fn create_box_table(client: &Client, table_name: &str) -> Result<(), Box<dyn Error>> {
-    println!("Creating box table '{}' for testing...", table_name);
+    info!("Creating box table '{}' for testing...", table_name);
     
     // Check if table already exists
     let tables = client.list_tables().send().await?;
     let table_names = tables.table_names();
     
     if table_names.contains(&table_name.to_string()) {
-        println!("Table '{}' already exists, deleting it first...", table_name);
+        info!("Table '{}' already exists, deleting it first...", table_name);
         // Delete table if it exists
         match client.delete_table().table_name(table_name).send().await {
-            Ok(_) => println!("Successfully deleted existing table '{}'", table_name),
-            Err(e) => println!("Error deleting table '{}': {}", table_name, e),
+            Ok(_) => info!("Successfully deleted existing table '{}'", table_name),
+            Err(e) => error!("Error deleting table '{}': {}", table_name, e),
         }
         
         // Wait for table deletion to complete
-        println!("Waiting for table '{}' to be deleted...", table_name);
+        info!("Waiting for table '{}' to be deleted...", table_name);
         loop {
             let tables = client.list_tables().send().await?;
             if !tables.table_names().contains(&table_name.to_string()) {
-                println!("Table '{}' successfully deleted!", table_name);
+                info!("Table '{}' successfully deleted!", table_name);
                 break;
             }
-            println!("Table '{}' still exists, waiting...", table_name);
+            debug!("Table '{}' still exists, waiting...", table_name);
             tokio::time::sleep(std::time::Duration::from_secs(1)).await;
         }
     }
 
-    println!("Creating new table '{}'...", table_name);
+    info!("Creating new table '{}'...", table_name);
     
     // Define GSI configurations
     let gsi_configs = vec![
@@ -284,16 +330,16 @@ pub async fn create_box_table(client: &Client, table_name: &str) -> Result<(), B
     );
 
     // Create the table
-    println!("Sending create table request...");
+    info!("Sending create table request...");
     let create_result = create_table_req.send().await;
     match &create_result {
-        Ok(_) => println!("Table '{}' creation request successful", table_name),
-        Err(e) => println!("Error creating table '{}': {}", table_name, e),
+        Ok(_) => info!("Table '{}' creation request successful", table_name),
+        Err(e) => error!("Error creating table '{}': {}", table_name, e),
     }
     create_result?;
 
     // Wait for the table (and GSIs) to become ACTIVE before running tests
-    println!("Waiting for table '{}' to become ACTIVE...", table_name);
+    info!("Waiting for table '{}' to become ACTIVE...", table_name);
     loop {
         match client.describe_table().table_name(table_name).send().await {
             Ok(resp) => {
@@ -302,21 +348,21 @@ pub async fn create_box_table(client: &Client, table_name: &str) -> Result<(), B
                         // ensure all global secondary indexes are active
                         let gsi_descs = table_desc.global_secondary_indexes();
                         if gsi_descs.is_empty() || gsi_descs.iter().all(|idx| idx.index_status() == Some(&IndexStatus::Active)) {
-                            println!("Table '{}' and all GSIs are now ACTIVE!", table_name);
+                            info!("Table '{}' and all GSIs are now ACTIVE!", table_name);
                             break;
                         } else {
-                            println!("Table '{}' is ACTIVE but waiting for GSIs...", table_name);
+                            debug!("Table '{}' is ACTIVE but waiting for GSIs...", table_name);
                         }
                     } else {
-                        println!("Table '{}' status: {:?}", table_name, table_desc.table_status());
+                        debug!("Table '{}' status: {:?}", table_name, table_desc.table_status());
                     }
                 }
             },
-            Err(e) => println!("Error checking table status: {}", e),
+            Err(e) => error!("Error checking table status: {}", e),
         }
         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
     }
 
-    println!("Table '{}' is ready for testing!", table_name);
+    info!("Table '{}' is ready for testing!", table_name);
     Ok(())
 } 
