@@ -1,6 +1,8 @@
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 
+pub mod events;
+
 // Invitation-related models
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Invitation {

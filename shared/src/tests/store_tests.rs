@@ -366,7 +366,7 @@ mod dynamo_tests {
         // Box 1 - has test_guardian as a guardian
         let mut test_box1 = create_test_box("Box with Guardian", "test_owner");
         test_box1.guardians.push(crate::models::Guardian {
-            id: guardian_id.to_string(),
+            id: "guardian_id".to_string(),
             name: "Test Guardian".to_string(),
             status: "accepted".to_string(),
             lead_guardian: false,
@@ -377,7 +377,7 @@ mod dynamo_tests {
         // Box 2 - has test_guardian as a rejected guardian (shouldn't show up)
         let mut test_box2 = create_test_box("Box with Rejected Guardian", "test_owner");
         test_box2.guardians.push(crate::models::Guardian {
-            id: guardian_id.to_string(),
+            id: "guardian_id".to_string(),
             name: "Test Guardian".to_string(),
             status: "rejected".to_string(), // Rejected status
             lead_guardian: false,

@@ -8,7 +8,7 @@ use std::error::Error;
 // Use log macros, but ensure test_logging::init_test_logging() is called in test files
 use log::{info, error, debug};
 // Reference to our test logging initialization
-use super::test_logging;
+// use super::test_logging;
 
 /// # DynamoDB test utilities
 /// 
