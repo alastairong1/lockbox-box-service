@@ -61,7 +61,7 @@ pub fn convert_to_guardian_box(box_rec: &BoxRecord, user_id: &str) -> Option<cra
         .find(|g| g.id == user_id && g.status != "rejected")
     {
         let pending = guardian.status == "pending";
-        let is_lead = box_rec.lead_guardians.iter().any(|g| g.id == user_id);
+        let is_lead = guardian.lead_guardian;
         Some(crate::models::GuardianBox {
             id: box_rec.id.clone(),
             name: box_rec.name.clone(),
@@ -78,7 +78,6 @@ pub fn convert_to_guardian_box(box_rec: &BoxRecord, user_id: &str) -> Option<cra
             is_lead_guardian: is_lead,
             documents: box_rec.documents.clone(),
             guardians: box_rec.guardians.clone(),
-            lead_guardians: box_rec.lead_guardians.clone(),
         })
     } else {
         None

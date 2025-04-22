@@ -49,15 +49,6 @@ Returns all boxes owned by the user, including complete details such as document
           "addedAt": "timestamp"
         }
       ],
-      "leadGuardians": [
-        {
-          "id": "lead_guardian_id",
-          "name": "Lead Guardian",
-          "leadGuardian": true,
-          "status": "accepted",
-          "addedAt": "timestamp"
-        }
-      ],
       "ownerId": "owner_user_id",
       "ownerName": "Owner Name",
       "unlockRequest": null
@@ -118,15 +109,6 @@ Returns complete details of a specific box owned by the user, including all docu
         "id": "guardian_id",
         "name": "Guardian Name",
         "leadGuardian": false,
-        "status": "accepted",
-        "addedAt": "timestamp"
-      }
-    ],
-    "leadGuardians": [
-      {
-        "id": "lead_guardian_id",
-        "name": "Lead Guardian",
-        "leadGuardian": true,
         "status": "accepted",
         "addedAt": "timestamp"
       }
@@ -396,15 +378,6 @@ Returns all boxes where the authenticated user is a guardian (excluding rejected
           "addedAt": "timestamp"
         }
       ],
-      "leadGuardians": [
-        {
-          "id": "lead_guardian_id",
-          "name": "Lead Guardian",
-          "leadGuardian": true,
-          "status": "accepted",
-          "addedAt": "timestamp"
-        }
-      ],
       "unlockRequest": {
         "id": "unlock_request_id",
         "requestedAt": "timestamp",
@@ -458,15 +431,6 @@ Get a specific box where you are a guardian, including complete details of docum
         "id": "guardian_id",
         "name": "Guardian Name",
         "leadGuardian": false,
-        "status": "accepted",
-        "addedAt": "timestamp"
-      }
-    ],
-    "leadGuardians": [
-      {
-        "id": "lead_guardian_id",
-        "name": "Lead Guardian",
-        "leadGuardian": true,
         "status": "accepted",
         "addedAt": "timestamp"
       }

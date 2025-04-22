@@ -111,7 +111,6 @@ fn create_test_boxes(now: &str) -> Vec<BoxRecord> {
         owner_name: Some("User One".into()),
         documents: vec![],
         guardians: vec![],
-        lead_guardians: vec![],
         unlock_instructions: None,
         unlock_request: None,
     };
@@ -127,7 +126,6 @@ fn create_test_boxes(now: &str) -> Vec<BoxRecord> {
         owner_name: Some("User Two".into()),
         documents: vec![],
         guardians: vec![],
-        lead_guardians: vec![],
         unlock_instructions: None,
         unlock_request: None,
     };
@@ -1435,7 +1433,6 @@ async fn test_get_box_by_id() {
     assert!(box_obj.contains_key("isLocked"));
     assert!(box_obj.contains_key("documents"));
     assert!(box_obj.contains_key("guardians"));
-    assert!(box_obj.contains_key("leadGuardians"));
     assert!(box_obj.contains_key("ownerId"));
 }
 

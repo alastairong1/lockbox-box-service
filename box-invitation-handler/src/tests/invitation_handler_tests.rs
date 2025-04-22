@@ -156,7 +156,6 @@ async fn test_invitation_viewed_handler() {
         owner_name: Some("Test Owner".to_string()),
         documents: vec![],
         guardians: vec![],
-        lead_guardians: vec![],
         unlock_instructions: None,
         unlock_request: None,
     };
@@ -231,7 +230,6 @@ async fn test_no_matching_guardian() {
                 invitation_id: "different_invitation_id".to_string(),
             }
         ],
-        lead_guardians: vec![],
         unlock_instructions: None,
         unlock_request: None,
     };
@@ -258,79 +256,6 @@ async fn test_no_matching_guardian() {
     assert_eq!(guardian.status, "sent");
 }
 
-#[tokio::test]
-async fn test_lead_guardian_update() {
-    // Create test store
-    let store = create_test_store().await;
-    
-    // Create test SNS event for invitation_viewed
-    let box_id = "test_box_789";
-    let invitation_id = "test_invitation_303";
-    let user_id = "test_user_1";
-    let event = create_test_sns_event("invitation_viewed", invitation_id, box_id, user_id);
-    
-    // Create a test box record
-    let mut box_record = lockbox_shared::models::BoxRecord {
-        id: box_id.to_string(),
-        name: "Test Box".to_string(),
-        description: "Test Description".to_string(),
-        is_locked: false,
-        created_at: "2023-01-01T00:00:00Z".to_string(),
-        updated_at: "2023-01-01T00:00:00Z".to_string(),
-        owner_id: "test_owner".to_string(),
-        owner_name: Some("Test Owner".to_string()),
-        documents: vec![],
-        guardians: vec![],
-        lead_guardians: vec![],
-        unlock_instructions: None,
-        unlock_request: None,
-    };
-    
-    // Add a lead guardian with the invitation_id
-    let lead_guardian = lockbox_shared::models::Guardian {
-        id: "placeholder_id".to_string(),
-        name: "Lead Guardian".to_string(),
-        lead_guardian: true, // This guardian is a lead guardian
-        status: "sent".to_string(),
-        added_at: "2023-01-01T00:00:00Z".to_string(),
-        invitation_id: invitation_id.to_string(),
-    };
-    
-    // Add to both regular guardians and lead_guardians arrays
-    box_record.guardians.push(lead_guardian.clone());
-    box_record.lead_guardians.push(lead_guardian);
-    
-    // Add test box to store
-    let _ = store.create_box(box_record).await.unwrap();
-    
-    // Call handler with the appropriate box store
-    let result = store.handle_event(event).await;
-    assert!(result.is_ok(), "Handler failed: {:?}", result.err());
-    
-    // Verify box was updated correctly after invitation viewed event
-    let box_result = store.get_box(box_id).await;
-    assert!(box_result.is_ok(), "Failed to retrieve box: {:?}", box_result.err());
-    
-    // Get the box record and examine it
-    let box_record = box_result.unwrap();
-    
-    // Check in guardians array
-    let guardian = box_record.guardians.iter()
-        .find(|g| g.invitation_id == invitation_id)
-        .expect("Guardian with matching invitation_id should exist in guardians");
-    
-    assert_eq!(guardian.id, user_id, "Guardian user_id should be updated");
-    assert_eq!(guardian.status, "viewed", "Guardian status should be updated to 'viewed'");
-    assert!(guardian.lead_guardian, "Guardian should remain a lead guardian");
-    
-    // Check in lead_guardians array
-    let lead_guardian = box_record.lead_guardians.iter()
-        .find(|g| g.invitation_id == invitation_id)
-        .expect("Guardian with matching invitation_id should exist in lead_guardians");
-    
-    assert_eq!(lead_guardian.id, user_id, "Lead guardian user_id should be updated");
-    assert_eq!(lead_guardian.status, "viewed", "Lead guardian status should be updated to 'viewed'");
-}
 
 #[tokio::test]
 async fn test_concurrent_updates() {
@@ -362,7 +287,6 @@ async fn test_concurrent_updates() {
         owner_name: Some("Test Owner".to_string()),
         documents: vec![],
         guardians: vec![],
-        lead_guardians: vec![],
         unlock_instructions: None,
         unlock_request: None,
     };
@@ -498,7 +422,6 @@ async fn test_malformed_event() {
                 invitation_id: invitation_id.to_string(),
             }
         ],
-        lead_guardians: vec![],
         unlock_instructions: None,
         unlock_request: None,
     };

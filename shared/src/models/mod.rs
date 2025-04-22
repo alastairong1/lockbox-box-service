@@ -78,8 +78,6 @@ pub struct BoxRecord {
     pub owner_name: Option<String>,
     pub documents: Vec<Document>,
     pub guardians: Vec<Guardian>,
-    #[serde(rename = "leadGuardians")]
-    pub lead_guardians: Vec<Guardian>,
     #[serde(rename = "unlockInstructions")]
     pub unlock_instructions: Option<String>,
     #[serde(rename = "unlockRequest")]
@@ -114,8 +112,6 @@ pub struct GuardianBox {
     // TODO we probably shouldn't be just returning them all for privacy reasons
     pub documents: Vec<Document>,
     pub guardians: Vec<Guardian>,
-    #[serde(rename = "leadGuardians")]
-    pub lead_guardians: Vec<Guardian>,
 }
 
 // Response DTOs for general use across services

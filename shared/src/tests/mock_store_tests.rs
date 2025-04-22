@@ -29,7 +29,6 @@ async fn test_mock_box_store() {
         owner_name: Some("Test User".to_string()),
         documents: vec![],
         guardians: vec![],
-        lead_guardians: vec![],
         unlock_instructions: None,
         unlock_request: None,
     };

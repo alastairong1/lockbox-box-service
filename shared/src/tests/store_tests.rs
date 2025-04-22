@@ -15,10 +15,9 @@ mod dynamo_tests {
             created_at: now.clone(),
             updated_at: now,
             owner_id: owner_id.to_string(),
-            owner_name: Some("Test Owner".to_string()),
+            owner_name: Some(owner_id.to_string()),
             documents: vec![],
             guardians: vec![],
-            lead_guardians: vec![],
             unlock_instructions: None,
             unlock_request: None,
         }

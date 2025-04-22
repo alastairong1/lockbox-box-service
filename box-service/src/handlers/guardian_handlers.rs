@@ -89,8 +89,8 @@ where
         return Err(AppError::unauthorized("Not a guardian for this box".into()));
     }
 
-    // Check if user is a lead guardian
-    let is_lead = box_record.lead_guardians.iter().any(|g| g.id == user_id);
+    // Check if user is a lead guardian by checking the flag in the guardians list
+    let is_lead = box_record.guardians.iter().any(|g| g.id == user_id && g.lead_guardian);
 
     if is_lead {
         // Lead guardian is initiating an unlock request

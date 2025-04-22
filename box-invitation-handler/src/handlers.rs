@@ -95,15 +95,7 @@ fn update_guardian_in_box(box_record: &mut BoxRecord, invitation_id: &str, user_
             // Update the guardian status to accepted
             guardian.status = "accepted".to_string();
             
-            // If it's a lead guardian, update in lead_guardians array too
-            if guardian.lead_guardian {
-                for lead in box_record.lead_guardians.iter_mut() {
-                    if lead.invitation_id == invitation_id {
-                        lead.id = user_id.to_string();
-                        lead.status = "accepted".to_string();
-                    }
-                }
-            }
+
             
             // Update the box's updated_at timestamp
             box_record.updated_at = lockbox_shared::models::now_str();

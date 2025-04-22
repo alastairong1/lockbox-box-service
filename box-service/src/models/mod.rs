@@ -49,8 +49,6 @@ pub struct BoxResponse {
     pub is_locked: bool,
     pub documents: Vec<Document>,
     pub guardians: Vec<Guardian>,
-    #[serde(rename = "leadGuardians")]
-    pub lead_guardians: Vec<Guardian>,
     #[serde(rename = "ownerId")]
     pub owner_id: String,
     #[serde(rename = "ownerName")]

@@ -63,14 +63,6 @@ fn create_test_data(now: &str) -> Vec<BoxRecord> {
                 invitation_id: "invitation_3".into(),
             },
         ],
-        lead_guardians: vec![Guardian {
-            id: "lead_guardian_1".into(),
-            name: "Lead Guardian One".into(),
-            lead_guardian: true,
-            status: "accepted".into(),
-            added_at: now.to_string(),
-            invitation_id: "invitation_4".into(),
-        }],
         unlock_instructions: Some("Contact all guardians".into()),
         unlock_request: None,
     };
@@ -123,14 +115,6 @@ fn create_test_data(now: &str) -> Vec<BoxRecord> {
                 invitation_id: "invitation_7".into(),
             },
         ],
-        lead_guardians: vec![Guardian {
-            id: "lead_guardian_1".into(),
-            name: "Lead Guardian One".into(),
-            lead_guardian: true,
-            status: "accepted".into(),
-            added_at: now.to_string(),
-            invitation_id: "invitation_8".into(),
-        }],
         unlock_instructions: Some("Call emergency contact".into()),
         unlock_request: Some(unlock_request),
     };
@@ -155,7 +139,6 @@ fn create_test_data(now: &str) -> Vec<BoxRecord> {
             added_at: now.to_string(),
             invitation_id: "invitation_9".into(),
         }],
-        lead_guardians: vec![],
         unlock_instructions: None,
         unlock_request: None,
     };
@@ -273,10 +256,6 @@ async fn test_get_guardian_boxes() {
     assert!(
         first_box.get("guardians").is_some(),
         "Box should include guardians"
-    );
-    assert!(
-        first_box.get("leadGuardians").is_some(),
-        "Box should include leadGuardians"
     );
 
     // Verify the guardian-specific fields

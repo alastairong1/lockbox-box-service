@@ -43,7 +43,6 @@ where
             is_locked: b.is_locked,
             documents: b.documents.clone(),
             guardians: b.guardians.clone(),
-            lead_guardians: b.lead_guardians.clone(),
             owner_id: b.owner_id.clone(),
             owner_name: b.owner_name.clone(),
             unlock_request: b.unlock_request.clone(),
@@ -84,7 +83,6 @@ where
             is_locked: box_rec.is_locked,
             documents: box_rec.documents.clone(),
             guardians: box_rec.guardians.clone(),
-            lead_guardians: box_rec.lead_guardians.clone(),
             owner_id: box_rec.owner_id.clone(),
             owner_name: box_rec.owner_name.clone(),
             unlock_request: box_rec.unlock_request.clone(),
@@ -113,7 +111,6 @@ where
         owner_name: None,
         documents: vec![],
         guardians: vec![],
-        lead_guardians: vec![],
         unlock_instructions: None,
         unlock_request: None,
     };
@@ -131,7 +128,6 @@ where
         is_locked: created_box.is_locked,
         documents: created_box.documents.clone(),
         guardians: created_box.guardians.clone(),
-        lead_guardians: created_box.lead_guardians.clone(),
         owner_id: created_box.owner_id.clone(),
         owner_name: created_box.owner_name.clone(),
         unlock_request: created_box.unlock_request.clone(),
@@ -200,7 +196,6 @@ where
         is_locked: updated_box.is_locked,
         documents: updated_box.documents.clone(),
         guardians: updated_box.guardians.clone(),
-        lead_guardians: updated_box.lead_guardians.clone(),
         owner_id: updated_box.owner_id.clone(),
         owner_name: updated_box.owner_name.clone(),
         unlock_request: updated_box.unlock_request.clone(),
@@ -263,25 +258,10 @@ where
     let was_updated = if let Some(index) = guardian_index {
         // Update existing guardian
         box_rec.guardians[index] = guardian.clone();
-
-        // Update lead_guardians array if needed
-        if guardian.lead_guardian {
-            if !box_rec.lead_guardians.iter().any(|g| g.id == guardian.id) {
-                box_rec.lead_guardians.push(guardian.clone());
-            }
-        } else {
-            // Remove from lead guardians if needed
-            box_rec.lead_guardians.retain(|g| g.id != guardian.id);
-        }
         true
     } else {
         // Add new guardian
         box_rec.guardians.push(guardian.clone());
-
-        // Add to lead_guardians if needed
-        if guardian.lead_guardian {
-            box_rec.lead_guardians.push(guardian.clone());
-        }
         true
     };
 
@@ -480,12 +460,6 @@ where
             "Guardian with ID {} not found in box {}",
             guardian_id, box_id
         )));
-    }
-
-    // Check if guardian is also a lead guardian and remove from lead_guardians if needed
-    let is_lead = box_rec.guardians[guardian_index.unwrap()].lead_guardian;
-    if is_lead {
-        box_rec.lead_guardians.retain(|g| g.id != guardian_id);
     }
 
     // Remove the guardian
