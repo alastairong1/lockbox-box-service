@@ -3,6 +3,6 @@ members = [
     "box-service",
     "invitation-service",
     "shared",
-    "box-invitation-handler",
+    "invitation-event-service",
 ]
 resolver = "2"

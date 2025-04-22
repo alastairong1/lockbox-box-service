@@ -1626,6 +1626,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "invitation-event-service"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "aws-config",
+ "aws-sdk-dynamodb",
+ "aws_lambda_events 0.11.1",
+ "chrono",
+ "lambda_http",
+ "lambda_runtime 0.8.3",
+ "lockbox-shared",
+ "log",
+ "mockall",
+ "once_cell",
+ "serde",
+ "serde_dynamo",
+ "serde_json",
+ "thiserror 1.0.69",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "is-terminal"
 version = "0.4.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1841,31 +1866,6 @@ checksum = "07af8b9cdd281b7915f413fa73f29ebd5d55d0d3f0155584dade1ff18cea1b17"
 dependencies = [
  "autocfg",
  "scopeguard",
-]
-
-[[package]]
-name = "lockbox-box-invitation-handler"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "async-trait",
- "aws-config",
- "aws-sdk-dynamodb",
- "aws_lambda_events 0.11.1",
- "chrono",
- "lambda_http",
- "lambda_runtime 0.8.3",
- "lockbox-shared",
- "log",
- "mockall",
- "once_cell",
- "serde",
- "serde_dynamo",
- "serde_json",
- "thiserror 1.0.69",
- "tokio",
- "tracing",
- "tracing-subscriber",
 ]
 
 [[package]]

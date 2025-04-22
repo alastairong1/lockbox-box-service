@@ -92,10 +92,8 @@ fn update_guardian_in_box(box_record: &mut BoxRecord, invitation_id: &str, user_
             // Update the guardian with the user_id
             guardian.id = user_id.to_string();
             
-            // Update the guardian status to accepted
-            guardian.status = "accepted".to_string();
-            
-
+            // Update the guardian status to viewed
+            guardian.status = "viewed".to_string();
             
             // Update the box's updated_at timestamp
             box_record.updated_at = lockbox_shared::models::now_str();

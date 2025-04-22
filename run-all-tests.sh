@@ -24,6 +24,12 @@ if [ -d "guardian-service" ]; then
   popd
 fi
 
+# Run invitation event service tests
+echo "Running invitation event service unit tests..."
+pushd invitation-event-service
+cargo test -- --test-threads=1
+popd
+
 # Then run integration tests with DynamoDB Local
 echo ""
 echo "=== Running integration tests with DynamoDB store ==="

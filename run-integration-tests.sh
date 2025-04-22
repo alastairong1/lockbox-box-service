@@ -34,6 +34,12 @@ if [ -d "guardian-service" ]; then
   popd
 fi
 
+# Run invitation event service tests
+echo "=== Running invitation event service tests ==="
+pushd invitation-event-service
+USE_DYNAMODB=true cargo test -- --test-threads=1 --nocapture
+popd
+
 # Clean up
 echo "Shutting down DynamoDB Local..."
 docker-compose -f docker-compose.test.yml down

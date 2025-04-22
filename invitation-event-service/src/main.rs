@@ -52,6 +52,11 @@ where
             }
         } else {
             error!("Failed to parse SNS message: {}", message.message);
+            // Return an error instead of just logging
+            return Err(Box::new(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!("Failed to parse SNS message: {}", message.message),
+            )) as Box<dyn std::error::Error + Send + Sync>)
         }
     }
     

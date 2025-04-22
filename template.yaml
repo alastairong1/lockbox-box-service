@@ -255,10 +255,11 @@ Resources:
       DisplayName: Lockbox Events
       
   # Lambda function to process invitation events and update box records
-  BoxInvitationHandlerFunction:
+  InvitationEventHandlerFunction:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: box-invitation-handler.zip
+      FunctionName: invitation-event-handler
+      CodeUri: invitation-event-handler.zip
       Handler: bootstrap
       Runtime: provided.al2
       Architectures:
@@ -279,8 +280,6 @@ Resources:
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref BoxesTable
-        - SNSPublishMessagePolicy:
-            TopicName: !GetAtt LockboxEventsTopic.TopicName
 
   # Setup daily backups using AWS Backup
   BoxesTableBackupPlan:
@@ -333,6 +332,9 @@ Outputs:
   InvitationServiceFunction:
     Description: "Invitation Service Function ARN"
     Value: !GetAtt InvitationServiceFunction.Arn
+  InvitationEventHandlerFunction:
+    Description: "Invitation Event Handler Function ARN"
+    Value: !GetAtt InvitationEventHandlerFunction.Arn
   ApiURL:
     Description: "API Gateway endpoint URL for Prod stage"
     Value: !Sub "https://${ApiGatewayApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/"

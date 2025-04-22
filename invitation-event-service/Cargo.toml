@@ -1,5 +1,5 @@
 [package]
-name = "lockbox-box-invitation-handler"
+name = "invitation-event-service"
 version = "0.1.0"
 edition = "2021"
 
