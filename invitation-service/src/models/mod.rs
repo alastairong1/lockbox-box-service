@@ -17,17 +17,6 @@ pub struct ConnectToUserRequest {
     pub invite_code: String,
 }
 
-// Response DTOs
-
-// Minimal response with just the code and expiry
-#[derive(Serialize, Debug)]
-pub struct InvitationCodeResponse {
-    #[serde(rename = "inviteCode")]
-    pub invite_code: String,
-    #[serde(rename = "expiresAt")]
-    pub expires_at: String,
-}
-
 #[derive(Serialize, Debug)]
 pub struct MessageResponse {
     pub message: String,

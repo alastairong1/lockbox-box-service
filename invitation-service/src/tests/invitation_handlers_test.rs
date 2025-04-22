@@ -84,7 +84,9 @@ async fn test_create_invitation() {
     assert_eq!(response.status(), StatusCode::OK);
 
     let json_resp = response_to_json(response).await;
-    let invite_code = json_resp["inviteCode"].as_str().unwrap();
+    
+    // Verify the fields of the Invitation object
+    let invite_code = json_resp["invite_code"].as_str().unwrap();
     let expires_at = json_resp["expiresAt"].as_str().unwrap();
     assert_eq!(invite_code.len(), 8);
     assert!(!expires_at.is_empty());
@@ -92,6 +94,13 @@ async fn test_create_invitation() {
     let now = Utc::now();
     let diff_secs = (expires_at_dt - now).num_seconds();
     assert!(diff_secs >= 47 * 3600 && diff_secs <= 49 * 3600, "Expiration time not within 47-49 hours, got {} seconds", diff_secs);
+
+    // Verify additional fields in the full invitation response
+    assert_eq!(json_resp["invitedName"], "Test User");
+    assert_eq!(json_resp["boxId"], "box-123");
+    assert_eq!(json_resp["creatorId"], "test-user-id");
+    assert_eq!(json_resp["opened"], false);
+    assert!(json_resp["linkedUserId"].is_null());
 
     // Add a small delay to allow for DynamoDB consistency
     if matches!(store, TestStore::DynamoDB(_)) {
@@ -160,7 +169,7 @@ async fn test_handle_invitation() {
 
     assert_eq!(response.status(), StatusCode::OK);
     let json_resp = response_to_json(response).await;
-    assert_eq!(json_resp["boxId"].as_str().unwrap(), "box-123");
+    assert_eq!(json_resp["boxId"], "box-123");
 
     let updated_inv = match &store {
         TestStore::Mock(mock) => mock.get_invitation_by_code(&invite_code).await.unwrap(),
@@ -254,8 +263,8 @@ async fn test_refresh_invitation() {
         box_id: "box-123".to_string(),
         created_at: create_time.to_rfc3339(),
         expires_at: expiry_time.to_rfc3339(),
-        opened: true,
-        linked_user_id: Some("user-456".to_string()),
+        opened: false,
+        linked_user_id: None,
         creator_id: "test-user-id".to_string(),
     };
     
@@ -285,7 +294,7 @@ async fn test_refresh_invitation() {
 
     assert_eq!(response.status(), StatusCode::OK);
     let json_resp = response_to_json(response).await;
-    let new_code = json_resp["inviteCode"].as_str().unwrap();
+    let new_code = json_resp["invite_code"].as_str().unwrap();
     assert_ne!(new_code, old_code);
 
     let expires_at = json_resp["expiresAt"].as_str().unwrap();
@@ -293,6 +302,14 @@ async fn test_refresh_invitation() {
     let now2 = Utc::now();
     let diff_secs = (expires_at_dt - now2).num_seconds();
     assert!(diff_secs >= 47 * 3600 && diff_secs <= 49 * 3600, "Expiration time not within 47-49 hours, got {} seconds", diff_secs);
+
+    // Verify full response fields
+    assert_eq!(json_resp["id"], id);
+    assert_eq!(json_resp["boxId"], "box-123");
+    assert_eq!(json_resp["invitedName"], "Test User");
+    assert_eq!(json_resp["creatorId"], "test-user-id");
+    assert_eq!(json_resp["opened"], false);
+    assert!(json_resp["linkedUserId"].is_null());
 
     // Add a delay for DynamoDB consistency
     if matches!(store, TestStore::DynamoDB(_)) {
@@ -441,7 +458,7 @@ async fn test_get_my_invitations() {
     let arr = json_resp.as_array().unwrap();
     assert_eq!(arr.len(), 2);
     for item in arr {
-        assert_eq!(item["creatorId"].as_str().unwrap(), "test-user-id");
+        assert_eq!(item["creatorId"], "test-user-id");
     }
 }
 

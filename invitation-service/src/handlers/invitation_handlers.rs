@@ -14,7 +14,7 @@ use lockbox_shared::{models::Invitation, store::InvitationStore};
 use crate::{
     error::{map_dynamo_error, AppError, Result},
     models::{
-        ConnectToUserRequest, CreateInvitationRequest, InvitationCodeResponse, MessageResponse,
+        ConnectToUserRequest, CreateInvitationRequest, MessageResponse,
     },
 };
 
@@ -29,7 +29,7 @@ pub async fn create_invitation<S: InvitationStore + ?Sized>(
     State(store): State<Arc<S>>,
     Extension(user_id): Extension<String>,
     Json(create_request): Json<CreateInvitationRequest>,
-) -> Result<Json<InvitationCodeResponse>> {
+) -> Result<Json<Invitation>> {
     // Generate a user-friendly code for the invitation (8 characters)
     let invite_code = nanoid::nanoid!(8, &CODE_ALPHABET);
 
@@ -56,13 +56,8 @@ pub async fn create_invitation<S: InvitationStore + ?Sized>(
         .await
         .map_err(|e| map_dynamo_error("create_invitation", e))?;
 
-    // Return minimal response with just the code and expiry
-    let response = InvitationCodeResponse {
-        invite_code: saved_invitation.invite_code,
-        expires_at: saved_invitation.expires_at,
-    };
-
-    Ok(Json(response))
+    // Return the full invitation object
+    Ok(Json(saved_invitation))
 }
 
 // PUT /invitation/handle - Connect invitation to user
@@ -165,7 +160,7 @@ pub async fn refresh_invitation<S: InvitationStore + ?Sized>(
     State(store): State<Arc<S>>,
     Extension(user_id): Extension<String>,
     Path(invite_id): Path<String>,
-) -> Result<Json<InvitationCodeResponse>> {
+) -> Result<Json<Invitation>> {
     // Fetch invitations for this user (bypass expiry)
     let invitations = store
         .get_invitations_by_creator_id(&user_id)
@@ -177,30 +172,27 @@ pub async fn refresh_invitation<S: InvitationStore + ?Sized>(
         return Err(AppError::Forbidden(format!("Invitation {} is not owned by user", invite_id)));
     };
 
+    // Check if the invitation has already been opened or linked
+    if invitation.opened || invitation.linked_user_id.is_some() {
+        return Err(AppError::Forbidden(format!(
+            "Invitation {} has already been used and cannot be refreshed.",
+            invite_id
+        )));
+    }
+
     // Generate a new user-friendly invite code (8 characters)
     invitation.invite_code = nanoid::nanoid!(8, &CODE_ALPHABET);
 
     // Set new expiration date (48 hours from now)
     invitation.expires_at = (Utc::now() + Duration::hours(48)).to_rfc3339();
 
-    // Reset opened status
-    invitation.opened = false;
-
-    // Clear linked user
-    invitation.linked_user_id = None;
-
     // Save the updated invitation
     let updated_invitation = store
         .update_invitation(invitation)
         .await?;
 
-    // Return minimal response with just the new code and expiry
-    let response = InvitationCodeResponse {
-        invite_code: updated_invitation.invite_code,
-        expires_at: updated_invitation.expires_at,
-    };
-
-    Ok(Json(response))
+    // Return the full updated invitation object
+    Ok(Json(updated_invitation))
 }
 
 // GET /invitations/me - Get all invitations created by the current user
