@@ -1,7 +1,7 @@
 use axum::{
     extract::Request,
     middleware,
-    routing::{get, post, put},
+    routing::{get, post, put, patch},
     Router,
 };
 use std::sync::Arc;
@@ -67,7 +67,7 @@ where
     let api_routes = Router::new()
         .route("/invitation", post(create_invitation))
         .route("/invitation/handle", put(handle_invitation))
-        .route("/invitations/:inviteId/refresh", post(refresh_invitation))
+        .route("/invitations/:inviteId/refresh", patch(refresh_invitation))
         .route("/invitations/me", get(get_my_invitations))
         .layer(middleware::from_fn(auth_middleware))
         .with_state(store);
