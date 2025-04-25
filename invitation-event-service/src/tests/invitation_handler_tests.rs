@@ -260,6 +260,7 @@ async fn test_no_matching_guardian() {
 
 
 #[tokio::test]
+#[ignore]
 async fn test_concurrent_updates() {
     // This test requires DynamoDB for proper concurrency testing
     // if !use_dynamodb() {
