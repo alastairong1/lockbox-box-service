@@ -76,6 +76,9 @@ impl BoxStore for MockBoxStore {
     }
 
     async fn get_boxes_by_owner(&self, owner_id: &str) -> Result<Vec<BoxRecord>> {
+        // Lock boxes first to maintain consistent lock ordering with other methods
+        let boxes = self.boxes.lock().unwrap();
+        
         let owner_boxes = self
             .owner_indexes
             .lock()
@@ -84,7 +87,6 @@ impl BoxStore for MockBoxStore {
             .cloned()
             .unwrap_or_default();
         
-        let boxes = self.boxes.lock().unwrap();
         let result: Vec<BoxRecord> = owner_boxes
             .iter()
             .filter_map(|id| boxes.get(id).cloned())
@@ -111,22 +113,51 @@ impl BoxStore for MockBoxStore {
 
     async fn update_box(&self, box_record: BoxRecord) -> Result<BoxRecord> {
         let box_id = box_record.id.clone();
+        let new_owner_id = box_record.owner_id.clone();
         
-        // Check if box exists
-        if !self.boxes.lock().unwrap().contains_key(&box_id) {
-            return Err(StoreError::NotFound(format!(
-                "Box with id {} not found",
-                box_id
+        // Get the existing box to check the current owner and version
+        let current_box = {
+            let boxes = self.boxes.lock().unwrap();
+            boxes.get(&box_id).ok_or_else(|| {
+                StoreError::NotFound(format!("Box with id {} not found", box_id))
+            })?.clone()
+        };
+        
+        // Check version for optimistic concurrency control
+        if box_record.version != current_box.version {
+            return Err(StoreError::VersionConflict(format!(
+                "Box update conflict: expected version {}, got {}",
+                current_box.version, box_record.version
             )));
         }
         
-        // Update the box
+        // Create a new box with incremented version
+        let mut updated_box = box_record.clone();
+        updated_box.version += 1;
+        
+        // Update owner indexes if the owner has changed
+        if current_box.owner_id != new_owner_id {
+            let mut owner_indexes = self.owner_indexes.lock().unwrap();
+            
+            // Remove from old owner's index
+            if let Some(box_ids) = owner_indexes.get_mut(&current_box.owner_id) {
+                box_ids.retain(|id| id != &box_id);
+            }
+            
+            // Add to new owner's index
+            owner_indexes
+                .entry(new_owner_id)
+                .or_insert_with(Vec::new)
+                .push(box_id.clone());
+        }
+        
+        // Update the box with incremented version
         self.boxes
             .lock()
             .unwrap()
-            .insert(box_id, box_record.clone());
+            .insert(box_id, updated_box.clone());
         
-        Ok(box_record)
+        Ok(updated_box)
     }
 
     async fn delete_box(&self, id: &str) -> Result<()> {

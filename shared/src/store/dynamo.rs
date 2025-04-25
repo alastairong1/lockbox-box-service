@@ -157,24 +157,60 @@ impl super::BoxStore for DynamoBoxStore {
 
     /// Updates a box
     async fn update_box(&self, box_record: BoxRecord) -> Result<BoxRecord> {
-        // For updates, simply use put_item to replace the entire item
-        // In a production app, you might want to use update_item with expressions for efficiency
-        let updated_box = BoxRecord {
-            updated_at: now_str(),
-            ..box_record
-        };
-
+        // Clone the box record for modification
+        let mut updated_box = box_record.clone();
+        
+        // Update the timestamp
+        updated_box.updated_at = now_str();
+        
+        // Increment the version number
+        let current_version = updated_box.version;
+        updated_box.version = current_version + 1;
+        
+        // Convert to DynamoDB item
         let item = to_item(&updated_box)?;
-
-        self.client
+        
+        // Create a conditional expression to check the version
+        let condition_expression = if current_version > 0 {
+            "version = :current_version"
+        } else {
+            "attribute_not_exists(version) OR version = :current_version"
+        };
+        
+        // Create expression attribute values for version check
+        let mut expr_attr_values = HashMap::new();
+        expr_attr_values.insert(
+            ":current_version".to_string(),
+            AttributeValue::N(current_version.to_string()),
+        );
+        
+        // Build the update request with conditional expression
+        let request = self.client
             .put_item()
             .table_name(&self.table_name)
             .set_item(Some(item))
-            .send()
-            .await
-            .map_err(|e| map_dynamo_error("put_item", e))?;
-
-        Ok(updated_box)
+            .condition_expression(condition_expression)
+            .set_expression_attribute_values(Some(expr_attr_values));
+        
+        // Execute the update
+        match request.send().await {
+            Ok(_) => Ok(updated_box),
+            Err(err) => {
+                // Check if it's a conditional check failure (version mismatch)
+                if let SdkError::ServiceError(service_err) = &err {
+                    if service_err.err().is_conditional_check_failed_exception() {
+                        // Version conflict - retry with the latest version
+                        return Err(StoreError::VersionConflict(format!(
+                            "Box update conflict: id={}, version={}",
+                            updated_box.id, current_version
+                        )));
+                    }
+                }
+                
+                // Other error
+                Err(map_dynamo_error("put_item", err))
+            }
+        }
     }
 
     /// Deletes a box
@@ -282,7 +318,8 @@ impl super::InvitationStore for DynamoInvitationStore {
 
         // Check if the invitation has expired
         let expires_at = chrono::DateTime::parse_from_rfc3339(&invitation.expires_at)
-            .map_err(|_| StoreError::InternalError("Invalid expiration date format".to_string()))?;
+            .map_err(|_| StoreError::InternalError("Invalid expiration date format".to_string()))?
+            .with_timezone(&Utc);
 
         if Utc::now() > expires_at {
             return Err(StoreError::InvitationExpired);
@@ -322,7 +359,8 @@ impl super::InvitationStore for DynamoInvitationStore {
 
         // Check if the invitation has expired
         let expires_at = chrono::DateTime::parse_from_rfc3339(&invitation.expires_at)
-            .map_err(|_| StoreError::InternalError("Invalid expiration date format".to_string()))?;
+            .map_err(|_| StoreError::InternalError("Invalid expiration date format".to_string()))?
+            .with_timezone(&Utc);
 
         if Utc::now() > expires_at {
             return Err(StoreError::InvitationExpired);
@@ -391,7 +429,8 @@ impl super::InvitationStore for DynamoInvitationStore {
             let expires_at =
                 chrono::DateTime::parse_from_rfc3339(&invitation.expires_at).map_err(|_| {
                     StoreError::InternalError("Invalid expiration date format".to_string())
-                })?;
+                })?
+                .with_timezone(&Utc);
 
             if Utc::now() <= expires_at {
                 invitations.push(invitation);

@@ -10,7 +10,10 @@ use crate::{
     models::{
         now_str, GuardianInvitationResponse, GuardianResponseRequest, LeadGuardianUpdateRequest,
     },
-    shared_models::UnlockRequest,
+};
+
+use lockbox_shared::{
+    models::UnlockRequest,
     store::{convert_to_guardian_box, BoxStore},
 };
 
@@ -97,7 +100,7 @@ where
         let new_unlock = UnlockRequest {
             id: Uuid::new_v4().to_string(),
             requested_at: now_str(),
-            status: "pending".into(),
+            status: "invited".into(),
             message: Some(payload.message),
             initiated_by: Some(user_id.clone()),
             approved_by: vec![],
@@ -209,7 +212,7 @@ where
     let guardian_index = box_record
         .guardians
         .iter()
-        .position(|g| g.id == user_id && g.status == "pending");
+        .position(|g| g.id == user_id && g.status == "invited");
 
     if let Some(index) = guardian_index {
         // Update the guardian status based on the acceptance

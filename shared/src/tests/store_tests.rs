@@ -15,11 +15,12 @@ mod dynamo_tests {
             created_at: now.clone(),
             updated_at: now,
             owner_id: owner_id.to_string(),
-            owner_name: Some(owner_id.to_string()),
+            owner_name: Some("Test Owner".to_string()),
             documents: vec![],
             guardians: vec![],
             unlock_instructions: None,
             unlock_request: None,
+            version: 0,
         }
     }
 
@@ -360,12 +361,12 @@ mod dynamo_tests {
         let (store, client, table_name) = create_test_store().await;
 
         // Create test boxes with guardians
-        let guardian_id = "test_guardian";
+        let guardian_id = "guardian_id";
         
         // Box 1 - has test_guardian as a guardian
         let mut test_box1 = create_test_box("Box with Guardian", "test_owner");
         test_box1.guardians.push(crate::models::Guardian {
-            id: "guardian_id".to_string(),
+            id: guardian_id.to_string(),
             name: "Test Guardian".to_string(),
             status: "accepted".to_string(),
             lead_guardian: false,
@@ -376,9 +377,9 @@ mod dynamo_tests {
         // Box 2 - has test_guardian as a rejected guardian (shouldn't show up)
         let mut test_box2 = create_test_box("Box with Rejected Guardian", "test_owner");
         test_box2.guardians.push(crate::models::Guardian {
-            id: "guardian_id".to_string(),
+            id: guardian_id.to_string(),
             name: "Test Guardian".to_string(),
-            status: "rejected".to_string(), // Rejected status
+            status: "rejected".to_string(),
             lead_guardian: false,
             added_at: crate::models::now_str(),
             invitation_id: Uuid::new_v4().to_string(),

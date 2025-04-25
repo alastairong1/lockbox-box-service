@@ -39,7 +39,7 @@ pub struct Guardian {
     pub name: String,
     #[serde(rename = "leadGuardian")]
     pub lead_guardian: bool,
-    pub status: String, // "sent", "viewed", "accepted", "rejected"
+    pub status: String, // "invited", "viewed", "accepted", "rejected"
     #[serde(rename = "addedAt")]
     pub added_at: String,
     #[serde(rename = "invitationId")]
@@ -82,6 +82,8 @@ pub struct BoxRecord {
     pub unlock_instructions: Option<String>,
     #[serde(rename = "unlockRequest")]
     pub unlock_request: Option<UnlockRequest>,
+    #[serde(default, skip_serializing)]
+    pub version: u64, // Version for optimistic concurrency control, hidden from clients
 }
 
 #[derive(Serialize, Deserialize, Debug)]

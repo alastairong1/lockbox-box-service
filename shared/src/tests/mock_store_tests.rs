@@ -31,6 +31,7 @@ async fn test_mock_box_store() {
         guardians: vec![],
         unlock_instructions: None,
         unlock_request: None,
+        version: 0,
     };
     
     // Store the box

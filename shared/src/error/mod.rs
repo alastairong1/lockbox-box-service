@@ -9,6 +9,7 @@ pub enum StoreError {
     ValidationError(String),
     InvitationExpired,
     AuthError(String),
+    VersionConflict(String),
 }
 
 impl std::fmt::Display for StoreError {
@@ -19,6 +20,7 @@ impl std::fmt::Display for StoreError {
             StoreError::ValidationError(msg) => write!(f, "Validation error: {}", msg),
             StoreError::InvitationExpired => write!(f, "Invitation expired"),
             StoreError::AuthError(msg) => write!(f, "Authentication error: {}", msg),
+            StoreError::VersionConflict(msg) => write!(f, "Version conflict: {}", msg),
         }
     }
 }

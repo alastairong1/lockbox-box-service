@@ -16,9 +16,9 @@ use log::{debug, info, trace};
 
 use crate::{
     models::now_str,
-    shared_models::{BoxRecord, Guardian, UnlockRequest},
     routes,
 };
+use lockbox_shared::models::{BoxRecord, Guardian, UnlockRequest};
 
 // Constants for DynamoDB tests
 const TEST_TABLE_NAME: &str = "guardian-test-table";
@@ -65,6 +65,7 @@ fn create_test_data(now: &str) -> Vec<BoxRecord> {
         ],
         unlock_instructions: Some("Contact all guardians".into()),
         unlock_request: None,
+        version: 0,
     };
 
     // Box 2: With pending unlock request
@@ -72,7 +73,7 @@ fn create_test_data(now: &str) -> Vec<BoxRecord> {
     let unlock_request = UnlockRequest {
         id: "unlock-111".into(),
         requested_at: now.to_string(),
-        status: "pending".into(),
+        status: "invited".into(),
         message: Some("Emergency access needed".into()),
         initiated_by: Some("lead_guardian_1".into()),
         approved_by: vec![],
@@ -117,6 +118,7 @@ fn create_test_data(now: &str) -> Vec<BoxRecord> {
         ],
         unlock_instructions: Some("Call emergency contact".into()),
         unlock_request: Some(unlock_request),
+        version: 0,
     };
 
     // Box 3: Not associated with guardian_1
@@ -141,6 +143,7 @@ fn create_test_data(now: &str) -> Vec<BoxRecord> {
         }],
         unlock_instructions: None,
         unlock_request: None,
+        version: 0,
     };
 
     vec![box_1, box_2, box_3]
@@ -433,7 +436,7 @@ async fn test_lead_guardian_unlock_request() {
         .expect("Box should have unlockRequest field");
     assert_eq!(
         unlock_request.get("status").unwrap().as_str().unwrap(),
-        "pending"
+        "invited"
     );
     assert_eq!(
         unlock_request.get("message").unwrap().as_str().unwrap(),
@@ -458,7 +461,7 @@ async fn test_lead_guardian_unlock_request() {
     
     assert!(updated_box.unlock_request.is_some(), "Box should have unlock request in store");
     let store_unlock_request = updated_box.unlock_request.unwrap();
-    assert_eq!(store_unlock_request.status, "pending");
+    assert_eq!(store_unlock_request.status, "invited");
     assert_eq!(store_unlock_request.message, Some("Emergency access needed for testing".to_string()));
     assert_eq!(store_unlock_request.initiated_by, Some("lead_guardian_1".to_string()));
 }

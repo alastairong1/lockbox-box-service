@@ -8,6 +8,9 @@ use std::sync::Arc;
 
 // Import the handlers module
 mod handlers;
+// Add the errors module
+mod errors;
+
 #[cfg(test)]
 mod tests;
 
@@ -52,11 +55,8 @@ where
             }
         } else {
             error!("Failed to parse SNS message: {}", message.message);
-            // Return an error instead of just logging
-            return Err(Box::new(std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                format!("Failed to parse SNS message: {}", message.message),
-            )) as Box<dyn std::error::Error + Send + Sync>)
+            // Continue processing remaining records; rely on SNS DLQ for this one
+            continue;
         }
     }
     

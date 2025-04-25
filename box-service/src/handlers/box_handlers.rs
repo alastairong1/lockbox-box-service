@@ -10,7 +10,7 @@ use uuid::Uuid;
 
 use crate::error::{AppError, Result};
 // Import models from shared crate
-use crate::shared_models::{
+use lockbox_shared::models::{
     BoxRecord, Document, Guardian, now_str,
 };
 // Import request/response types from local models
@@ -113,6 +113,7 @@ where
         guardians: vec![],
         unlock_instructions: None,
         unlock_request: None,
+        version: 0,
     };
 
     // Create the box in store

@@ -284,7 +284,7 @@ async fn test_refresh_invitation() {
     let response = app
         .clone()
         .oneshot(create_test_request(
-            "POST",
+            "PATCH",
             &path,
             "test-user-id",
             None,
@@ -355,7 +355,7 @@ async fn test_refresh_invitation_invalid_id() {
     let response = app
         .clone()
         .oneshot(create_test_request(
-            "POST",
+            "PATCH",
             &path,
             "other-user-id",
             None,

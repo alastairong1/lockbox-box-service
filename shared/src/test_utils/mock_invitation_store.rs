@@ -77,20 +77,25 @@ impl InvitationStore for MockInvitationStore {
         if self.error_mode {
             return Err(StoreError::InternalError("Mock".into()));
         }
+        
         let id = invitation.id.clone();
         let invite_code = invitation.invite_code.clone();
 
+        // Take both locks in a fixed order (same as get_invitation_by_code)
+        let (mut invitations_lock, mut codes_lock) = (
+            self.invitations.lock().unwrap(),
+            self.invitation_codes.lock().unwrap(),
+        );
+
         // Store by ID
-        self.invitations
-            .lock()
-            .unwrap()
-            .insert(id.clone(), invitation.clone());
+        invitations_lock.insert(id.clone(), invitation.clone());
 
         // Store by invite code for lookups
-        self.invitation_codes
-            .lock()
-            .unwrap()
-            .insert(invite_code, id);
+        codes_lock.insert(invite_code, id);
+        
+        // Drop the locks
+        drop(codes_lock);
+        drop(invitations_lock);
 
         Ok(invitation)
     }
@@ -121,48 +126,76 @@ impl InvitationStore for MockInvitationStore {
         if self.error_mode {
             return Err(StoreError::InternalError("Mock".into()));
         }
-        let id = self
-            .invitation_codes
-            .lock()
-            .unwrap()
+        
+        // Take both locks in a fixed order (same as create_invitation and update_invitation)
+        let (invitations_lock, codes_lock) = (
+            self.invitations.lock().unwrap(),
+            self.invitation_codes.lock().unwrap(),
+        );
+        
+        let id = codes_lock
             .get(invite_code)
             .cloned()
             .ok_or_else(|| {
                 StoreError::NotFound(format!("Invitation not found with code: {}", invite_code))
             })?;
-
-        self.get_invitation(&id).await
+            
+        // Look up directly in invitations while holding both locks
+        let invitation = invitations_lock
+            .get(&id)
+            .cloned()
+            .ok_or_else(|| StoreError::NotFound(format!("Invitation not found: {}", id)))?;
+            
+        // Drop the locks before checking expiry
+        drop(codes_lock);
+        drop(invitations_lock);
+        
+        // Enforce expiry only if enabled
+        if self.enforce_expiry {
+            let expires_at = DateTime::parse_from_rfc3339(&invitation.expires_at)
+                .map_err(|_| StoreError::InternalError("Invalid expiration date format".into()))?
+                .with_timezone(&Utc);
+            if Utc::now() > expires_at {
+                return Err(StoreError::InvitationExpired);
+            }
+        }
+        
+        Ok(invitation)
     }
 
     async fn update_invitation(&self, invitation: Invitation) -> Result<Invitation> {
         if self.error_mode {
             return Err(StoreError::InternalError("Mock".into()));
         }
+        
         let id = invitation.id.clone();
-        let old_invite_code = self
-            .invitations
-            .lock()
-            .unwrap()
+        
+        // Take both locks in a fixed order (same as get_invitation_by_code)
+        let (mut invitations_lock, mut codes_lock) = (
+            self.invitations.lock().unwrap(),
+            self.invitation_codes.lock().unwrap(),
+        );
+        
+        // Check if invite code changed
+        let old_invite_code = invitations_lock
             .get(&id)
             .map(|inv| inv.invite_code.clone());
-
+        
         // If invite code changed, update the code mapping
         if let Some(old_code) = old_invite_code {
             if old_code != invitation.invite_code {
-                self.invitation_codes.lock().unwrap().remove(&old_code);
-                self.invitation_codes
-                    .lock()
-                    .unwrap()
-                    .insert(invitation.invite_code.clone(), id.clone());
+                codes_lock.remove(&old_code);
+                codes_lock.insert(invitation.invite_code.clone(), id.clone());
             }
         }
-
+        
         // Update the invitation
-        self.invitations
-            .lock()
-            .unwrap()
-            .insert(id, invitation.clone());
-
+        invitations_lock.insert(id, invitation.clone());
+        
+        // Drop the locks
+        drop(codes_lock);
+        drop(invitations_lock);
+        
         Ok(invitation)
     }
 

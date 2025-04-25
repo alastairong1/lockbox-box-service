@@ -60,7 +60,7 @@ pub fn convert_to_guardian_box(box_rec: &BoxRecord, user_id: &str) -> Option<cra
         .iter()
         .find(|g| g.id == user_id && g.status != "rejected")
     {
-        let pending = guardian.status == "pending";
+        let pending = guardian.status == "invited" || guardian.status == "opened";
         let is_lead = guardian.lead_guardian;
         Some(crate::models::GuardianBox {
             id: box_rec.id.clone(),

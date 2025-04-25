@@ -63,16 +63,27 @@ pub async fn create_invitation<S: InvitationStore + ?Sized>(
 // PUT /invitation/handle - Connect invitation to user
 pub async fn handle_invitation<S: InvitationStore + ?Sized>(
     State(store): State<Arc<S>>,
-    Json(request): Json<ConnectToUserRequest>,
+    Extension(auth_user_id): Extension<String>,
+    Json(mut request): Json<ConnectToUserRequest>,
 ) -> Result<Json<MessageResponse>> {
+    // Overwrite payload userId with authenticated user
+    request.user_id = auth_user_id.clone();
     // Fetch the invitation by code, propagate NotFound and Expired appropriately
     let mut invitation = store
         .get_invitation_by_code(&request.invite_code)
         .await?;
 
-    // Set as opened and connect to user
+    // Prevent replay if the invitation has already been opened or linked
+    if invitation.opened || invitation.linked_user_id.is_some() {
+        return Err(AppError::Forbidden(format!(
+            "Invitation with code {} has already been used",
+            request.invite_code
+        )));
+    }
+
+    // Set as opened and connect to authenticated user
     invitation.opened = true;
-    invitation.linked_user_id = Some(request.user_id.clone());
+    invitation.linked_user_id = Some(auth_user_id.clone());
 
     // Save the updated invitation
     let updated_invitation = store
@@ -80,8 +91,9 @@ pub async fn handle_invitation<S: InvitationStore + ?Sized>(
         .await?;
 
     // Publish event to SNS
-    // Ignore publish errors in tests
-    let _ = publish_invitation_event(&updated_invitation).await;
+    if let Err(err) = publish_invitation_event(&updated_invitation).await {
+        tracing::error!("Failed to publish invitation event: {:?}", err);
+    }
 
     // Return response with box_id to help frontend
     let response = MessageResponse {

@@ -14,10 +14,6 @@ use lambda_http::{
 };
 use tower::ServiceExt;
 
-// Export shared models and store for the rest of the crate to use
-pub use lockbox_shared::models as shared_models;
-pub use lockbox_shared::store;
-
 // The Lambda handler function
 async fn function_handler(event: LambdaRequest) -> Result<LambdaResponse<LambdaBody>, Error> {
     // Log request details

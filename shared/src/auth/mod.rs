@@ -83,7 +83,7 @@ pub fn decode_jwt_payload(token: &str) -> Result<Claims> {
 pub async fn auth_middleware(mut request: Request, next: Next) -> Response {
     // Allow only health checks without authentication
     let path = request.uri().path();
-    if path.ends_with("/health") {
+    if path == "/health" {
         return next.run(request).await;
     }
 

@@ -1,5 +1,6 @@
-#!/bin/bash
-set -e
+#!/usr/bin/env bash
+# Fail fast on any error, unset var, or failed pipe; show commands for easier debugging
+set -euo pipefail
 
 # Build the shared library
 echo "Building shared library..."

@@ -53,7 +53,12 @@ where
         req: Request,
         next: axum::middleware::Next,
     ) -> impl axum::response::IntoResponse {
-        tracing::info!("Logging request: {:?}", req);
+        tracing::debug!(
+            "Request received: method={}, path={}, query={}",
+            req.method(),
+            req.uri().path(),
+            req.uri().query().unwrap_or("")
+        );
 
         tracing::info!(
             "Router received request: method={}, uri={}",

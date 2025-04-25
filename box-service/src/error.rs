@@ -94,6 +94,9 @@ impl From<lockbox_shared::error::StoreError> for AppError {
                 AppError::BadRequest("Invitation has expired".into())
             }
             lockbox_shared::error::StoreError::AuthError(msg) => AppError::Unauthorized(msg),
+            lockbox_shared::error::StoreError::VersionConflict(msg) => {
+                AppError::BadRequest(format!("Concurrent modification detected: {}", msg))
+            }
         }
     }
 }

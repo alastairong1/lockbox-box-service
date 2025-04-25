@@ -187,21 +187,48 @@ pub async fn create_dynamo_table(
 
 // Helper to clean the DynamoDB table between tests
 pub async fn clear_dynamo_table(client: &Client, table_name: &str) {
-    // Scan all items
-    let scan_resp = client.scan().table_name(table_name).send().await.unwrap();
-    
-    // Delete each item
-    let items = scan_resp.items();
-    for item in items {
-        if let Some(id) = item.get("id") {
-            if let Some(id_str) = id.as_s().ok() {
-                let _ = client
-                    .delete_item()
-                    .table_name(table_name)
-                    .key("id", AttributeValue::S(id_str.to_string()))
-                    .send()
-                    .await;
+    let mut last_key = None;
+    loop {
+        let scan_resp = client
+            .scan()
+            .table_name(table_name)
+            .set_exclusive_start_key(last_key.clone())
+            .send()
+            .await
+            .map_err(|e| {
+                error!("Failed to scan table '{}': {}", table_name, e);
+                e
+            })
+            .ok(); // Ignore scan errors to keep the test running
+
+        if scan_resp.is_none() {
+            break; // Exit loop if scan failed
+        }
+        let scan_resp = scan_resp.unwrap();
+
+        if let Some(items) = scan_resp.items {
+            for item in &items {
+                if let Some(id) = item.get("id") {
+                    if let Some(id_str) = id.as_s().ok() {
+                        let _ = client
+                            .delete_item()
+                            .table_name(table_name)
+                            .key("id", AttributeValue::S(id_str.to_string()))
+                            .send()
+                            .await
+                            .map_err(|e| {
+                                error!("Failed to delete item '{}' from table '{}': {}", id_str, table_name, e);
+                                e
+                            })
+                            .ok(); // Ignore individual delete failures
+                    }
+                }
             }
+        }
+
+        last_key = scan_resp.last_evaluated_key;
+        if last_key.is_none() {
+            break;
         }
     }
 }

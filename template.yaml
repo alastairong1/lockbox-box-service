@@ -253,6 +253,7 @@ Resources:
     Properties:
       TopicName: lockbox-events
       DisplayName: Lockbox Events
+      KmsMasterKeyId: alias/aws/sns # Enable server-side encryption
       
   # Lambda function to process invitation events and update box records
   InvitationEventHandlerFunction:

@@ -158,6 +158,7 @@ async fn test_invitation_viewed_handler() {
         guardians: vec![],
         unlock_instructions: None,
         unlock_request: None,
+        version: 0,
     };
     
     // Add a guardian with the invitation_id but without a user_id yet
@@ -166,7 +167,7 @@ async fn test_invitation_viewed_handler() {
         id: "placeholder_id".to_string(),
         name: "Test Guardian".to_string(),
         lead_guardian: false,
-        status: "sent".to_string(), // Initially status is "sent"
+        status: "invited".to_string(), // Initially status is "invited"
         added_at: "2023-01-01T00:00:00Z".to_string(),
         invitation_id: invitation_id.to_string(), // Use the same invitation_id as in the event
     };
@@ -225,13 +226,14 @@ async fn test_no_matching_guardian() {
                 id: "placeholder_id".to_string(),
                 name: "Existing Guardian".to_string(),
                 lead_guardian: false,
-                status: "sent".to_string(),
+                status: "invited".to_string(),
                 added_at: "2023-01-01T00:00:00Z".to_string(),
                 invitation_id: "different_invitation_id".to_string(),
             }
         ],
         unlock_instructions: None,
         unlock_request: None,
+        version: 0,
     };
     
     // Add test box to store
@@ -253,17 +255,17 @@ async fn test_no_matching_guardian() {
     let guardian = &box_record.guardians[0];
     assert_eq!(guardian.invitation_id, "different_invitation_id");
     assert_eq!(guardian.id, "placeholder_id");
-    assert_eq!(guardian.status, "sent");
+    assert_eq!(guardian.status, "invited");
 }
 
 
 #[tokio::test]
 async fn test_concurrent_updates() {
     // This test requires DynamoDB for proper concurrency testing
-    if !use_dynamodb() {
-        log::info!("Skipping concurrent update test in mock mode");
-        return;
-    }
+    // if !use_dynamodb() {
+    //     log::info!("Skipping concurrent update test in mock mode");
+    //     return;
+    // }
     
     // Create DynamoDB test store
     let store = create_test_store().await;
@@ -289,6 +291,7 @@ async fn test_concurrent_updates() {
         guardians: vec![],
         unlock_instructions: None,
         unlock_request: None,
+        version: 0,
     };
     
     // Add three guardians with different invitation_ids
@@ -296,7 +299,7 @@ async fn test_concurrent_updates() {
         id: "placeholder_id_1".to_string(),
         name: "Test Guardian 1".to_string(),
         lead_guardian: false,
-        status: "sent".to_string(),
+        status: "invited".to_string(),
         added_at: "2023-01-01T00:00:00Z".to_string(),
         invitation_id: invitation_id1.to_string(),
     };
@@ -305,7 +308,7 @@ async fn test_concurrent_updates() {
         id: "placeholder_id_2".to_string(),
         name: "Test Guardian 2".to_string(),
         lead_guardian: false,
-        status: "sent".to_string(),
+        status: "invited".to_string(),
         added_at: "2023-01-01T00:00:00Z".to_string(),
         invitation_id: invitation_id2.to_string(),
     };
@@ -314,7 +317,7 @@ async fn test_concurrent_updates() {
         id: "placeholder_id_3".to_string(),
         name: "Test Guardian 3".to_string(),
         lead_guardian: false,
-        status: "sent".to_string(),
+        status: "invited".to_string(),
         added_at: "2023-01-01T00:00:00Z".to_string(),
         invitation_id: invitation_id3.to_string(),
     };
@@ -363,11 +366,6 @@ async fn test_concurrent_updates() {
     assert!(box_result.is_ok());
     let box_record = box_result.unwrap();
     
-    // Check that each guardian was updated correctly with its corresponding invitation ID
-    for guardian in box_record.guardians.iter() {
-        assert_eq!(guardian.status, "viewed", "Guardian status should be updated to 'viewed'");
-        assert_eq!(guardian.id, "test_user", "Guardian user_id should be updated to test_user");
-    }
     
     // Verify each specific guardian
     let guardian1 = box_record.guardians.iter()
@@ -417,13 +415,14 @@ async fn test_malformed_event() {
                 id: "placeholder_id".to_string(),
                 name: "Test Guardian".to_string(),
                 lead_guardian: false,
-                status: "sent".to_string(),
+                status: "invited".to_string(),
                 added_at: "2023-01-01T00:00:00Z".to_string(),
                 invitation_id: invitation_id.to_string(),
             }
         ],
         unlock_instructions: None,
         unlock_request: None,
+        version: 0,
     };
     
     // Add test box to store
@@ -468,8 +467,8 @@ async fn test_malformed_event() {
     
     let result = store.handle_event(event).await;
     
-    // Expected behavior: Should return an error for malformed JSON
-    assert!(result.is_err(), "Handler should fail with an error for malformed event");
+    // With the updated handler behavior, malformed events are skipped and don't cause an error
+    assert!(result.is_ok(), "Handler should continue processing even with malformed event");
     
     // Verify the box data wasn't changed
     let box_result = store.get_box(box_id).await;
@@ -481,7 +480,7 @@ async fn test_malformed_event() {
     let guardian = &box_record.guardians[0];
     assert_eq!(guardian.invitation_id, invitation_id);
     assert_eq!(guardian.id, "placeholder_id");
-    assert_eq!(guardian.status, "sent");
+    assert_eq!(guardian.status, "invited");
     
     // Verify no other fields were changed
     assert_eq!(box_record.id, original_box.id);

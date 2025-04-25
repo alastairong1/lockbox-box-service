@@ -17,6 +17,7 @@ serde_dynamo = { version = "4.2.0", features = ["aws-sdk-dynamodb+1"] }
 lambda_runtime = "0.8.0"
 thiserror = "1.0"
 anyhow = "1.0"
+rand = "0.8.5"
 # Include the shared crate
 lockbox-shared = { path = "../shared", features = ["test_utils"] }
 once_cell = "1.18.0"

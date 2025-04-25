@@ -69,7 +69,7 @@ impl IntoResponse for AppError {
             }
             AppError::SerializationError(err) => {
                 tracing::warn!("Serialization error: {}", err);
-                (StatusCode::BAD_REQUEST, err.to_string())
+                (StatusCode::BAD_REQUEST, "Invalid data format".to_string())
             }
         };
 
@@ -94,6 +94,9 @@ impl From<lockbox_shared::error::StoreError> for AppError {
             }
             lockbox_shared::error::StoreError::InvitationExpired => AppError::InvitationExpired,
             lockbox_shared::error::StoreError::AuthError(msg) => AppError::Unauthorized(msg),
+            lockbox_shared::error::StoreError::VersionConflict(msg) => {
+                AppError::BadRequest(format!("Concurrent modification detected: {}", msg))
+            }
         }
     }
 }

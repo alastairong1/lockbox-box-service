@@ -2,7 +2,7 @@ use chrono::Utc;
 use serde::{Deserialize, Serialize};
 
 // Import shared models for direct use in response types
-use crate::shared_models::{Document, Guardian, UnlockRequest};
+use lockbox_shared::models::{Document, Guardian, UnlockRequest};
 
 // Request DTOs
 #[derive(Deserialize, Debug)]

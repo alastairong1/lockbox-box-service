@@ -16,11 +16,8 @@ use std::sync::Arc;
 use tower::ServiceExt;
 use log::{debug, error, info, trace};
 
-use crate::{
-    models::now_str,
-    shared_models::BoxRecord,
-    routes,
-};
+use lockbox_shared::models::{now_str, BoxRecord, Guardian};
+use crate::routes;
 
 // Constants for DynamoDB tests
 const TEST_TABLE_NAME: &str = "box-test-table";
@@ -113,6 +110,7 @@ fn create_test_boxes(now: &str) -> Vec<BoxRecord> {
         guardians: vec![],
         unlock_instructions: None,
         unlock_request: None,
+        version: 0,
     };
 
     let box_2 = BoxRecord {
@@ -128,6 +126,7 @@ fn create_test_boxes(now: &str) -> Vec<BoxRecord> {
         guardians: vec![],
         unlock_instructions: None,
         unlock_request: None,
+        version: 0,
     };
 
     boxes.push(box_1);
@@ -689,7 +688,7 @@ async fn test_update_box_add_guardians() {
             "id": "test_guardian_1",
             "name": "Test Guardian",
             "leadGuardian": false,
-            "status": "pending",
+            "status": "invited",
             "addedAt": "2023-01-01T12:00:00Z",
             "invitationId": "inv-test-guardian-1"
         }
@@ -729,7 +728,7 @@ async fn test_update_box_add_guardians() {
     if let Some(guardian) = added_guardian {
         assert_eq!(guardian.name, "Test Guardian");
         assert_eq!(guardian.lead_guardian, false);
-        assert_eq!(guardian.status, "pending");
+        assert_eq!(guardian.status, "invited");
     }
 }
 
@@ -765,19 +764,16 @@ async fn test_update_box_lock() {
 
     debug!("Response status: {:?}", response.status());
     
+    // Capture the real status before consuming the body
+    let status = response.status();
+    
     // Get the response body for debugging
     let response_bytes = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
     let response_str = String::from_utf8_lossy(&response_bytes);
     debug!("Response body: {}", response_str);
     
-    // Create a new response with the same body for assertion
-    let response = axum::response::Response::builder()
-        .status(StatusCode::OK)
-        .body(Body::from(response_bytes))
-        .unwrap();
-
-    // Verify update was successful
-    assert_eq!(response.status(), StatusCode::OK);
+    // Verify update was successful with the real status code
+    assert_eq!(status, StatusCode::OK);
     
     // Add delay for DynamoDB consistency
     if matches!(store, TestStore::DynamoDB(_)) {
@@ -945,11 +941,11 @@ async fn test_update_single_guardian() {
     
     // Add a guardian directly to the box
     let guardian_id = "guardian_a";
-    let guardian_record = crate::shared_models::Guardian {
+    let guardian_record = Guardian {
         id: guardian_id.to_string(),
         name: "Guardian A".to_string(),
         lead_guardian: false,
-        status: "pending".to_string(),
+        status: "invited".to_string(),
         added_at: "2023-01-01T12:00:00Z".to_string(),
         invitation_id: "inv-guardian-a".to_string(),
     };
@@ -979,7 +975,7 @@ async fn test_update_single_guardian() {
         .find(|g| g.id == guardian_id)
         .expect("Guardian should be found in the box");
     
-    assert_eq!(initial_guardian.status, "pending");
+    assert_eq!(initial_guardian.status, "invited");
     
     // Now use the API to update the guardian's status
     let updated_guardian = json!({
