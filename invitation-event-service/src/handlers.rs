@@ -1,21 +1,21 @@
 // Import shared models and store
-use lockbox_shared::store::BoxStore;
 use lockbox_shared::models::{events::InvitationEvent, Guardian};
-use std::sync::Arc; // Add Arc for shared state
-use std::error::Error; // Ensure Error trait is in scope
+use lockbox_shared::store::BoxStore;
+use std::error::Error;
+use std::sync::Arc; // Add Arc for shared state // Ensure Error trait is in scope
 
-use tracing::{info, error, warn};
+use tracing::{error, info, warn};
 
 // Import our custom error type
-use crate::errors::InvitationEventError;
-use crate::errors::AppError; // Add AppError import
+use crate::errors::AppError;
+use crate::errors::InvitationEventError; // Add AppError import
 
 type SharedBoxStore = Arc<dyn BoxStore + Send + Sync>;
 
 // Handler for invitation_created events
 pub async fn handle_invitation_created(
     _state: SharedBoxStore, // Unused for now, prefixed with underscore
-    event: &InvitationEvent
+    event: &InvitationEvent,
 ) -> Result<(), Box<dyn Error + Send + Sync>> {
     info!(
         "Processing invitation_created event for box_id={}",
@@ -28,7 +28,7 @@ pub async fn handle_invitation_created(
 // Handler for invitation_viewed events
 pub async fn handle_invitation_viewed(
     state: SharedBoxStore,
-    event: &InvitationEvent
+    event: &InvitationEvent,
 ) -> Result<(), Box<dyn Error + Send + Sync>> {
     info!(
         "Processing invitation_viewed event for box_id={}, user_id={:?}",
@@ -55,12 +55,12 @@ pub async fn handle_invitation_viewed(
                 AppError::GuardianNotFound(msg) => {
                     warn!("Ignoring event for non-existent guardian: {}", msg);
                     Ok(())
-                },
+                }
                 AppError::BoxNotFound(msg) => {
                     warn!("Ignoring event for non-existent box: {}", msg);
                     Ok(())
-                },
-                _ => Err(Box::new(app_error))
+                }
+                _ => Err(Box::new(app_error)),
             }
         }
     }
@@ -77,7 +77,9 @@ pub async fn process_invitation_viewing(
 ) -> Result<(), AppError> {
     log::info!(
         "Processing invitation viewing: box_id={}, invitation_id={}, user_id={}",
-        box_id, invitation_id, user_id
+        box_id,
+        invitation_id,
+        user_id
     );
 
     if user_id.is_empty() {
@@ -88,13 +90,14 @@ pub async fn process_invitation_viewing(
     let box_result = store.get_box(box_id).await;
     if let Err(e) = box_result {
         return Err(AppError::BoxNotFound(format!(
-            "Box not found: {}, error: {}", box_id, e
+            "Box not found: {}, error: {}",
+            box_id, e
         )));
     }
 
     let mut retries = 0;
     let mut last_error = None;
-    
+
     while retries < MAX_RETRIES {
         match update_specific_guardian(&store, box_id, invitation_id, user_id).await {
             Ok(_) => {
@@ -110,12 +113,12 @@ pub async fn process_invitation_viewing(
 
                 // Simple backoff with minimal jitter
                 let delay_ms = 50 + (retries as u64 * 20);
-                
+
                 log::info!(
                     "Error updating guardian (retry {}/{}): box_id={}, invitation_id={}, waiting {}ms",
                     retries, MAX_RETRIES, box_id, invitation_id, delay_ms
                 );
-                
+
                 tokio::time::sleep(tokio::time::Duration::from_millis(delay_ms)).await;
                 continue;
             }
@@ -126,13 +129,19 @@ pub async fn process_invitation_viewing(
     if let Some(err) = last_error {
         log::error!(
             "Failed to update guardian after {} retries: box_id={}, invitation_id={}, user_id={}",
-            MAX_RETRIES, box_id, invitation_id, user_id
+            MAX_RETRIES,
+            box_id,
+            invitation_id,
+            user_id
         );
-        
+
         // Final check - verify current box state to provide better diagnostics
         match store.get_box(box_id).await {
             Ok(box_record) => {
-                let guardian = box_record.guardians.iter().find(|g| g.invitation_id == invitation_id);
+                let guardian = box_record
+                    .guardians
+                    .iter()
+                    .find(|g| g.invitation_id == invitation_id);
                 match guardian {
                     Some(g) => {
                         if g.id == user_id && g.status == "viewed" {
@@ -144,18 +153,25 @@ pub async fn process_invitation_viewing(
                         }
                         log::error!(
                             "Current guardian state: id={}, status={}, invitation_id={}",
-                            g.id, g.status, g.invitation_id
+                            g.id,
+                            g.status,
+                            g.invitation_id
                         );
                     }
-                    None => log::error!("Guardian with invitation_id={} not found in box", invitation_id),
+                    None => log::error!(
+                        "Guardian with invitation_id={} not found in box",
+                        invitation_id
+                    ),
                 }
             }
             Err(e) => log::error!("Failed to retrieve current box state: {}", e),
         }
-        
+
         Err(AppError::from(err))
     } else {
-        Err(AppError::from(anyhow::anyhow!("Failed to update guardian after max retries")))
+        Err(AppError::from(anyhow::anyhow!(
+            "Failed to update guardian after max retries"
+        )))
     }
 }
 
@@ -169,45 +185,50 @@ async fn update_specific_guardian(
 ) -> anyhow::Result<()> {
     // Get the current box state
     let mut box_record = store.get_box(box_id).await?;
-    
+
     // Find the guardian matching the invitation ID
     let guardian_idx = box_record
         .guardians
         .iter()
         .position(|g| g.invitation_id == invitation_id);
-    
+
     // If no matching guardian found, return a specific error
     if guardian_idx.is_none() {
-        return Err(anyhow::anyhow!(
-            AppError::GuardianNotFound(format!("No guardian found with invitation ID: {}", invitation_id))
-        ));
+        return Err(anyhow::anyhow!(AppError::GuardianNotFound(format!(
+            "No guardian found with invitation ID: {}",
+            invitation_id
+        ))));
     }
-    
+
     let guardian_idx = guardian_idx.unwrap();
     let guardian = &box_record.guardians[guardian_idx];
-    
+
     // Skip if already updated to viewed status with correct user ID
     if guardian.status == "viewed" && guardian.id == user_id {
         log::info!(
             "Guardian already updated, skipping: box_id={}, invitation_id={}, user_id={}",
-            box_id, invitation_id, user_id
+            box_id,
+            invitation_id,
+            user_id
         );
         return Ok(());
     }
-    
+
     // Only update if the guardian is still in "invited" state
     if guardian.status == "invited" {
         // Make a minimal update - only update this one guardian
         box_record.guardians[guardian_idx].id = user_id.to_string();
         box_record.guardians[guardian_idx].status = "viewed".to_string();
-        
+
         // Update using the store's update_box method
         match store.update_box(box_record).await {
             Ok(_) => Ok(()),
             Err(e) => {
                 log::error!(
                     "Failed to update guardian: box_id={}, invitation_id={}, error={:?}",
-                    box_id, invitation_id, e
+                    box_id,
+                    invitation_id,
+                    e
                 );
                 Err(anyhow::anyhow!(e))
             }
@@ -216,7 +237,10 @@ async fn update_specific_guardian(
         // Guardian is already in a different state, log and consider successful
         log::info!(
             "Guardian already in state {}, not updating: box_id={}, invitation_id={}, user_id={}",
-            guardian.status, box_id, invitation_id, user_id
+            guardian.status,
+            box_id,
+            invitation_id,
+            user_id
         );
         Ok(())
     }

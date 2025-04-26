@@ -273,7 +273,7 @@ mod dynamo_tests {
 
         let fetched_boxes = result.unwrap();
         assert_eq!(fetched_boxes.len(), 2); // Should only get the two boxes for test_owner
-        
+
         // Verify the boxes belong to our owner
         for box_rec in &fetched_boxes {
             assert_eq!(box_rec.owner_id, owner_id);
@@ -362,7 +362,7 @@ mod dynamo_tests {
 
         // Create test boxes with guardians
         let guardian_id = "guardian_id";
-        
+
         // Box 1 - has test_guardian as a guardian
         let mut test_box1 = create_test_box("Box with Guardian", "test_owner");
         test_box1.guardians.push(crate::models::Guardian {
@@ -406,7 +406,7 @@ mod dynamo_tests {
 
         let fetched_boxes = result.unwrap();
         // Should only get Box 1 (with accepted guardian status)
-        assert_eq!(fetched_boxes.len(), 1); 
+        assert_eq!(fetched_boxes.len(), 1);
         assert_eq!(fetched_boxes[0].id, test_box1.id);
 
         // Clean up
@@ -414,4 +414,4 @@ mod dynamo_tests {
             .await
             .expect("Failed to delete test table");
     }
-} 
+}

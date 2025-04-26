@@ -1,17 +1,17 @@
-use thiserror::Error;
 use std::fmt;
+use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum InvitationEventError {
     #[error("Missing required field: {0}")]
     MissingField(String),
-    
+
     #[error("Box not found: {0}")]
     BoxNotFound(String),
-    
+
     #[error("Failed to update box: {0}")]
     UpdateError(String),
-    
+
     #[error("Store error: {0}")]
     StoreError(String),
 }
@@ -70,8 +70,10 @@ impl From<lockbox_shared::error::StoreError> for InvitationEventError {
     fn from(err: lockbox_shared::error::StoreError) -> Self {
         match err {
             lockbox_shared::error::StoreError::NotFound(msg) => Self::BoxNotFound(msg),
-            lockbox_shared::error::StoreError::VersionConflict(msg) => Self::UpdateError(format!("Concurrent update conflict: {}", msg)),
+            lockbox_shared::error::StoreError::VersionConflict(msg) => {
+                Self::UpdateError(format!("Concurrent update conflict: {}", msg))
+            }
             _ => Self::StoreError(err.to_string()),
         }
     }
-} 
+}

@@ -1,28 +1,27 @@
-use aws_sdk_dynamodb::Client;
 use aws_sdk_dynamodb::types::{
-    AttributeDefinition, KeySchemaElement, KeyType, GlobalSecondaryIndex,
-    Projection, ProjectionType, ProvisionedThroughput, ScalarAttributeType,
-    AttributeValue, TableStatus, IndexStatus,
+    AttributeDefinition, AttributeValue, GlobalSecondaryIndex, IndexStatus, KeySchemaElement,
+    KeyType, Projection, ProjectionType, ProvisionedThroughput, ScalarAttributeType, TableStatus,
 };
+use aws_sdk_dynamodb::Client;
 use std::error::Error;
 // Use log macros, but ensure test_logging::init_test_logging() is called in test files
-use log::{info, error, debug};
+use log::{debug, error, info};
 // Reference to our test logging initialization
 // use super::test_logging;
 
 /// # DynamoDB test utilities
-/// 
+///
 /// These utilities help set up and manage DynamoDB tables for testing.
-/// 
+///
 /// ## Logging
-/// This module uses the standard `log` crate macros for logging, but requires 
+/// This module uses the standard `log` crate macros for logging, but requires
 /// test_logging::init_test_logging() to be called in your test file for logs to appear.
-/// 
+///
 /// ## Example
 /// ```rust
 /// use lockbox_shared::test_utils::test_logging::init_test_logging;
 /// use lockbox_shared::test_utils::dynamo_test_utils;
-/// 
+///
 /// #[tokio::test]
 /// async fn my_dynamo_test() {
 ///     // Initialize test logging
@@ -49,7 +48,7 @@ pub async fn create_dynamo_client() -> Client {
         .endpoint_url(DYNAMO_LOCAL_URI)
         .load()
         .await;
-    
+
     Client::new(&config)
 }
 
@@ -57,17 +56,20 @@ pub async fn create_dynamo_client() -> Client {
 // Note: Make sure to call test_utils::test_logging::init_test_logging() in your test file
 // for these logs to be properly configured and displayed.
 pub async fn create_dynamo_table(
-    client: &Client, 
+    client: &Client,
     table_name: &str,
     gsi_configs: Vec<(&str, &str, KeyType)>,
 ) -> Result<(), Box<dyn Error>> {
     info!("Creating dynamo table '{}' with GSIs...", table_name);
-    
+
     // Check if table already exists
     let tables = client.list_tables().send().await?;
     let table_names = tables.table_names();
     if table_names.contains(&table_name.to_string()) {
-        info!("Table '{}' already exists, deleting it first...", table_name);
+        info!(
+            "Table '{}' already exists, deleting it first...",
+            table_name
+        );
         // Delete table if it exists
         client.delete_table().table_name(table_name).send().await?;
         // Wait for table deletion to complete
@@ -125,16 +127,16 @@ pub async fn create_dynamo_table(
             .projection(
                 Projection::builder()
                     .projection_type(ProjectionType::All)
-                    .build()
+                    .build(),
             )
             .provisioned_throughput(
                 ProvisionedThroughput::builder()
                     .read_capacity_units(5)
                     .write_capacity_units(5)
-                    .build()?
+                    .build()?,
             )
             .build()?;
-        
+
         global_secondary_indices.push(gsi);
     }
 
@@ -153,7 +155,7 @@ pub async fn create_dynamo_table(
         ProvisionedThroughput::builder()
             .read_capacity_units(5)
             .write_capacity_units(5)
-            .build()?
+            .build()?,
     );
 
     // Create the table
@@ -163,19 +165,31 @@ pub async fn create_dynamo_table(
     // Wait for the table (and GSIs) to become ACTIVE before running tests
     info!("Waiting for table '{}' to become ACTIVE...", table_name);
     loop {
-        let resp = client.describe_table().table_name(table_name).send().await?;
+        let resp = client
+            .describe_table()
+            .table_name(table_name)
+            .send()
+            .await?;
         if let Some(table_desc) = resp.table() {
             if table_desc.table_status() == Some(&TableStatus::Active) {
                 // ensure all global secondary indexes are active
                 let gsi_descs = table_desc.global_secondary_indexes();
-                if gsi_descs.is_empty() || gsi_descs.iter().all(|idx| idx.index_status() == Some(&IndexStatus::Active)) {
+                if gsi_descs.is_empty()
+                    || gsi_descs
+                        .iter()
+                        .all(|idx| idx.index_status() == Some(&IndexStatus::Active))
+                {
                     info!("Table '{}' and all GSIs are now ACTIVE!", table_name);
                     break;
                 } else {
                     debug!("Table '{}' is ACTIVE but waiting for GSIs...", table_name);
                 }
             } else {
-                debug!("Table '{}' status: {:?}", table_name, table_desc.table_status());
+                debug!(
+                    "Table '{}' status: {:?}",
+                    table_name,
+                    table_desc.table_status()
+                );
             }
         }
         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
@@ -217,7 +231,10 @@ pub async fn clear_dynamo_table(client: &Client, table_name: &str) {
                             .send()
                             .await
                             .map_err(|e| {
-                                error!("Failed to delete item '{}' from table '{}': {}", id_str, table_name, e);
+                                error!(
+                                    "Failed to delete item '{}' from table '{}': {}",
+                                    id_str, table_name, e
+                                );
                                 e
                             })
                             .ok(); // Ignore individual delete failures
@@ -234,34 +251,40 @@ pub async fn clear_dynamo_table(client: &Client, table_name: &str) {
 }
 
 // Helper to create the invitation table for testing
-pub async fn create_invitation_table(client: &Client, table_name: &str) -> Result<(), Box<dyn Error>> {
+pub async fn create_invitation_table(
+    client: &Client,
+    table_name: &str,
+) -> Result<(), Box<dyn Error>> {
     info!("Creating invitation table '{}'...", table_name);
-    
+
     let gsi_configs = vec![
         ("box_id-index", "box_id", KeyType::Hash),
         ("invite_code-index", "invite_code", KeyType::Hash),
         ("creator_id-index", "creator_id", KeyType::Hash),
     ];
-    
+
     create_dynamo_table(client, table_name, gsi_configs).await
 }
 
 // Helper to create the box table for testing
 pub async fn create_box_table(client: &Client, table_name: &str) -> Result<(), Box<dyn Error>> {
     info!("Creating box table '{}' for testing...", table_name);
-    
+
     // Check if table already exists
     let tables = client.list_tables().send().await?;
     let table_names = tables.table_names();
-    
+
     if table_names.contains(&table_name.to_string()) {
-        info!("Table '{}' already exists, deleting it first...", table_name);
+        info!(
+            "Table '{}' already exists, deleting it first...",
+            table_name
+        );
         // Delete table if it exists
         match client.delete_table().table_name(table_name).send().await {
             Ok(_) => info!("Successfully deleted existing table '{}'", table_name),
             Err(e) => error!("Error deleting table '{}': {}", table_name, e),
         }
-        
+
         // Wait for table deletion to complete
         info!("Waiting for table '{}' to be deleted...", table_name);
         loop {
@@ -276,12 +299,10 @@ pub async fn create_box_table(client: &Client, table_name: &str) -> Result<(), B
     }
 
     info!("Creating new table '{}'...", table_name);
-    
+
     // Define GSI configurations
-    let gsi_configs = vec![
-        ("owner_id-index", "ownerId", KeyType::Hash),
-    ];
-    
+    let gsi_configs = vec![("owner_id-index", "ownerId", KeyType::Hash)];
+
     // Define primary key (always using 'id' as the hash key)
     let id_key = KeySchemaElement::builder()
         .attribute_name("id")
@@ -325,16 +346,16 @@ pub async fn create_box_table(client: &Client, table_name: &str) -> Result<(), B
             .projection(
                 Projection::builder()
                     .projection_type(ProjectionType::All)
-                    .build()
+                    .build(),
             )
             .provisioned_throughput(
                 ProvisionedThroughput::builder()
                     .read_capacity_units(5)
                     .write_capacity_units(5)
-                    .build()?
+                    .build()?,
             )
             .build()?;
-        
+
         global_secondary_indices.push(gsi);
     }
 
@@ -353,7 +374,7 @@ pub async fn create_box_table(client: &Client, table_name: &str) -> Result<(), B
         ProvisionedThroughput::builder()
             .read_capacity_units(5)
             .write_capacity_units(5)
-            .build()?
+            .build()?,
     );
 
     // Create the table
@@ -374,17 +395,25 @@ pub async fn create_box_table(client: &Client, table_name: &str) -> Result<(), B
                     if table_desc.table_status() == Some(&TableStatus::Active) {
                         // ensure all global secondary indexes are active
                         let gsi_descs = table_desc.global_secondary_indexes();
-                        if gsi_descs.is_empty() || gsi_descs.iter().all(|idx| idx.index_status() == Some(&IndexStatus::Active)) {
+                        if gsi_descs.is_empty()
+                            || gsi_descs
+                                .iter()
+                                .all(|idx| idx.index_status() == Some(&IndexStatus::Active))
+                        {
                             info!("Table '{}' and all GSIs are now ACTIVE!", table_name);
                             break;
                         } else {
                             debug!("Table '{}' is ACTIVE but waiting for GSIs...", table_name);
                         }
                     } else {
-                        debug!("Table '{}' status: {:?}", table_name, table_desc.table_status());
+                        debug!(
+                            "Table '{}' status: {:?}",
+                            table_name,
+                            table_desc.table_status()
+                        );
                     }
                 }
-            },
+            }
             Err(e) => error!("Error checking table status: {}", e),
         }
         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
@@ -392,4 +421,4 @@ pub async fn create_box_table(client: &Client, table_name: &str) -> Result<(), B
 
     info!("Table '{}' is ready for testing!", table_name);
     Ok(())
-} 
+}

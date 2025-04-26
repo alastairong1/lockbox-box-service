@@ -1,7 +1,7 @@
 use axum::{
     extract::Request,
     middleware,
-    routing::{get, post, put, patch},
+    routing::{get, patch, post, put},
     Router,
 };
 use std::sync::Arc;

@@ -10,14 +10,11 @@ use uuid::Uuid;
 
 use crate::error::{AppError, Result};
 // Import models from shared crate
-use lockbox_shared::models::{
-    BoxRecord, Document, Guardian, now_str,
-};
+use lockbox_shared::models::{now_str, BoxRecord, Document, Guardian};
 // Import request/response types from local models
 use crate::models::{
-    BoxResponse, CreateBoxRequest, DocumentUpdateRequest,
-    DocumentUpdateResponse, GuardianUpdateRequest, GuardianUpdateResponse,
-    OptionalField, UpdateBoxRequest,
+    BoxResponse, CreateBoxRequest, DocumentUpdateRequest, DocumentUpdateResponse,
+    GuardianUpdateRequest, GuardianUpdateResponse, OptionalField, UpdateBoxRequest,
 };
 
 // GET /boxes

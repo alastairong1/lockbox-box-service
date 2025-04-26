@@ -33,7 +33,7 @@ pub async fn create_router() -> Router {
     let remove_base_path = std::env::var("REMOVE_BASE_PATH")
         .map(|v| v.to_lowercase() == "true")
         .unwrap_or(false);
-    
+
     // If REMOVE_BASE_PATH is set to true, don't add the /Prod prefix
     let prefix = if remove_base_path { "" } else { "/Prod" };
     tracing::info!("Using API route prefix: {}", prefix);

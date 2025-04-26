@@ -93,7 +93,10 @@ where
     }
 
     // Check if user is a lead guardian by checking the flag in the guardians list
-    let is_lead = box_record.guardians.iter().any(|g| g.id == user_id && g.lead_guardian);
+    let is_lead = box_record
+        .guardians
+        .iter()
+        .any(|g| g.id == user_id && g.lead_guardian);
 
     if is_lead {
         // Lead guardian is initiating an unlock request

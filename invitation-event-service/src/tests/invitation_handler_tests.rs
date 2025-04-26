@@ -1,18 +1,18 @@
 use aws_lambda_events::event::sns::{SnsEvent, SnsMessage, SnsRecord};
-use lambda_runtime::LambdaEvent;
-use std::sync::Arc;
-use std::collections::HashMap;
 use chrono::Utc;
+use lambda_runtime::LambdaEvent;
+use std::collections::HashMap;
+use std::sync::Arc;
 
-use lockbox_shared::models::events::InvitationEvent;
-use lockbox_shared::store::BoxStore;
-use lockbox_shared::test_utils::mock_box_store::MockBoxStore;
-use lockbox_shared::test_utils::dynamo_test_utils::{
-    use_dynamodb, create_dynamo_client, create_box_table, clear_dynamo_table
-};
-use lockbox_shared::store::dynamo::DynamoBoxStore;
-use lockbox_shared::test_utils::test_logging;
 use lockbox_shared::error::Result as StoreResult;
+use lockbox_shared::models::events::InvitationEvent;
+use lockbox_shared::store::dynamo::DynamoBoxStore;
+use lockbox_shared::store::BoxStore;
+use lockbox_shared::test_utils::dynamo_test_utils::{
+    clear_dynamo_table, create_box_table, create_dynamo_client, use_dynamodb,
+};
+use lockbox_shared::test_utils::mock_box_store::MockBoxStore;
+use lockbox_shared::test_utils::test_logging;
 
 use crate::handler;
 
@@ -27,13 +27,16 @@ enum TestStore {
 
 impl TestStore {
     // Helper method to create a box in either store type
-    async fn create_box(&self, box_record: lockbox_shared::models::BoxRecord) -> StoreResult<lockbox_shared::models::BoxRecord> {
+    async fn create_box(
+        &self,
+        box_record: lockbox_shared::models::BoxRecord,
+    ) -> StoreResult<lockbox_shared::models::BoxRecord> {
         match self {
             TestStore::Mock(store) => store.create_box(box_record).await,
             TestStore::DynamoDB(store) => store.create_box(box_record).await,
         }
     }
-    
+
     // Helper method to get a box from either store type
     async fn get_box(&self, box_id: &str) -> StoreResult<lockbox_shared::models::BoxRecord> {
         match self {
@@ -41,9 +44,12 @@ impl TestStore {
             TestStore::DynamoDB(store) => store.get_box(box_id).await,
         }
     }
-    
+
     // Helper method to pass the right store to handler function
-    async fn handle_event(&self, event: LambdaEvent<SnsEvent>) -> Result<(), lambda_runtime::Error> {
+    async fn handle_event(
+        &self,
+        event: LambdaEvent<SnsEvent>,
+    ) -> Result<(), lambda_runtime::Error> {
         match self {
             TestStore::Mock(store) => handler(event, store.clone()).await,
             TestStore::DynamoDB(store) => handler(event, store.clone()).await,
@@ -55,26 +61,26 @@ impl TestStore {
 async fn create_test_store() -> TestStore {
     // Initialize logging for tests
     test_logging::init_test_logging();
-    
+
     if use_dynamodb() {
         // Set up DynamoDB store
         let client = create_dynamo_client().await;
-        
+
         // Create/clear the test table
         match create_box_table(&client, TEST_TABLE_NAME).await {
             Ok(_) => log::debug!("Test table created/exists successfully"),
             Err(e) => log::error!("Error setting up test table: {}", e),
         }
-        
+
         // Clean the table to start fresh
         clear_dynamo_table(&client, TEST_TABLE_NAME).await;
-        
+
         // Create the store with the test table
         let store = Arc::new(DynamoBoxStore::with_client_and_table(
             client.clone(),
-            TEST_TABLE_NAME.to_string()
+            TEST_TABLE_NAME.to_string(),
         ));
-        
+
         TestStore::DynamoDB(store)
     } else {
         // Use mock store
@@ -84,7 +90,12 @@ async fn create_test_store() -> TestStore {
 }
 
 // Helper to create an SNS event for testing
-fn create_test_sns_event(event_type: &str, invitation_id: &str, box_id: &str, user_id: &str) -> LambdaEvent<SnsEvent> {
+fn create_test_sns_event(
+    event_type: &str,
+    invitation_id: &str,
+    box_id: &str,
+    user_id: &str,
+) -> LambdaEvent<SnsEvent> {
     // Create invitation event
     let invitation_event = InvitationEvent {
         event_type: event_type.to_string(),
@@ -94,10 +105,10 @@ fn create_test_sns_event(event_type: &str, invitation_id: &str, box_id: &str, us
         user_id: Some(user_id.to_string()),
         invite_code: "test-code".to_string(),
     };
-    
+
     // Serialize to JSON
     let event_json = serde_json::to_string(&invitation_event).unwrap();
-    
+
     // Create SNS message with correct field names
     let sns_message = SnsMessage {
         signature: "test-signature".to_string(),
@@ -110,22 +121,23 @@ fn create_test_sns_event(event_type: &str, invitation_id: &str, box_id: &str, us
         signing_cert_url: "https://sns.us-east-1.amazonaws.com/cert.pem".to_string(),
         unsubscribe_url: "https://sns.us-east-1.amazonaws.com/unsubscribe".to_string(),
         message_attributes: HashMap::new(),
-        sns_message_type: "Notification".to_string()
+        sns_message_type: "Notification".to_string(),
     };
-    
+
     // Create SNS record
     let sns_record = SnsRecord {
         event_version: "1.0".to_string(),
-        event_subscription_arn: "arn:aws:sns:us-east-1:123456789012:invitation-events:subscription-id".to_string(),
+        event_subscription_arn:
+            "arn:aws:sns:us-east-1:123456789012:invitation-events:subscription-id".to_string(),
         event_source: "aws:sns".to_string(),
         sns: sns_message,
     };
-    
+
     // Create SNS event
     let sns_event = SnsEvent {
         records: vec![sns_record],
     };
-    
+
     // Create Lambda event
     LambdaEvent {
         payload: sns_event,
@@ -137,13 +149,13 @@ fn create_test_sns_event(event_type: &str, invitation_id: &str, box_id: &str, us
 async fn test_invitation_viewed_handler() {
     // Create test store
     let store = create_test_store().await;
-    
+
     // Create test SNS event for invitation_viewed
     let box_id = "test_box_789";
     let invitation_id = "test_invitation_101";
     let user_id = "test_user_1"; // This should match the user_id in the test event
     let event = create_test_sns_event("invitation_viewed", invitation_id, box_id, user_id);
-    
+
     // Create a test box record with a guardian with the test invitation_id
     let mut box_record = lockbox_shared::models::BoxRecord {
         id: box_id.to_string(),
@@ -160,7 +172,7 @@ async fn test_invitation_viewed_handler() {
         unlock_request: None,
         version: 0,
     };
-    
+
     // Add a guardian with the invitation_id but without a user_id yet
     // This simulates a guardian that was added to the box but invitation wasn't viewed yet
     let guardian = lockbox_shared::models::Guardian {
@@ -171,45 +183,57 @@ async fn test_invitation_viewed_handler() {
         added_at: "2023-01-01T00:00:00Z".to_string(),
         invitation_id: invitation_id.to_string(), // Use the same invitation_id as in the event
     };
-    
+
     box_record.guardians.push(guardian);
-    
+
     // Add test box to store (works for both types)
     let _ = store.create_box(box_record).await.unwrap();
-    
+
     // Call handler with the appropriate box store
     let result = store.handle_event(event).await;
     assert!(result.is_ok(), "Handler failed: {:?}", result.err());
-    
+
     // Verify box was updated correctly after invitation viewed event
     let box_result = store.get_box(box_id).await;
-    assert!(box_result.is_ok(), "Failed to retrieve box: {:?}", box_result.err());
-    
+    assert!(
+        box_result.is_ok(),
+        "Failed to retrieve box: {:?}",
+        box_result.err()
+    );
+
     // Get the box record and examine it
     let box_record = box_result.unwrap();
-    
+
     // Find the guardian with the matching invitation_id
-    let guardian = box_record.guardians.iter()
+    let guardian = box_record
+        .guardians
+        .iter()
         .find(|g| g.invitation_id == invitation_id)
         .expect("Guardian with matching invitation_id should exist");
-    
+
     // Verify that the user_id has been set correctly
-    assert_eq!(guardian.id, user_id, "Guardian user_id should be updated to match the event's user_id");
-    
+    assert_eq!(
+        guardian.id, user_id,
+        "Guardian user_id should be updated to match the event's user_id"
+    );
+
     // Verify that the status has been updated to "viewed"
-    assert_eq!(guardian.status, "viewed", "Guardian status should be updated to 'viewed'");
+    assert_eq!(
+        guardian.status, "viewed",
+        "Guardian status should be updated to 'viewed'"
+    );
 }
 
 #[tokio::test]
 async fn test_no_matching_guardian() {
     // Create test store
     let store = create_test_store().await;
-    
+
     // Create test SNS event with non-existent invitation_id
     let box_id = "test_box_123";
     let invitation_id = "non_existent_invitation";
     let event = create_test_sns_event("invitation_viewed", invitation_id, box_id, "test_user_1");
-    
+
     // Create a test box record without any guardian matching the invitation_id
     let box_record = lockbox_shared::models::BoxRecord {
         id: box_id.to_string(),
@@ -221,43 +245,44 @@ async fn test_no_matching_guardian() {
         owner_id: "test_owner".to_string(),
         owner_name: Some("Test Owner".to_string()),
         documents: vec![],
-        guardians: vec![
-            lockbox_shared::models::Guardian {
-                id: "placeholder_id".to_string(),
-                name: "Existing Guardian".to_string(),
-                lead_guardian: false,
-                status: "invited".to_string(),
-                added_at: "2023-01-01T00:00:00Z".to_string(),
-                invitation_id: "different_invitation_id".to_string(),
-            }
-        ],
+        guardians: vec![lockbox_shared::models::Guardian {
+            id: "placeholder_id".to_string(),
+            name: "Existing Guardian".to_string(),
+            lead_guardian: false,
+            status: "invited".to_string(),
+            added_at: "2023-01-01T00:00:00Z".to_string(),
+            invitation_id: "different_invitation_id".to_string(),
+        }],
         unlock_instructions: None,
         unlock_request: None,
         version: 0,
     };
-    
+
     // Add test box to store
     let _ = store.create_box(box_record).await.unwrap();
-    
+
     // Call handler with the appropriate box store
     // This should handle the case gracefully (log a warning but not error)
     let result = store.handle_event(event).await;
-    
+
     // The handler should not return an error even if no matching guardian is found
-    assert!(result.is_ok(), "Handler should not fail when no matching guardian: {:?}", result.err());
-    
+    assert!(
+        result.is_ok(),
+        "Handler should not fail when no matching guardian: {:?}",
+        result.err()
+    );
+
     // Box should remain unchanged
     let box_result = store.get_box(box_id).await;
     assert!(box_result.is_ok());
     let box_record = box_result.unwrap();
-    
+
     // Verify guardian wasn't changed
     let guardian = &box_record.guardians[0];
     assert_eq!(guardian.invitation_id, "different_invitation_id");
     assert_eq!(guardian.id, "placeholder_id");
     assert_eq!(guardian.status, "invited");
 }
-
 
 #[tokio::test]
 #[ignore]
@@ -267,18 +292,18 @@ async fn test_concurrent_updates() {
     //     log::info!("Skipping concurrent update test in mock mode");
     //     return;
     // }
-    
+
     // Create DynamoDB test store
     let store = create_test_store().await;
-    
+
     // Create a box with multiple guardians that have different invitation_ids
     let box_id = "test_box_concurrent";
-    
+
     // Create three different invitation IDs
     let invitation_id1 = "test_invitation_concurrent_1";
     let invitation_id2 = "test_invitation_concurrent_2";
     let invitation_id3 = "test_invitation_concurrent_3";
-    
+
     let mut box_record = lockbox_shared::models::BoxRecord {
         id: box_id.to_string(),
         name: "Concurrent Test Box".to_string(),
@@ -294,7 +319,7 @@ async fn test_concurrent_updates() {
         unlock_request: None,
         version: 0,
     };
-    
+
     // Add three guardians with different invitation_ids
     let guardian1 = lockbox_shared::models::Guardian {
         id: "placeholder_id_1".to_string(),
@@ -304,7 +329,7 @@ async fn test_concurrent_updates() {
         added_at: "2023-01-01T00:00:00Z".to_string(),
         invitation_id: invitation_id1.to_string(),
     };
-    
+
     let guardian2 = lockbox_shared::models::Guardian {
         id: "placeholder_id_2".to_string(),
         name: "Test Guardian 2".to_string(),
@@ -313,7 +338,7 @@ async fn test_concurrent_updates() {
         added_at: "2023-01-01T00:00:00Z".to_string(),
         invitation_id: invitation_id2.to_string(),
     };
-    
+
     let guardian3 = lockbox_shared::models::Guardian {
         id: "placeholder_id_3".to_string(),
         name: "Test Guardian 3".to_string(),
@@ -322,71 +347,74 @@ async fn test_concurrent_updates() {
         added_at: "2023-01-01T00:00:00Z".to_string(),
         invitation_id: invitation_id3.to_string(),
     };
-    
+
     box_record.guardians.push(guardian1);
     box_record.guardians.push(guardian2);
     box_record.guardians.push(guardian3);
-    
+
     // Add test box to store
     let _ = store.create_box(box_record).await.unwrap();
-    
+
     // Create events for each invitation ID
     let event1 = create_test_sns_event("invitation_viewed", invitation_id1, box_id, "test_user_1");
     let event2 = create_test_sns_event("invitation_viewed", invitation_id2, box_id, "test_user_2");
     let event3 = create_test_sns_event("invitation_viewed", invitation_id3, box_id, "test_user_3");
-    
+
     // Process events concurrently
     let store_clone1 = store.clone();
     let store_clone2 = store.clone();
     let store_clone3 = store.clone();
-    
-    let handle1 = tokio::spawn(async move {
-        store_clone1.handle_event(event1).await
-    });
-    
-    let handle2 = tokio::spawn(async move {
-        store_clone2.handle_event(event2).await
-    });
-    
-    let handle3 = tokio::spawn(async move {
-        store_clone3.handle_event(event3).await
-    });
-    
+
+    let handle1 = tokio::spawn(async move { store_clone1.handle_event(event1).await });
+
+    let handle2 = tokio::spawn(async move { store_clone2.handle_event(event2).await });
+
+    let handle3 = tokio::spawn(async move { store_clone3.handle_event(event3).await });
+
     // Wait for all handlers to complete
     let result1 = handle1.await.unwrap();
     let result2 = handle2.await.unwrap();
     let result3 = handle3.await.unwrap();
-    
+
     // All handlers should succeed even with concurrent operations
     assert!(result1.is_ok(), "First handler failed: {:?}", result1.err());
-    assert!(result2.is_ok(), "Second handler failed: {:?}", result2.err());
+    assert!(
+        result2.is_ok(),
+        "Second handler failed: {:?}",
+        result2.err()
+    );
     assert!(result3.is_ok(), "Third handler failed: {:?}", result3.err());
-    
+
     // Verify final state - all guardians should be updated
     let box_result = store.get_box(box_id).await;
     assert!(box_result.is_ok());
     let box_record = box_result.unwrap();
-    
-    
+
     // Verify each specific guardian
-    let guardian1 = box_record.guardians.iter()
+    let guardian1 = box_record
+        .guardians
+        .iter()
         .find(|g| g.invitation_id == invitation_id1)
         .expect("Guardian with invitation_id1 should exist");
-    
-    let guardian2 = box_record.guardians.iter()
+
+    let guardian2 = box_record
+        .guardians
+        .iter()
         .find(|g| g.invitation_id == invitation_id2)
         .expect("Guardian with invitation_id2 should exist");
-    
-    let guardian3 = box_record.guardians.iter()
+
+    let guardian3 = box_record
+        .guardians
+        .iter()
         .find(|g| g.invitation_id == invitation_id3)
         .expect("Guardian with invitation_id3 should exist");
-    
+
     assert_eq!(guardian1.status, "viewed");
     assert_eq!(guardian1.id, "test_user_1");
-    
+
     assert_eq!(guardian2.status, "viewed");
     assert_eq!(guardian2.id, "test_user_2");
-    
+
     assert_eq!(guardian3.status, "viewed");
     assert_eq!(guardian3.id, "test_user_3");
 }
@@ -395,11 +423,11 @@ async fn test_concurrent_updates() {
 async fn test_malformed_event() {
     // Create test store
     let store = create_test_store().await;
-    
+
     // Create a valid box record
     let box_id = "test_box_malformed";
     let invitation_id = "test_invitation_malformed";
-    
+
     // Create box with a single guardian
     let box_record = lockbox_shared::models::BoxRecord {
         id: box_id.to_string(),
@@ -411,27 +439,25 @@ async fn test_malformed_event() {
         owner_id: "test_owner".to_string(),
         owner_name: Some("Test Owner".to_string()),
         documents: vec![],
-        guardians: vec![
-            lockbox_shared::models::Guardian {
-                id: "placeholder_id".to_string(),
-                name: "Test Guardian".to_string(),
-                lead_guardian: false,
-                status: "invited".to_string(),
-                added_at: "2023-01-01T00:00:00Z".to_string(),
-                invitation_id: invitation_id.to_string(),
-            }
-        ],
+        guardians: vec![lockbox_shared::models::Guardian {
+            id: "placeholder_id".to_string(),
+            name: "Test Guardian".to_string(),
+            lead_guardian: false,
+            status: "invited".to_string(),
+            added_at: "2023-01-01T00:00:00Z".to_string(),
+            invitation_id: invitation_id.to_string(),
+        }],
         unlock_instructions: None,
         unlock_request: None,
         version: 0,
     };
-    
+
     // Add test box to store
     let _ = store.create_box(box_record).await.unwrap();
-    
+
     // Get original box state to compare later
     let original_box = store.get_box(box_id).await.unwrap();
-    
+
     // Create a malformed SNS event with invalid JSON message
     let sns_message = SnsMessage {
         signature: "test-signature".to_string(),
@@ -444,45 +470,52 @@ async fn test_malformed_event() {
         signing_cert_url: "https://sns.us-east-1.amazonaws.com/cert.pem".to_string(),
         unsubscribe_url: "https://sns.us-east-1.amazonaws.com/unsubscribe".to_string(),
         message_attributes: HashMap::new(),
-        sns_message_type: "Notification".to_string()
+        sns_message_type: "Notification".to_string(),
     };
-    
+
     // Create SNS record
     let sns_record = SnsRecord {
         event_version: "1.0".to_string(),
-        event_subscription_arn: "arn:aws:sns:us-east-1:123456789012:invitation-events:subscription-id".to_string(),
+        event_subscription_arn:
+            "arn:aws:sns:us-east-1:123456789012:invitation-events:subscription-id".to_string(),
         event_source: "aws:sns".to_string(),
         sns: sns_message,
     };
-    
+
     // Create SNS event
     let sns_event = SnsEvent {
         records: vec![sns_record],
     };
-    
+
     // Create Lambda event
     let event = LambdaEvent {
         payload: sns_event,
         context: lambda_runtime::Context::default(),
     };
-    
+
     let result = store.handle_event(event).await;
-    
+
     // With the updated handler behavior, malformed events are skipped and don't cause an error
-    assert!(result.is_ok(), "Handler should continue processing even with malformed event");
-    
+    assert!(
+        result.is_ok(),
+        "Handler should continue processing even with malformed event"
+    );
+
     // Verify the box data wasn't changed
     let box_result = store.get_box(box_id).await;
-    assert!(box_result.is_ok(), "Should still be able to retrieve the box");
+    assert!(
+        box_result.is_ok(),
+        "Should still be able to retrieve the box"
+    );
     let box_record = box_result.unwrap();
-    
+
     // Box should be unchanged - verify guardian status and ID
     assert_eq!(box_record.guardians.len(), original_box.guardians.len());
     let guardian = &box_record.guardians[0];
     assert_eq!(guardian.invitation_id, invitation_id);
     assert_eq!(guardian.id, "placeholder_id");
     assert_eq!(guardian.status, "invited");
-    
+
     // Verify no other fields were changed
     assert_eq!(box_record.id, original_box.id);
     assert_eq!(box_record.name, original_box.name);

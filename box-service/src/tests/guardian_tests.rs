@@ -1,23 +1,20 @@
 use axum::http::StatusCode;
 use axum::Router;
 use lockbox_shared::auth::create_test_request;
-use lockbox_shared::test_utils::mock_box_store::MockBoxStore;
-use lockbox_shared::test_utils::dynamo_test_utils::{
-    use_dynamodb, create_dynamo_client, create_box_table, clear_dynamo_table
-};
 use lockbox_shared::store::dynamo::DynamoBoxStore;
 use lockbox_shared::store::BoxStore;
-use lockbox_shared::test_utils::test_logging::init_test_logging;
+use lockbox_shared::test_utils::dynamo_test_utils::{
+    clear_dynamo_table, create_box_table, create_dynamo_client, use_dynamodb,
+};
 use lockbox_shared::test_utils::http_test_utils::response_to_json;
+use lockbox_shared::test_utils::mock_box_store::MockBoxStore;
+use lockbox_shared::test_utils::test_logging::init_test_logging;
+use log::{debug, info, trace};
 use serde_json::json;
 use std::sync::Arc;
 use tower::ServiceExt;
-use log::{debug, info, trace};
 
-use crate::{
-    models::now_str,
-    routes,
-};
+use crate::{models::now_str, routes};
 use lockbox_shared::models::{BoxRecord, Guardian, UnlockRequest};
 
 // Constants for DynamoDB tests
@@ -158,25 +155,26 @@ enum TestStore {
 async fn create_test_app() -> (Router, TestStore) {
     // Initialize logging for tests
     init_test_logging();
-    
+
     if use_dynamodb() {
         // Set up DynamoDB store
         info!("Using DynamoDB for guardian tests");
         let client = create_dynamo_client().await;
-        
+
         // Create the table (ignore errors if table already exists)
         debug!("Setting up DynamoDB test table '{}'", TEST_TABLE_NAME);
         let _ = create_box_table(&client, TEST_TABLE_NAME).await;
-        
+
         // Clean the table to start fresh
         debug!("Clearing DynamoDB test table");
         clear_dynamo_table(&client, TEST_TABLE_NAME).await;
-        
+
         // Create the DynamoDB store with our test table
-        let store = Arc::new(
-            DynamoBoxStore::with_client_and_table(client.clone(), TEST_TABLE_NAME.to_string())
-        );
-        
+        let store = Arc::new(DynamoBoxStore::with_client_and_table(
+            client.clone(),
+            TEST_TABLE_NAME.to_string(),
+        ));
+
         let app = routes::create_router_with_store(store.clone(), "");
         (app, TestStore::DynamoDB(store))
     } else {
@@ -193,19 +191,19 @@ async fn add_test_data_to_store(store: &TestStore) {
     debug!("Adding test data to store for guardian tests");
     let now = now_str();
     let test_boxes = create_test_data(&now);
-    
+
     for box_record in test_boxes {
         trace!("Creating test box with ID: {}", box_record.id);
         match store {
             TestStore::Mock(mock) => {
                 mock.create_box(box_record.clone()).await.unwrap();
-            },
+            }
             TestStore::DynamoDB(dynamo) => {
                 dynamo.create_box(box_record.clone()).await.unwrap();
-            },
+            }
         }
     }
-    
+
     // Add delay for DynamoDB consistency
     if matches!(store, TestStore::DynamoDB(_)) {
         debug!("Adding delay for DynamoDB consistency");
@@ -217,7 +215,7 @@ async fn add_test_data_to_store(store: &TestStore) {
 async fn test_get_guardian_boxes() {
     // Setup with test app
     let (app, store) = create_test_app().await;
-    
+
     // Add test data directly to the store
     add_test_data_to_store(&store).await;
 
@@ -280,7 +278,7 @@ async fn test_get_guardian_boxes() {
 async fn test_get_guardian_boxes_empty_for_non_guardian() {
     // Setup with test data
     let (app, store) = create_test_app().await;
-    
+
     // Add test data directly to the store
     add_test_data_to_store(&store).await;
 
@@ -307,10 +305,10 @@ async fn test_get_guardian_boxes_empty_for_non_guardian() {
 async fn test_get_guardian_box_found() {
     // Setup with test data
     let (app, store) = create_test_app().await;
-    
+
     // Add test data directly to the store
     add_test_data_to_store(&store).await;
-    
+
     let box_id = "11111111-1111-1111-1111-111111111111";
 
     // Execute
@@ -341,10 +339,10 @@ async fn test_get_guardian_box_found() {
 async fn test_get_guardian_box_unauthorized() {
     // Setup with test data
     let (app, store) = create_test_app().await;
-    
+
     // Add test data directly to the store
     add_test_data_to_store(&store).await;
-    
+
     let box_id = "11111111-1111-1111-1111-111111111111";
 
     // Execute with a non-guardian user
@@ -366,10 +364,10 @@ async fn test_get_guardian_box_unauthorized() {
 async fn test_get_guardian_box_not_found() {
     // Setup with test data
     let (app, store) = create_test_app().await;
-    
+
     // Add test data directly to the store
     add_test_data_to_store(&store).await;
-    
+
     let non_existent_box_id = "99999999-9999-9999-9999-999999999999";
 
     // Execute with a non-existent box ID
@@ -391,10 +389,10 @@ async fn test_get_guardian_box_not_found() {
 async fn test_lead_guardian_unlock_request() {
     // Set up the app and store
     let (app, store) = create_test_app().await;
-    
+
     // Add test data directly to the store
     add_test_data_to_store(&store).await;
-    
+
     let box_id = "11111111-1111-1111-1111-111111111111";
 
     // Verify box state before the test
@@ -402,7 +400,10 @@ async fn test_lead_guardian_unlock_request() {
         TestStore::Mock(mock) => mock.get_box(&box_id).await.unwrap(),
         TestStore::DynamoDB(dynamo) => dynamo.get_box(&box_id).await.unwrap(),
     };
-    assert!(initial_box.unlock_request.is_none(), "Box should not have unlock request before test");
+    assert!(
+        initial_box.unlock_request.is_none(),
+        "Box should not have unlock request before test"
+    );
 
     // Create unlock request payload
     let request_payload = json!({
@@ -446,34 +447,43 @@ async fn test_lead_guardian_unlock_request() {
         unlock_request.get("initiatedBy").unwrap().as_str().unwrap(),
         "lead_guardian_1"
     );
-    
+
     // Add delay for DynamoDB consistency
     if matches!(store, TestStore::DynamoDB(_)) {
         debug!("Adding delay for DynamoDB consistency");
         tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
     }
-    
+
     // Verify directly in the store
     let updated_box = match &store {
         TestStore::Mock(mock) => mock.get_box(&box_id).await.unwrap(),
         TestStore::DynamoDB(dynamo) => dynamo.get_box(&box_id).await.unwrap(),
     };
-    
-    assert!(updated_box.unlock_request.is_some(), "Box should have unlock request in store");
+
+    assert!(
+        updated_box.unlock_request.is_some(),
+        "Box should have unlock request in store"
+    );
     let store_unlock_request = updated_box.unlock_request.unwrap();
     assert_eq!(store_unlock_request.status, "invited");
-    assert_eq!(store_unlock_request.message, Some("Emergency access needed for testing".to_string()));
-    assert_eq!(store_unlock_request.initiated_by, Some("lead_guardian_1".to_string()));
+    assert_eq!(
+        store_unlock_request.message,
+        Some("Emergency access needed for testing".to_string())
+    );
+    assert_eq!(
+        store_unlock_request.initiated_by,
+        Some("lead_guardian_1".to_string())
+    );
 }
 
 #[tokio::test]
 async fn test_non_lead_guardian_cannot_initiate_unlock() {
     // Setup with test data
     let (app, store) = create_test_app().await;
-    
+
     // Add test data directly to the store
     add_test_data_to_store(&store).await;
-    
+
     let box_id = "11111111-1111-1111-1111-111111111111";
 
     // Create unlock request payload
@@ -494,30 +504,33 @@ async fn test_non_lead_guardian_cannot_initiate_unlock() {
 
     // Should be BAD_REQUEST
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
-    
+
     // Add delay for DynamoDB consistency
     if matches!(store, TestStore::DynamoDB(_)) {
         debug!("Adding delay for DynamoDB consistency");
         tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
     }
-    
+
     // Verify the box still has no unlock request
     let final_box = match &store {
         TestStore::Mock(mock) => mock.get_box(&box_id).await.unwrap(),
         TestStore::DynamoDB(dynamo) => dynamo.get_box(&box_id).await.unwrap(),
     };
-    
-    assert!(final_box.unlock_request.is_none(), "Box should still not have unlock request after failed attempt");
+
+    assert!(
+        final_box.unlock_request.is_none(),
+        "Box should still not have unlock request after failed attempt"
+    );
 }
 
 #[tokio::test]
 async fn test_accept_unlock_request() {
     // Setup with test data
     let (app, store) = create_test_app().await;
-    
+
     // Add test data directly to the store
     add_test_data_to_store(&store).await;
-    
+
     let box_id = "22222222-2222-2222-2222-222222222222"; // Box with existing unlock request
 
     // Verify the box has an unlock request
@@ -525,7 +538,10 @@ async fn test_accept_unlock_request() {
         TestStore::Mock(mock) => mock.get_box(&box_id).await.unwrap(),
         TestStore::DynamoDB(dynamo) => dynamo.get_box(&box_id).await.unwrap(),
     };
-    assert!(initial_box.unlock_request.is_some(), "Box should have unlock request before test");
+    assert!(
+        initial_box.unlock_request.is_some(),
+        "Box should have unlock request before test"
+    );
 
     // Create response payload
     let response_payload = json!({
@@ -566,33 +582,40 @@ async fn test_accept_unlock_request() {
     assert!(approved_by
         .iter()
         .any(|id| id.as_str().unwrap() == "guardian_1"));
-        
+
     // Add delay for DynamoDB consistency
     if matches!(store, TestStore::DynamoDB(_)) {
         debug!("Adding delay for DynamoDB consistency");
         tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
     }
-    
+
     // Verify directly in the store
     let updated_box = match &store {
         TestStore::Mock(mock) => mock.get_box(&box_id).await.unwrap(),
         TestStore::DynamoDB(dynamo) => dynamo.get_box(&box_id).await.unwrap(),
     };
-    
-    assert!(updated_box.unlock_request.is_some(), "Box should have unlock request in store");
+
+    assert!(
+        updated_box.unlock_request.is_some(),
+        "Box should have unlock request in store"
+    );
     let store_unlock_request = updated_box.unlock_request.unwrap();
-    assert!(store_unlock_request.approved_by.contains(&"guardian_1".to_string()),
-        "guardian_1 should be in approved_by list in store");
+    assert!(
+        store_unlock_request
+            .approved_by
+            .contains(&"guardian_1".to_string()),
+        "guardian_1 should be in approved_by list in store"
+    );
 }
 
 #[tokio::test]
 async fn test_reject_unlock_request() {
     // Setup with test data
     let (app, store) = create_test_app().await;
-    
+
     // Add test data directly to the store
     add_test_data_to_store(&store).await;
-    
+
     let box_id = "22222222-2222-2222-2222-222222222222"; // Box with existing unlock request
 
     // Verify the box has an unlock request
@@ -600,9 +623,19 @@ async fn test_reject_unlock_request() {
         TestStore::Mock(mock) => mock.get_box(&box_id).await.unwrap(),
         TestStore::DynamoDB(dynamo) => dynamo.get_box(&box_id).await.unwrap(),
     };
-    assert!(initial_box.unlock_request.is_some(), "Box should have unlock request before test");
-    assert!(initial_box.unlock_request.as_ref().unwrap().rejected_by.is_empty(), 
-            "Box unlock request should not have any rejections before test");
+    assert!(
+        initial_box.unlock_request.is_some(),
+        "Box should have unlock request before test"
+    );
+    assert!(
+        initial_box
+            .unlock_request
+            .as_ref()
+            .unwrap()
+            .rejected_by
+            .is_empty(),
+        "Box unlock request should not have any rejections before test"
+    );
 
     // Create response payload to reject
     let response_payload = json!({
@@ -643,33 +676,40 @@ async fn test_reject_unlock_request() {
     assert!(rejected_by
         .iter()
         .any(|id| id.as_str().unwrap() == "guardian_1"));
-        
+
     // Add delay for DynamoDB consistency
     if matches!(store, TestStore::DynamoDB(_)) {
         debug!("Adding delay for DynamoDB consistency");
         tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
     }
-    
+
     // Verify directly in the store
     let updated_box = match &store {
         TestStore::Mock(mock) => mock.get_box(&box_id).await.unwrap(),
         TestStore::DynamoDB(dynamo) => dynamo.get_box(&box_id).await.unwrap(),
     };
-    
-    assert!(updated_box.unlock_request.is_some(), "Box should have unlock request in store");
+
+    assert!(
+        updated_box.unlock_request.is_some(),
+        "Box should have unlock request in store"
+    );
     let store_unlock_request = updated_box.unlock_request.unwrap();
-    assert!(store_unlock_request.rejected_by.contains(&"guardian_1".to_string()),
-        "guardian_1 should be in rejected_by list in store");
+    assert!(
+        store_unlock_request
+            .rejected_by
+            .contains(&"guardian_1".to_string()),
+        "guardian_1 should be in rejected_by list in store"
+    );
 }
 
 #[tokio::test]
 async fn test_respond_to_unlock_request_invalid_payload() {
     // Setup with test data
     let (app, store) = create_test_app().await;
-    
+
     // Add test data directly to the store
     add_test_data_to_store(&store).await;
-    
+
     let box_id = "22222222-2222-2222-2222-222222222222"; // Box with existing unlock request
 
     // Send an invalid response payload (missing both approve and reject)
@@ -688,33 +728,42 @@ async fn test_respond_to_unlock_request_invalid_payload() {
 
     // Should result in a client error
     assert!(response.status().is_client_error());
-    
+
     // Add delay for DynamoDB consistency
     if matches!(store, TestStore::DynamoDB(_)) {
         debug!("Adding delay for DynamoDB consistency");
         tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
     }
-    
+
     // Verify the unlock request was not modified
     let final_box = match &store {
         TestStore::Mock(mock) => mock.get_box(&box_id).await.unwrap(),
         TestStore::DynamoDB(dynamo) => dynamo.get_box(&box_id).await.unwrap(),
     };
-    
-    assert!(final_box.unlock_request.is_some(), "Box should still have unlock request");
+
+    assert!(
+        final_box.unlock_request.is_some(),
+        "Box should still have unlock request"
+    );
     let final_request = final_box.unlock_request.unwrap();
-    assert!(final_request.approved_by.is_empty(), "Approved by should still be empty");
-    assert!(final_request.rejected_by.is_empty(), "Rejected by should still be empty");
+    assert!(
+        final_request.approved_by.is_empty(),
+        "Approved by should still be empty"
+    );
+    assert!(
+        final_request.rejected_by.is_empty(),
+        "Rejected by should still be empty"
+    );
 }
 
 #[tokio::test]
 async fn test_respond_without_unlock_request() {
     // Setup with test data
     let (app, store) = create_test_app().await;
-    
+
     // Add test data directly to the store
     add_test_data_to_store(&store).await;
-    
+
     let box_id = "11111111-1111-1111-1111-111111111111"; // Box WITHOUT unlock request
 
     // Create response payload
@@ -735,30 +784,33 @@ async fn test_respond_without_unlock_request() {
 
     // Should return bad request since there's no unlock request
     assert!(response.status().is_client_error());
-    
+
     // Add delay for DynamoDB consistency
     if matches!(store, TestStore::DynamoDB(_)) {
         debug!("Adding delay for DynamoDB consistency");
         tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
     }
-    
+
     // Verify the box still has no unlock request
     let final_box = match &store {
         TestStore::Mock(mock) => mock.get_box(&box_id).await.unwrap(),
         TestStore::DynamoDB(dynamo) => dynamo.get_box(&box_id).await.unwrap(),
     };
-    
-    assert!(final_box.unlock_request.is_none(), "Box should still not have unlock request after attempt");
+
+    assert!(
+        final_box.unlock_request.is_none(),
+        "Box should still not have unlock request after attempt"
+    );
 }
 
 #[tokio::test]
 async fn test_non_guardian_cannot_respond() {
     // Setup with test data
     let (app, store) = create_test_app().await;
-    
+
     // Add test data directly to the store
     add_test_data_to_store(&store).await;
-    
+
     let box_id = "22222222-2222-2222-2222-222222222222"; // Box with existing unlock request
 
     // Create response payload
@@ -779,25 +831,36 @@ async fn test_non_guardian_cannot_respond() {
 
     // Should be UNAUTHORIZED
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
-    
+
     // Add delay for DynamoDB consistency
     if matches!(store, TestStore::DynamoDB(_)) {
         debug!("Adding delay for DynamoDB consistency");
         tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
     }
-    
+
     // Verify the unlock request was not modified
     let final_box = match &store {
         TestStore::Mock(mock) => mock.get_box(&box_id).await.unwrap(),
         TestStore::DynamoDB(dynamo) => dynamo.get_box(&box_id).await.unwrap(),
     };
-    
-    assert!(final_box.unlock_request.is_some(), "Box should still have unlock request");
+
+    assert!(
+        final_box.unlock_request.is_some(),
+        "Box should still have unlock request"
+    );
     let final_request = final_box.unlock_request.unwrap();
-    
+
     // Verify non-guardian was not added to approvers or rejecters
-    assert!(!final_request.approved_by.contains(&"not_a_guardian".to_string()), 
-           "not_a_guardian should not be in approved_by list");
-    assert!(!final_request.rejected_by.contains(&"not_a_guardian".to_string()),
-           "not_a_guardian should not be in rejected_by list");
+    assert!(
+        !final_request
+            .approved_by
+            .contains(&"not_a_guardian".to_string()),
+        "not_a_guardian should not be in approved_by list"
+    );
+    assert!(
+        !final_request
+            .rejected_by
+            .contains(&"not_a_guardian".to_string()),
+        "not_a_guardian should not be in rejected_by list"
+    );
 }

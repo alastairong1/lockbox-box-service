@@ -1,10 +1,10 @@
 use aws_lambda_events::event::sns::SnsEvent;
 use lambda_runtime::{service_fn, Error, LambdaEvent};
-use std::env;
 use lockbox_shared::models::events::InvitationEvent;
-use lockbox_shared::store::{BoxStore, dynamo::DynamoBoxStore};
-use tracing::{info, error};
+use lockbox_shared::store::{dynamo::DynamoBoxStore, BoxStore};
+use std::env;
 use std::sync::Arc;
+use tracing::{error, info};
 
 // Import the handlers module
 mod handlers;
@@ -32,23 +32,27 @@ async fn main() -> Result<(), Error> {
 }
 
 // Lambda handler function - make this public for testing
-pub async fn handler<S>(event: LambdaEvent<SnsEvent>, store: Arc<S>) -> Result<(), Error> 
-where 
+pub async fn handler<S>(event: LambdaEvent<SnsEvent>, store: Arc<S>) -> Result<(), Error>
+where
     S: BoxStore + Send + Sync + 'static,
 {
     // Get the SNS event
     let sns_event = event.payload;
-    
+
     // Process each record (message) in the SNS event
     for record in sns_event.records {
         // Extract and parse the SNS message
         let message = record.sns;
-        
+
         // Try to parse the message as an InvitationEvent
         if let Ok(invitation_event) = serde_json::from_str::<InvitationEvent>(&message.message) {
             match invitation_event.event_type.as_str() {
-                "invitation_created" => handlers::handle_invitation_created(store.clone(), &invitation_event).await?,
-                "invitation_viewed" => handlers::handle_invitation_viewed(store.clone(), &invitation_event).await?,
+                "invitation_created" => {
+                    handlers::handle_invitation_created(store.clone(), &invitation_event).await?
+                }
+                "invitation_viewed" => {
+                    handlers::handle_invitation_viewed(store.clone(), &invitation_event).await?
+                }
                 _ => {
                     error!("Unknown event type: {}", invitation_event.event_type);
                 }
@@ -59,7 +63,6 @@ where
             continue;
         }
     }
-    
+
     Ok(())
 }
-

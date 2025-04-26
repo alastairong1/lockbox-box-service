@@ -1,21 +1,19 @@
+use aws_sdk_sns::Client as SnsClient;
 use axum::{
     extract::{Extension, Path, State},
     Json,
 };
 use chrono::{Duration, Utc};
-use std::sync::Arc;
-use uuid::Uuid;
-use aws_sdk_sns::Client as SnsClient;
 use serde_json::json;
 use std::env;
+use std::sync::Arc;
+use uuid::Uuid;
 
 use lockbox_shared::{models::Invitation, store::InvitationStore};
 
 use crate::{
     error::{map_dynamo_error, AppError, Result},
-    models::{
-        ConnectToUserRequest, CreateInvitationRequest, MessageResponse,
-    },
+    models::{ConnectToUserRequest, CreateInvitationRequest, MessageResponse},
 };
 
 // Alphabet for user-friendly invitation codes (uppercase letters only)
@@ -69,9 +67,7 @@ pub async fn handle_invitation<S: InvitationStore + ?Sized>(
     // Overwrite payload userId with authenticated user
     request.user_id = auth_user_id.clone();
     // Fetch the invitation by code, propagate NotFound and Expired appropriately
-    let mut invitation = store
-        .get_invitation_by_code(&request.invite_code)
-        .await?;
+    let mut invitation = store.get_invitation_by_code(&request.invite_code).await?;
 
     // Prevent replay if the invitation has already been opened or linked
     if invitation.opened || invitation.linked_user_id.is_some() {
@@ -86,9 +82,7 @@ pub async fn handle_invitation<S: InvitationStore + ?Sized>(
     invitation.linked_user_id = Some(auth_user_id.clone());
 
     // Save the updated invitation
-    let updated_invitation = store
-        .update_invitation(invitation.clone())
-        .await?;
+    let updated_invitation = store.update_invitation(invitation.clone()).await?;
 
     // Publish event to SNS
     if let Err(err) = publish_invitation_event(&updated_invitation).await {
@@ -97,7 +91,10 @@ pub async fn handle_invitation<S: InvitationStore + ?Sized>(
 
     // Return response with box_id to help frontend
     let response = MessageResponse {
-        message: format!("User successfully bound to invitation for box {}", updated_invitation.box_id),
+        message: format!(
+            "User successfully bound to invitation for box {}",
+            updated_invitation.box_id
+        ),
         box_id: Some(updated_invitation.box_id),
     };
 
@@ -107,9 +104,8 @@ pub async fn handle_invitation<S: InvitationStore + ?Sized>(
 // Helper function to publish an invitation event to SNS
 pub async fn publish_invitation_event(invitation: &Invitation) -> Result<()> {
     // Get SNS topic ARN from environment variable
-    let topic_arn = env::var("SNS_TOPIC_ARN").map_err(|e| {
-        map_dynamo_error("get_sns_topic_arn", e)
-    })?;
+    let topic_arn =
+        env::var("SNS_TOPIC_ARN").map_err(|e| map_dynamo_error("get_sns_topic_arn", e))?;
 
     // Create SNS client
     let config = aws_config::load_defaults(aws_config::BehaviorVersion::latest()).await;
@@ -136,9 +132,8 @@ pub async fn publish_invitation_event_with_client(
     });
 
     // Convert to string
-    let message = serde_json::to_string(&event_payload).map_err(|e| {
-        map_dynamo_error("serialize_event_payload", e)
-    })?;
+    let message = serde_json::to_string(&event_payload)
+        .map_err(|e| map_dynamo_error("serialize_event_payload", e))?;
 
     // Create message attribute
     let message_attribute = aws_sdk_sns::types::MessageAttributeValue::builder()
@@ -146,23 +141,21 @@ pub async fn publish_invitation_event_with_client(
         .string_value("invitation_viewed")
         .build()
         .map_err(|e| map_dynamo_error("build_message_attribute", e))?;
-    
+
     let mut publish_request = sns_client
         .publish()
         .topic_arn(topic_arn)
         .message(message)
         .subject("Invitation Viewed");
-        
+
     // Add message attribute with the proper method call
     publish_request = publish_request.message_attributes("eventType", message_attribute);
-    
+
     // Send the request
     publish_request
         .send()
         .await
-        .map_err(|e| {
-            map_dynamo_error("publish_to_sns", e)
-        })?;
+        .map_err(|e| map_dynamo_error("publish_to_sns", e))?;
 
     Ok(())
 }
@@ -174,14 +167,16 @@ pub async fn refresh_invitation<S: InvitationStore + ?Sized>(
     Path(invite_id): Path<String>,
 ) -> Result<Json<Invitation>> {
     // Fetch invitations for this user (bypass expiry)
-    let invitations = store
-        .get_invitations_by_creator_id(&user_id)
-        .await?;
+    let invitations = store.get_invitations_by_creator_id(&user_id).await?;
     // Only allow refresh if this user is the creator
-    let mut invitation = if let Some(inv) = invitations.into_iter().find(|inv| inv.id == invite_id) {
+    let mut invitation = if let Some(inv) = invitations.into_iter().find(|inv| inv.id == invite_id)
+    {
         inv
     } else {
-        return Err(AppError::Forbidden(format!("Invitation {} is not owned by user", invite_id)));
+        return Err(AppError::Forbidden(format!(
+            "Invitation {} is not owned by user",
+            invite_id
+        )));
     };
 
     // Check if the invitation has already been opened or linked
@@ -199,9 +194,7 @@ pub async fn refresh_invitation<S: InvitationStore + ?Sized>(
     invitation.expires_at = (Utc::now() + Duration::hours(48)).to_rfc3339();
 
     // Save the updated invitation
-    let updated_invitation = store
-        .update_invitation(invitation)
-        .await?;
+    let updated_invitation = store.update_invitation(invitation).await?;
 
     // Return the full updated invitation object
     Ok(Json(updated_invitation))

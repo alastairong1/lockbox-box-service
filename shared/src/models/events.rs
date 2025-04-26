@@ -9,4 +9,4 @@ pub struct InvitationEvent {
     pub user_id: Option<String>,
     pub invite_code: String,
     pub timestamp: String,
-} 
+}

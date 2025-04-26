@@ -54,7 +54,10 @@ pub trait BoxStore: Send + Sync + 'static {
 }
 
 // Box store utility functions
-pub fn convert_to_guardian_box(box_rec: &BoxRecord, user_id: &str) -> Option<crate::models::GuardianBox> {
+pub fn convert_to_guardian_box(
+    box_rec: &BoxRecord,
+    user_id: &str,
+) -> Option<crate::models::GuardianBox> {
     if let Some(guardian) = box_rec
         .guardians
         .iter()

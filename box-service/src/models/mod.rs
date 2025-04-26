@@ -17,7 +17,12 @@ pub struct UpdateBoxRequest {
     pub name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
-    #[serde(rename = "unlockInstructions", skip_serializing_if = "Option::is_none", default, with = "optional_field_serde")]
+    #[serde(
+        rename = "unlockInstructions",
+        skip_serializing_if = "Option::is_none",
+        default,
+        with = "optional_field_serde"
+    )]
     pub unlock_instructions: Option<OptionalField<String>>,
     #[serde(rename = "isLocked", skip_serializing_if = "Option::is_none")]
     pub is_locked: Option<bool>,
@@ -96,7 +101,10 @@ mod optional_field_serde {
         }
     }
 
-    pub fn serialize<S, T>(value: &Option<OptionalField<T>>, serializer: S) -> Result<S::Ok, S::Error>
+    pub fn serialize<S, T>(
+        value: &Option<OptionalField<T>>,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
         T: serde::Serialize,

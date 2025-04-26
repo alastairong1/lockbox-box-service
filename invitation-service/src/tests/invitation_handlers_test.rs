@@ -1,23 +1,23 @@
-use std::sync::Arc;
 use axum::{http::StatusCode, Router};
-use serde_json::json;
-use tower::ServiceExt;
 use log::{debug, info, trace};
+use serde_json::json;
+use std::sync::Arc;
+use tower::ServiceExt;
 
-use lockbox_shared::store::InvitationStore;
-use lockbox_shared::auth::create_test_request;
-use lockbox_shared::test_utils::mock_invitation_store::MockInvitationStore;
-use lockbox_shared::store::dynamo::DynamoInvitationStore;
-use lockbox_shared::test_utils::dynamo_test_utils::{
-    use_dynamodb, create_dynamo_client, create_invitation_table, clear_dynamo_table
-};
-use lockbox_shared::test_utils::http_test_utils::response_to_json;
-use lockbox_shared::test_utils::test_logging::init_test_logging;
 use crate::routes::create_router_with_store;
 use chrono::{DateTime, Duration, Utc};
-use uuid::Uuid;
+use lockbox_shared::auth::create_test_request;
 use lockbox_shared::models::Invitation;
+use lockbox_shared::store::dynamo::DynamoInvitationStore;
+use lockbox_shared::store::InvitationStore;
+use lockbox_shared::test_utils::dynamo_test_utils::{
+    clear_dynamo_table, create_dynamo_client, create_invitation_table, use_dynamodb,
+};
+use lockbox_shared::test_utils::http_test_utils::response_to_json;
+use lockbox_shared::test_utils::mock_invitation_store::MockInvitationStore;
+use lockbox_shared::test_utils::test_logging::init_test_logging;
 use std::env;
+use uuid::Uuid;
 
 // Constants for DynamoDB tests
 const TEST_TABLE_NAME: &str = "invitation-test-table";
@@ -31,25 +31,26 @@ enum TestStore {
 async fn create_test_app() -> (Router, TestStore) {
     // Initialize logging for tests
     init_test_logging();
-    
+
     if use_dynamodb() {
         // Set up DynamoDB store
         info!("Using DynamoDB for invitation tests");
         let client = create_dynamo_client().await;
-        
+
         // Create the table (ignore errors if table already exists)
         debug!("Setting up DynamoDB test table '{}'", TEST_TABLE_NAME);
         let _ = create_invitation_table(&client, TEST_TABLE_NAME).await;
-        
+
         // Clean the table to start fresh
         debug!("Clearing DynamoDB test table");
         clear_dynamo_table(&client, TEST_TABLE_NAME).await;
-        
+
         // Create the DynamoDB store with our test table
-        let store = Arc::new(
-            DynamoInvitationStore::with_client_and_table(client, TEST_TABLE_NAME.to_string())
-        );
-        
+        let store = Arc::new(DynamoInvitationStore::with_client_and_table(
+            client,
+            TEST_TABLE_NAME.to_string(),
+        ));
+
         let app = create_router_with_store(store.clone(), "");
         (app, TestStore::DynamoDB(store))
     } else {
@@ -84,16 +85,22 @@ async fn test_create_invitation() {
     assert_eq!(response.status(), StatusCode::OK);
 
     let json_resp = response_to_json(response).await;
-    
+
     // Verify the fields of the Invitation object
     let invite_code = json_resp["invite_code"].as_str().unwrap();
     let expires_at = json_resp["expiresAt"].as_str().unwrap();
     assert_eq!(invite_code.len(), 8);
     assert!(!expires_at.is_empty());
-    let expires_at_dt = DateTime::parse_from_rfc3339(expires_at).unwrap().with_timezone(&Utc);
+    let expires_at_dt = DateTime::parse_from_rfc3339(expires_at)
+        .unwrap()
+        .with_timezone(&Utc);
     let now = Utc::now();
     let diff_secs = (expires_at_dt - now).num_seconds();
-    assert!(diff_secs >= 47 * 3600 && diff_secs <= 49 * 3600, "Expiration time not within 47-49 hours, got {} seconds", diff_secs);
+    assert!(
+        diff_secs >= 47 * 3600 && diff_secs <= 49 * 3600,
+        "Expiration time not within 47-49 hours, got {} seconds",
+        diff_secs
+    );
 
     // Verify additional fields in the full invitation response
     assert_eq!(json_resp["invitedName"], "Test User");
@@ -110,10 +117,16 @@ async fn test_create_invitation() {
 
     // Verify stored invitation
     let invitations = match &store {
-        TestStore::Mock(mock) => mock.get_invitations_by_creator_id("test-user-id").await.unwrap(),
-        TestStore::DynamoDB(dynamo) => dynamo.get_invitations_by_creator_id("test-user-id").await.unwrap(),
+        TestStore::Mock(mock) => mock
+            .get_invitations_by_creator_id("test-user-id")
+            .await
+            .unwrap(),
+        TestStore::DynamoDB(dynamo) => dynamo
+            .get_invitations_by_creator_id("test-user-id")
+            .await
+            .unwrap(),
     };
-    
+
     assert_eq!(invitations.len(), 1);
     let inv = &invitations[0];
     assert_eq!(inv.creator_id, "test-user-id");
@@ -128,7 +141,10 @@ async fn test_handle_invitation() {
     let (app, store) = create_test_app().await;
 
     // Set SNS topic ARN for testing
-    env::set_var("SNS_TOPIC_ARN", "arn:aws:sns:us-east-1:123456789012:test-topic");
+    env::set_var(
+        "SNS_TOPIC_ARN",
+        "arn:aws:sns:us-east-1:123456789012:test-topic",
+    );
 
     // seed an invitation directly
     let now = Utc::now();
@@ -145,7 +161,7 @@ async fn test_handle_invitation() {
         linked_user_id: None,
         creator_id: "creator-id".to_string(),
     };
-    
+
     debug!("Creating test invitation with code: {}", invite_code);
     match &store {
         TestStore::Mock(mock) => mock.create_invitation(invitation.clone()).await.unwrap(),
@@ -175,7 +191,7 @@ async fn test_handle_invitation() {
         TestStore::Mock(mock) => mock.get_invitation_by_code(&invite_code).await.unwrap(),
         TestStore::DynamoDB(dynamo) => dynamo.get_invitation_by_code(&invite_code).await.unwrap(),
     };
-    
+
     assert!(updated_inv.opened);
     assert_eq!(updated_inv.linked_user_id, Some("user-456".to_string()));
 
@@ -189,7 +205,7 @@ async fn test_handle_invitation() {
         "invite_code": updated_inv.invite_code,
         "timestamp": Utc::now().to_rfc3339() // Cannot match exactly, it's generated at runtime
     });
-    
+
     // Verify important fields in the event payload
     assert_eq!(event_payload["event_type"], "invitation_viewed");
     assert_eq!(event_payload["invitation_id"], updated_inv.id);
@@ -202,7 +218,7 @@ async fn test_handle_invitation() {
 #[tokio::test]
 async fn test_handle_invitation_expired_code() {
     let (app, store) = create_test_app().await;
-    
+
     // seed an expired invitation
     let now = Utc::now();
     let id = Uuid::new_v4().to_string();
@@ -218,8 +234,11 @@ async fn test_handle_invitation_expired_code() {
         linked_user_id: None,
         creator_id: "creator-id".to_string(),
     };
-    
-    debug!("Creating expired test invitation with code: {}", invite_code);
+
+    debug!(
+        "Creating expired test invitation with code: {}",
+        invite_code
+    );
     match &store {
         TestStore::Mock(mock) => mock.create_invitation(invitation.clone()).await.unwrap(),
         TestStore::DynamoDB(dynamo) => dynamo.create_invitation(invitation.clone()).await.unwrap(),
@@ -246,16 +265,16 @@ async fn test_handle_invitation_expired_code() {
 #[tokio::test]
 async fn test_refresh_invitation() {
     let (app, store) = create_test_app().await;
-    
+
     let now = Utc::now();
     let id = Uuid::new_v4().to_string();
     let old_code = "OLDCODE1".to_string();
-    
+
     // Use the same dates for both mock and DynamoDB
     // Create time in the past, not yet expired (for both implementations)
     let create_time = now - Duration::hours(5); // Created 5 hours ago
     let expiry_time = now + Duration::hours(1); // Expires 1 hour from now
-    
+
     let invitation = Invitation {
         id: id.clone(),
         invite_code: old_code.clone(),
@@ -267,13 +286,16 @@ async fn test_refresh_invitation() {
         linked_user_id: None,
         creator_id: "test-user-id".to_string(),
     };
-    
-    debug!("Creating test invitation for refresh with code: {}", old_code);
+
+    debug!(
+        "Creating test invitation for refresh with code: {}",
+        old_code
+    );
     match &store {
         TestStore::Mock(mock) => mock.create_invitation(invitation.clone()).await.unwrap(),
         TestStore::DynamoDB(dynamo) => dynamo.create_invitation(invitation.clone()).await.unwrap(),
     };
-    
+
     // Add a delay for DynamoDB consistency
     if matches!(store, TestStore::DynamoDB(_)) {
         debug!("Adding delay for DynamoDB consistency");
@@ -283,12 +305,7 @@ async fn test_refresh_invitation() {
     let path = format!("/invitations/{}/refresh", id);
     let response = app
         .clone()
-        .oneshot(create_test_request(
-            "PATCH",
-            &path,
-            "test-user-id",
-            None,
-        ))
+        .oneshot(create_test_request("PATCH", &path, "test-user-id", None))
         .await
         .unwrap();
 
@@ -298,10 +315,16 @@ async fn test_refresh_invitation() {
     assert_ne!(new_code, old_code);
 
     let expires_at = json_resp["expiresAt"].as_str().unwrap();
-    let expires_at_dt = DateTime::parse_from_rfc3339(expires_at).unwrap().with_timezone(&Utc);
+    let expires_at_dt = DateTime::parse_from_rfc3339(expires_at)
+        .unwrap()
+        .with_timezone(&Utc);
     let now2 = Utc::now();
     let diff_secs = (expires_at_dt - now2).num_seconds();
-    assert!(diff_secs >= 47 * 3600 && diff_secs <= 49 * 3600, "Expiration time not within 47-49 hours, got {} seconds", diff_secs);
+    assert!(
+        diff_secs >= 47 * 3600 && diff_secs <= 49 * 3600,
+        "Expiration time not within 47-49 hours, got {} seconds",
+        diff_secs
+    );
 
     // Verify full response fields
     assert_eq!(json_resp["id"], id);
@@ -321,7 +344,7 @@ async fn test_refresh_invitation() {
         TestStore::Mock(mock) => mock.get_invitation(&id).await.unwrap(),
         TestStore::DynamoDB(dynamo) => dynamo.get_invitation(&id).await.unwrap(),
     };
-    
+
     assert_eq!(refreshed.invite_code, new_code.to_string());
     assert!(!refreshed.opened);
     assert!(refreshed.linked_user_id.is_none());
@@ -330,7 +353,7 @@ async fn test_refresh_invitation() {
 #[tokio::test]
 async fn test_refresh_invitation_invalid_id() {
     let (app, store) = create_test_app().await;
-    
+
     let now = Utc::now();
     let id = Uuid::new_v4().to_string();
     let invitation = Invitation {
@@ -344,7 +367,7 @@ async fn test_refresh_invitation_invalid_id() {
         linked_user_id: None,
         creator_id: "owner-id".to_string(),
     };
-    
+
     debug!("Creating test invitation with different owner id: {}", id);
     match &store {
         TestStore::Mock(mock) => mock.create_invitation(invitation.clone()).await.unwrap(),
@@ -354,12 +377,7 @@ async fn test_refresh_invitation_invalid_id() {
     let path = format!("/invitations/{}/refresh", id);
     let response = app
         .clone()
-        .oneshot(create_test_request(
-            "PATCH",
-            &path,
-            "other-user-id",
-            None,
-        ))
+        .oneshot(create_test_request("PATCH", &path, "other-user-id", None))
         .await
         .unwrap();
 
@@ -369,7 +387,7 @@ async fn test_refresh_invitation_invalid_id() {
 #[tokio::test]
 async fn test_handle_invitation_invalid_code() {
     let (app, store) = create_test_app().await;
-    
+
     let now = Utc::now();
     let id = Uuid::new_v4().to_string();
     let invitation = Invitation {
@@ -383,7 +401,7 @@ async fn test_handle_invitation_invalid_code() {
         linked_user_id: None,
         creator_id: "creator-id".to_string(),
     };
-    
+
     debug!("Creating test invitation with code VALID123");
     match &store {
         TestStore::Mock(mock) => mock.create_invitation(invitation.clone()).await.unwrap(),
@@ -420,7 +438,12 @@ async fn test_get_my_invitations() {
         ("User 3", "box-789", "other-user-id"),
     ] {
         let id = Uuid::new_v4().to_string();
-        let invite_code = Uuid::new_v4().to_string().chars().take(8).collect::<String>().to_uppercase();
+        let invite_code = Uuid::new_v4()
+            .to_string()
+            .chars()
+            .take(8)
+            .collect::<String>()
+            .to_uppercase();
         let now = Utc::now();
         let invitation = Invitation {
             id,
@@ -433,14 +456,21 @@ async fn test_get_my_invitations() {
             linked_user_id: None,
             creator_id: creator.to_string(),
         };
-        
-        trace!("Creating invitation for {}, box {}, creator {}", name, box_id, creator);
+
+        trace!(
+            "Creating invitation for {}, box {}, creator {}",
+            name,
+            box_id,
+            creator
+        );
         match &store {
             TestStore::Mock(mock) => mock.create_invitation(invitation.clone()).await.unwrap(),
-            TestStore::DynamoDB(dynamo) => dynamo.create_invitation(invitation.clone()).await.unwrap(),
+            TestStore::DynamoDB(dynamo) => {
+                dynamo.create_invitation(invitation.clone()).await.unwrap()
+            }
         };
     }
-    
+
     // Add a delay to allow for DynamoDB consistency
     if matches!(store, TestStore::DynamoDB(_)) {
         debug!("Adding delay for DynamoDB consistency");
@@ -449,7 +479,12 @@ async fn test_get_my_invitations() {
 
     let response = app
         .clone()
-        .oneshot(create_test_request("GET", "/invitations/me", "test-user-id", None))
+        .oneshot(create_test_request(
+            "GET",
+            "/invitations/me",
+            "test-user-id",
+            None,
+        ))
         .await
         .unwrap();
 
@@ -468,7 +503,12 @@ async fn test_get_my_invitations_empty() {
 
     let response = app
         .clone()
-        .oneshot(create_test_request("GET", "/invitations/me", "test-user-id", None))
+        .oneshot(create_test_request(
+            "GET",
+            "/invitations/me",
+            "test-user-id",
+            None,
+        ))
         .await
         .unwrap();
 
@@ -486,7 +526,12 @@ async fn test_get_my_invitations_error() {
     let app = create_router_with_store(store.clone(), "");
 
     let response = app
-        .oneshot(create_test_request("GET", "/invitations/me", "test-user-id", None))
+        .oneshot(create_test_request(
+            "GET",
+            "/invitations/me",
+            "test-user-id",
+            None,
+        ))
         .await
         .unwrap();
 

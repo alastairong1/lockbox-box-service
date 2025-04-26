@@ -13,7 +13,7 @@ use std::collections::HashMap;
 use std::env;
 
 use crate::error::{map_dynamo_error, Result, StoreError};
-use crate::models::{BoxRecord, Invitation, now_str};
+use crate::models::{now_str, BoxRecord, Invitation};
 
 // Invitation Store Constants
 const TABLE_NAME: &str = "invitation-table";
@@ -70,8 +70,7 @@ impl DynamoBoxStore {
         let client = Client::new(&config);
 
         // Use environment variable for table name if available
-        let table_name =
-            env::var("DYNAMODB_TABLE").unwrap_or_else(|_| BOX_TABLE_NAME.to_string());
+        let table_name = env::var("DYNAMODB_TABLE").unwrap_or_else(|_| BOX_TABLE_NAME.to_string());
 
         Self { client, table_name }
     }
@@ -159,39 +158,40 @@ impl super::BoxStore for DynamoBoxStore {
     async fn update_box(&self, box_record: BoxRecord) -> Result<BoxRecord> {
         // Clone the box record for modification
         let mut updated_box = box_record.clone();
-        
+
         // Update the timestamp
         updated_box.updated_at = now_str();
-        
+
         // Increment the version number
         let current_version = updated_box.version;
         updated_box.version = current_version + 1;
-        
+
         // Convert to DynamoDB item
         let item = to_item(&updated_box)?;
-        
+
         // Create a conditional expression to check the version
         let condition_expression = if current_version > 0 {
             "version = :current_version"
         } else {
             "attribute_not_exists(version) OR version = :current_version"
         };
-        
+
         // Create expression attribute values for version check
         let mut expr_attr_values = HashMap::new();
         expr_attr_values.insert(
             ":current_version".to_string(),
             AttributeValue::N(current_version.to_string()),
         );
-        
+
         // Build the update request with conditional expression
-        let request = self.client
+        let request = self
+            .client
             .put_item()
             .table_name(&self.table_name)
             .set_item(Some(item))
             .condition_expression(condition_expression)
             .set_expression_attribute_values(Some(expr_attr_values));
-        
+
         // Execute the update
         match request.send().await {
             Ok(_) => Ok(updated_box),
@@ -206,7 +206,7 @@ impl super::BoxStore for DynamoBoxStore {
                         )));
                     }
                 }
-                
+
                 // Other error
                 Err(map_dynamo_error("put_item", err))
             }
@@ -426,8 +426,8 @@ impl super::InvitationStore for DynamoInvitationStore {
         for item in items {
             let invitation: Invitation = from_item(item.clone())?;
             // Filter out expired invitations
-            let expires_at =
-                chrono::DateTime::parse_from_rfc3339(&invitation.expires_at).map_err(|_| {
+            let expires_at = chrono::DateTime::parse_from_rfc3339(&invitation.expires_at)
+                .map_err(|_| {
                     StoreError::InternalError("Invalid expiration date format".to_string())
                 })?
                 .with_timezone(&Utc);
