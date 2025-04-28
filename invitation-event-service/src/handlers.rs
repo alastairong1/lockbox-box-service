@@ -1,5 +1,5 @@
 // Import shared models and store
-use lockbox_shared::models::{events::InvitationEvent, Guardian};
+use lockbox_shared::models::events::InvitationEvent;
 use lockbox_shared::store::BoxStore;
 use std::error::Error;
 use std::sync::Arc; // Add Arc for shared state // Ensure Error trait is in scope

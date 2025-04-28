@@ -167,7 +167,7 @@ async fn create_test_app() -> (Router, TestStore) {
 
         // Clean the table to start fresh
         debug!("Clearing DynamoDB test table");
-        clear_dynamo_table(&client, TEST_TABLE_NAME).await;
+        let _ = clear_dynamo_table(&client, TEST_TABLE_NAME).await;
 
         // Create the DynamoDB store with our test table
         let store = Arc::new(DynamoBoxStore::with_client_and_table(

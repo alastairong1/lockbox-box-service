@@ -101,20 +101,20 @@ mod optional_field_serde {
         }
     }
 
-    pub fn serialize<S, T>(
-        value: &Option<OptionalField<T>>,
-        serializer: S,
-    ) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-        T: serde::Serialize,
-    {
-        match value {
-            Some(OptionalField::Value(val)) => serializer.serialize_some(val),
-            Some(OptionalField::Null) => serializer.serialize_none(),
-            None => serializer.serialize_none(),
-        }
-    }
+    // pub fn serialize<S, T>(
+    //     value: &Option<OptionalField<T>>,
+    //     serializer: S,
+    // ) -> Result<S::Ok, S::Error>
+    // where
+    //     S: Serializer,
+    //     T: serde::Serialize,
+    // {
+    //     match value {
+    //         Some(OptionalField::Value(val)) => serializer.serialize_some(val),
+    //         Some(OptionalField::Null) => serializer.serialize_none(),
+    //         None => serializer.serialize_none(),
+    //     }
+    // }
 }
 
 // Additional request/response types

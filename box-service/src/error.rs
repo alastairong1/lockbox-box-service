@@ -34,16 +34,20 @@ impl AppError {
         AppError::NotFound(msg)
     }
 
-    pub fn validation_error(msg: String) -> Self {
-        AppError::BadRequest(msg)
-    }
-
     pub fn bad_request(msg: String) -> Self {
         AppError::BadRequest(msg)
     }
 
     pub fn internal_server_error(msg: String) -> Self {
         AppError::InternalServerError(msg)
+    }
+
+    pub fn internal_error<T: std::fmt::Display>(error: T) -> Self {
+        AppError::InternalServerError(error.to_string())
+    }
+
+    pub fn not_found_error(message: String) -> Self {
+        AppError::NotFound(message)
     }
 }
 

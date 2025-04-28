@@ -489,16 +489,49 @@ fn map_scan_dynamo_error(err: SdkError<ScanError>) -> StoreError {
     StoreError::InternalError(format!("DynamoDB scan error: {}", err))
 }
 
-// Add Default impl for convenience
-impl Default for DynamoInvitationStore {
-    fn default() -> Self {
-        // For the default implementation, we'll need to use the tokio runtime to run the async new() function
-        // This is not ideal, but it's a reasonable fallback for Default
+// Builder pattern alternative
+impl DynamoInvitationStore {
+    /// Creates a new builder to configure a DynamoInvitationStore
+    pub fn builder() -> DynamoInvitationStoreBuilder {
+        DynamoInvitationStoreBuilder::default()
+    }
+
+    /// Synchronous constructor that creates a store with default AWS config
+    /// Note: This should only be used in non-async contexts
+    pub fn new_blocking() -> Self {
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
             .expect("Failed to create Tokio runtime");
 
         runtime.block_on(Self::new())
+    }
+}
+
+pub struct DynamoInvitationStoreBuilder {
+    table_name: Option<String>,
+}
+
+impl Default for DynamoInvitationStoreBuilder {
+    fn default() -> Self {
+        Self { table_name: None }
+    }
+}
+
+impl DynamoInvitationStoreBuilder {
+    pub fn table_name(mut self, table_name: String) -> Self {
+        self.table_name = Some(table_name);
+        self
+    }
+
+    pub async fn build(self) -> DynamoInvitationStore {
+        let config = aws_config::defaults(BehaviorVersion::latest()).load().await;
+        let client = Client::new(&config);
+
+        let table_name = self.table_name.unwrap_or_else(|| {
+            env::var("DYNAMODB_INVITATION_TABLE").unwrap_or_else(|_| TABLE_NAME.to_string())
+        });
+
+        DynamoInvitationStore { client, table_name }
     }
 }

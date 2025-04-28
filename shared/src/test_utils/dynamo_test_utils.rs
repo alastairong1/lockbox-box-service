@@ -200,25 +200,24 @@ pub async fn create_dynamo_table(
 }
 
 // Helper to clean the DynamoDB table between tests
-pub async fn clear_dynamo_table(client: &Client, table_name: &str) {
+pub async fn clear_dynamo_table(client: &Client, table_name: &str) -> Result<(), Box<dyn Error>> {
     let mut last_key = None;
     loop {
-        let scan_resp = client
+        let scan_resp_result = client
             .scan()
             .table_name(table_name)
             .set_exclusive_start_key(last_key.clone())
             .send()
-            .await
-            .map_err(|e| {
-                error!("Failed to scan table '{}': {}", table_name, e);
-                e
-            })
-            .ok(); // Ignore scan errors to keep the test running
+            .await;
 
-        if scan_resp.is_none() {
-            break; // Exit loop if scan failed
-        }
-        let scan_resp = scan_resp.unwrap();
+        let scan_resp = match scan_resp_result {
+            Ok(output) => output,
+            Err(e) => {
+                error!("Failed to scan table '{}': {}", table_name, e);
+                // Propagate the error, boxing it
+                return Err(Box::new(e));
+            }
+        };
 
         if let Some(items) = scan_resp.items {
             for item in &items {
@@ -235,9 +234,9 @@ pub async fn clear_dynamo_table(client: &Client, table_name: &str) {
                                     "Failed to delete item '{}' from table '{}': {}",
                                     id_str, table_name, e
                                 );
-                                e
-                            })
-                            .ok(); // Ignore individual delete failures
+                                // Box the error before propagation via ?
+                                Box::new(e) as Box<dyn Error>
+                            })?;
                     }
                 }
             }
@@ -245,9 +244,10 @@ pub async fn clear_dynamo_table(client: &Client, table_name: &str) {
 
         last_key = scan_resp.last_evaluated_key;
         if last_key.is_none() {
-            break;
+            break; // No more items to scan
         }
     }
+    Ok(())
 }
 
 // Helper to create the invitation table for testing

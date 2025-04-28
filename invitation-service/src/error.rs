@@ -20,9 +20,6 @@ pub enum AppError {
     #[error("Invitation expired")]
     InvitationExpired,
 
-    #[error("Request timeout: {0}")]
-    Timeout(String),
-
     #[error("Internal server error: {0}")]
     InternalServerError(String),
 
@@ -31,6 +28,9 @@ pub enum AppError {
 
     #[error("Serialization error: {0}")]
     SerializationError(#[from] serde_json::Error),
+
+    #[error("Bad gateway: {0}")]
+    BadGateway(String),
 }
 
 impl IntoResponse for AppError {
@@ -52,10 +52,6 @@ impl IntoResponse for AppError {
                 tracing::warn!("Invitation expired");
                 (StatusCode::GONE, "Invitation has expired".to_string())
             }
-            AppError::Timeout(msg) => {
-                tracing::warn!("Request timeout: {}", msg);
-                (StatusCode::REQUEST_TIMEOUT, msg)
-            }
             AppError::InternalServerError(msg) => {
                 tracing::error!("Internal server error: {}", msg);
                 (
@@ -70,6 +66,10 @@ impl IntoResponse for AppError {
             AppError::SerializationError(err) => {
                 tracing::warn!("Serialization error: {}", err);
                 (StatusCode::BAD_REQUEST, "Invalid data format".to_string())
+            }
+            AppError::BadGateway(msg) => {
+                tracing::warn!("Bad gateway error: {}", msg);
+                (StatusCode::BAD_GATEWAY, msg)
             }
         };
 

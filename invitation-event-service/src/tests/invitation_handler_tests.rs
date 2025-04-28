@@ -66,14 +66,14 @@ async fn create_test_store() -> TestStore {
         // Set up DynamoDB store
         let client = create_dynamo_client().await;
 
+        // Ensure the table is clean before the test
+        let _ = clear_dynamo_table(&client, TEST_TABLE_NAME).await;
+
         // Create/clear the test table
         match create_box_table(&client, TEST_TABLE_NAME).await {
             Ok(_) => log::debug!("Test table created/exists successfully"),
             Err(e) => log::error!("Error setting up test table: {}", e),
         }
-
-        // Clean the table to start fresh
-        clear_dynamo_table(&client, TEST_TABLE_NAME).await;
 
         // Create the store with the test table
         let store = Arc::new(DynamoBoxStore::with_client_and_table(
