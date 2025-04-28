@@ -4,7 +4,8 @@ use lockbox_shared::store::BoxStore;
 use std::error::Error;
 use std::sync::Arc; // Add Arc for shared state // Ensure Error trait is in scope
 
-use tracing::{error, info, warn};
+// use tracing::{error, info, warn}; // Remove tracing import
+use log::{error, info, warn}; // Add log import
 
 // Import our custom error type
 use crate::errors::AppError;
@@ -75,11 +76,9 @@ pub async fn process_invitation_viewing(
     invitation_id: &str,
     user_id: &str,
 ) -> Result<(), AppError> {
-    log::info!(
+    info!(
         "Processing invitation viewing: box_id={}, invitation_id={}, user_id={}",
-        box_id,
-        invitation_id,
-        user_id
+        box_id, invitation_id, user_id
     );
 
     if user_id.is_empty() {
@@ -101,7 +100,7 @@ pub async fn process_invitation_viewing(
     while retries < MAX_RETRIES {
         match update_specific_guardian(&store, box_id, invitation_id, user_id).await {
             Ok(_) => {
-                log::info!(
+                info!(
                     "Successfully updated guardian for invitation: box_id={}, invitation_id={}, user_id={}",
                     box_id, invitation_id, user_id
                 );
@@ -114,7 +113,7 @@ pub async fn process_invitation_viewing(
                 // Simple backoff with minimal jitter
                 let delay_ms = 50 + (retries as u64 * 20);
 
-                log::info!(
+                info!(
                     "Error updating guardian (retry {}/{}): box_id={}, invitation_id={}, waiting {}ms",
                     retries, MAX_RETRIES, box_id, invitation_id, delay_ms
                 );
@@ -127,12 +126,9 @@ pub async fn process_invitation_viewing(
 
     // If we reached max retries, log and return the last error
     if let Some(err) = last_error {
-        log::error!(
+        error!(
             "Failed to update guardian after {} retries: box_id={}, invitation_id={}, user_id={}",
-            MAX_RETRIES,
-            box_id,
-            invitation_id,
-            user_id
+            MAX_RETRIES, box_id, invitation_id, user_id
         );
 
         // Final check - verify current box state to provide better diagnostics
@@ -145,7 +141,7 @@ pub async fn process_invitation_viewing(
                 match guardian {
                     Some(g) => {
                         if g.id == user_id && g.status == "viewed" {
-                            log::info!(
+                            info!(
                                 "Guardian was actually updated by another process: box_id={}, invitation_id={}, user_id={}",
                                 box_id, invitation_id, user_id
                             );

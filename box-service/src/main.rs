@@ -8,16 +8,20 @@ mod routes;
 mod tests;
 
 use axum::{body::Body, extract::Request, response::Response};
+use env_logger;
 use lambda_http::{
     run, service_fn, Body as LambdaBody, Error, Request as LambdaRequest,
     Response as LambdaResponse,
 };
+use log::{debug, error, info, trace, warn};
+use routes::create_router;
+use std::net::SocketAddr;
 use tower::ServiceExt;
 
 // The Lambda handler function
 async fn function_handler(event: LambdaRequest) -> Result<LambdaResponse<LambdaBody>, Error> {
     // Log request details
-    tracing::info!(
+    info!(
         "Received Lambda request: method={:?}, path={:?}, query_params={:?}",
         event.method(),
         event.uri().path(),
@@ -32,34 +36,41 @@ async fn function_handler(event: LambdaRequest) -> Result<LambdaResponse<LambdaB
     let body = match body {
         LambdaBody::Empty => Body::empty(),
         LambdaBody::Text(text) => {
-            tracing::debug!("Request body (text): {}", text);
-            Body::from(text)
+            let body_bytes = text.into_bytes();
+            debug!(
+                "Request body (text): {}",
+                String::from_utf8_lossy(&body_bytes)
+            );
+            Body::from(body_bytes)
         }
         LambdaBody::Binary(data) => {
-            tracing::debug!("Request body (binary): {} bytes", data.len());
+            debug!("Request body (binary): {} bytes", data.len());
             Body::from(data)
         }
     };
 
     let http_request = Request::from_parts(parts, body);
-    tracing::debug!("Created HTTP request: {:?}", http_request);
+    debug!("Created HTTP request: {:?}", http_request);
 
     // Process the request through Axum
-    tracing::info!("Passing request to Axum router");
+    info!("Passing request to Axum router");
     let response = match app.oneshot(http_request).await {
         Ok(response) => {
-            tracing::info!("Received response from Axum: status={}", response.status());
+            info!("Received response from Axum: status={}", response.status());
             response
         }
         Err(err) => {
-            tracing::error!("Error from Axum router: {:?}", err);
-            return Err(err.into());
+            error!("Error from Axum router: {:?}", err);
+            return Err(Error::from(Box::new(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "Infallible error occurred",
+            ))));
         }
     };
 
     // Convert Axum's response to Lambda's response
     let lambda_response = response_to_lambda(response).await?;
-    tracing::info!(
+    info!(
         "Returning Lambda response: status={}",
         lambda_response.status()
     );
@@ -70,40 +81,51 @@ async fn function_handler(event: LambdaRequest) -> Result<LambdaResponse<LambdaB
 // Convert the Axum response to a format suitable for Lambda
 async fn response_to_lambda(response: Response) -> Result<LambdaResponse<LambdaBody>, Error> {
     let (parts, body) = response.into_parts();
-    tracing::debug!(
+    debug!(
         "Converting response: status={}, headers={:?}",
-        parts.status,
-        parts.headers
+        parts.status, parts.headers
     );
 
     let bytes = match axum::body::to_bytes(body, usize::MAX).await {
         Ok(bytes) => {
-            tracing::debug!("Response body size: {} bytes", bytes.len());
+            debug!("Response body size: {} bytes", bytes.len());
             bytes
         }
         Err(err) => {
-            tracing::error!("Failed to read response body: {:?}", err);
-            return Err(err.into());
+            error!("Failed to read response body: {:?}", err);
+            return Err(Error::from(err));
         }
     };
 
     let builder = LambdaResponse::builder().status(parts.status);
 
-    // Add response headers
     let builder_with_headers = parts
         .headers
         .iter()
         .fold(builder, |builder, (name, value)| {
-            tracing::trace!("Adding response header: {}={:?}", name, value);
-            builder.header(name.as_str(), value.as_bytes())
+            trace!("Adding response header: {}={:?}", name, value);
+            if let Ok(v) = http::HeaderValue::from_bytes(value.as_bytes()) {
+                builder.header(name.as_str(), v)
+            } else {
+                warn!("Skipping invalid header value for key: {}", name);
+                builder
+            }
         });
 
     let lambda_response = if bytes.is_empty() {
-        tracing::debug!("Creating empty response body");
+        debug!("Creating empty response body");
         builder_with_headers.body(LambdaBody::Empty)?
     } else {
-        tracing::debug!("Creating binary response body: {} bytes", bytes.len());
-        builder_with_headers.body(LambdaBody::Binary(bytes.to_vec()))?
+        match String::from_utf8(bytes.to_vec()) {
+            Ok(s) => {
+                debug!("Creating text response body");
+                builder_with_headers.body(LambdaBody::Text(s))?
+            }
+            Err(_) => {
+                debug!("Creating binary response body: {} bytes", bytes.len());
+                builder_with_headers.body(LambdaBody::Binary(bytes.to_vec()))?
+            }
+        }
     };
 
     Ok(lambda_response)
@@ -111,35 +133,30 @@ async fn response_to_lambda(response: Response) -> Result<LambdaResponse<LambdaB
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
-    // Initialize tracing with enhanced configuration
-    let log_level = std::env::var("RUST_LOG").unwrap_or_else(|_| "info,box_service=debug".into());
+    // Initialize env_logger instead of tracing_subscriber
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
+    info!("Logging initialized with env_logger");
 
-    // Configure and initialize tracing
-    tracing_subscriber::fmt()
-        .with_env_filter(log_level)
-        .with_ansi(false) // Disable ANSI colors in Lambda environment
-        .with_target(true) // Include the target (module path) in logs
-        .init();
+    let app = create_router().await;
 
-    tracing::info!(
-        "Logging initialized at level: {}",
-        std::env::var("RUST_LOG").unwrap_or_else(|_| "info".into())
-    );
-
-    // Log AWS Lambda environment information
+    // Check if running in Lambda environment
     if let Ok(function_name) = std::env::var("AWS_LAMBDA_FUNCTION_NAME") {
-        tracing::info!(
-            "Starting AWS Lambda function: {} (version: {})",
+        info!(
+            "Running in AWS Lambda environment: {} (version: {})",
             function_name,
             std::env::var("AWS_LAMBDA_FUNCTION_VERSION").unwrap_or_else(|_| "unknown".into())
         );
+        // Use the function_handler defined above for lambda_http
+        run(service_fn(function_handler)).await?;
     } else {
-        tracing::info!("Starting service in non-Lambda environment");
+        info!("Starting service in non-Lambda environment");
+        let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
+        info!("listening on {}", addr);
+
+        let listener = tokio::net::TcpListener::bind(&addr).await?;
+        axum::serve(listener, app.into_make_service()).await?;
     }
 
-    // Run as Lambda function
-    run(service_fn(function_handler)).await?;
-
-    tracing::info!("Lambda function completed");
+    info!("Service finished");
     Ok(())
 }

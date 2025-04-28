@@ -2,7 +2,9 @@
 mod dynamo_tests {
     use crate::models::BoxRecord;
     use crate::store::{dynamo::DynamoBoxStore, BoxStore};
+    use crate::test_utils::test_logging::init_test_logging;
     use aws_sdk_dynamodb::Client;
+    use log::info;
     use uuid::Uuid;
 
     fn create_test_box(name: &str, owner_id: &str) -> BoxRecord {
@@ -189,9 +191,10 @@ mod dynamo_tests {
     // Test for creating a box
     #[tokio::test]
     async fn dynamo_store_create_box() {
+        init_test_logging();
         // Check if DynamoDB local is running
         if !is_dynamodb_local_running() {
-            println!("Skipping test: DynamoDB Local is not running");
+            info!("Skipping test dynamo_store_create_box: DynamoDB Local is not running");
             return;
         }
 
@@ -218,9 +221,10 @@ mod dynamo_tests {
     // Test for getting a box by ID
     #[tokio::test]
     async fn dynamo_store_get_box() {
+        init_test_logging();
         // Check if DynamoDB local is running
         if !is_dynamodb_local_running() {
-            println!("Skipping test: DynamoDB Local is not running");
+            info!("Skipping test dynamo_store_get_box: DynamoDB Local is not running");
             return;
         }
 
@@ -248,9 +252,10 @@ mod dynamo_tests {
     // Test for getting boxes by owner
     #[tokio::test]
     async fn dynamo_store_get_boxes_by_owner() {
+        init_test_logging();
         // Check if DynamoDB local is running
         if !is_dynamodb_local_running() {
-            println!("Skipping test: DynamoDB Local is not running");
+            info!("Skipping test dynamo_store_get_boxes_by_owner: DynamoDB Local is not running");
             return;
         }
 
@@ -288,9 +293,10 @@ mod dynamo_tests {
     // Test for updating a box
     #[tokio::test]
     async fn dynamo_store_update_box() {
+        init_test_logging();
         // Check if DynamoDB local is running
         if !is_dynamodb_local_running() {
-            println!("Skipping test: DynamoDB Local is not running");
+            info!("Skipping test dynamo_store_update_box: DynamoDB Local is not running");
             return;
         }
 
@@ -321,9 +327,10 @@ mod dynamo_tests {
     // Test for deleting a box
     #[tokio::test]
     async fn dynamo_store_delete_box() {
+        init_test_logging();
         // Check if DynamoDB local is running
         if !is_dynamodb_local_running() {
-            println!("Skipping test: DynamoDB Local is not running");
+            info!("Skipping test dynamo_store_delete_box: DynamoDB Local is not running");
             return;
         }
 
@@ -351,9 +358,10 @@ mod dynamo_tests {
     // Test for getting boxes by guardian ID
     #[tokio::test]
     async fn dynamo_store_get_boxes_by_guardian_id() {
+        init_test_logging();
         // Check if DynamoDB local is running
         if !is_dynamodb_local_running() {
-            println!("Skipping test: DynamoDB Local is not running");
+            info!("Skipping test dynamo_store_get_boxes_by_guardian_id: DynamoDB Local is not running");
             return;
         }
 

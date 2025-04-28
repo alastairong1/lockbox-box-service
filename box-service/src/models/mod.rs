@@ -87,7 +87,7 @@ pub enum OptionalField<T> {
 // Custom serde module for optional fields that need to distinguish between null and absent
 mod optional_field_serde {
     use super::OptionalField;
-    use serde::{Deserialize, Deserializer, Serializer};
+    use serde::{Deserialize, Deserializer};
 
     pub fn deserialize<'de, D, T>(deserializer: D) -> Result<Option<OptionalField<T>>, D::Error>
     where

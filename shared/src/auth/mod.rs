@@ -1,5 +1,6 @@
 use axum::{extract::Request, middleware::Next, response::Response};
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
+use log::{debug, info, warn};
 use serde::{Deserialize, Serialize};
 
 use crate::error::{Result, StoreError};
@@ -40,22 +41,22 @@ pub struct Claims {
 
 // JWT decoder without verification - used since API Gateway already validated the token
 pub fn decode_jwt_payload(token: &str) -> Result<Claims> {
-    tracing::debug!("Decoding JWT payload");
+    debug!("Decoding JWT payload");
 
     // Extract payload (second part of the JWT)
     let parts: Vec<&str> = token.split('.').collect();
     if parts.len() != 3 {
-        tracing::warn!("Invalid JWT format: expected 3 parts, got {}", parts.len());
+        warn!("Invalid JWT format: expected 3 parts, got {}", parts.len());
         return Err(StoreError::AuthError("Invalid JWT format".into()));
     }
 
-    tracing::debug!("JWT structure verified, decoding payload part");
+    debug!("JWT structure verified, decoding payload part");
 
     // Decode the payload
     let payload_data = match URL_SAFE_NO_PAD.decode(parts[1]) {
         Ok(data) => data,
         Err(err) => {
-            tracing::warn!("Failed to base64 decode JWT payload: {:?}", err);
+            warn!("Failed to base64 decode JWT payload: {:?}", err);
             return Err(StoreError::AuthError("Could not decode JWT payload".into()));
         }
     };
@@ -63,15 +64,15 @@ pub fn decode_jwt_payload(token: &str) -> Result<Claims> {
     // Parse the payload
     match serde_json::from_slice::<Claims>(&payload_data) {
         Ok(claims) => {
-            tracing::debug!("JWT claims parsed successfully: sub={}", claims.sub);
+            debug!("JWT claims parsed successfully: sub={}", claims.sub);
             Ok(claims)
         }
         Err(err) => {
-            tracing::warn!("Failed to parse JWT claims: {:?}", err);
+            warn!("Failed to parse JWT claims: {:?}", err);
 
             // Try to parse as generic JSON to see what fields are missing
             if let Ok(value) = serde_json::from_slice::<serde_json::Value>(&payload_data) {
-                tracing::debug!("Raw JWT payload: {:?}", value);
+                debug!("Raw JWT payload: {:?}", value);
             }
 
             Err(StoreError::AuthError("Could not parse JWT claims".into()))
@@ -88,7 +89,7 @@ pub async fn auth_middleware(mut request: Request, next: Next) -> Response {
     }
 
     // Log request details
-    tracing::info!(
+    info!(
         "Auth middleware: method={:?}, path={:?}, query_params={:?}",
         request.method(),
         request.uri().path(),
@@ -99,7 +100,7 @@ pub async fn auth_middleware(mut request: Request, next: Next) -> Response {
     let auth_header = match request.headers().get("authorization") {
         Some(header) => header,
         None => {
-            tracing::warn!("Missing authorization header in request");
+            warn!("Missing authorization header in request");
             return Response::builder()
                 .status(http::StatusCode::UNAUTHORIZED)
                 .body(axum::body::Body::from("Missing authorization header"))
@@ -111,7 +112,7 @@ pub async fn auth_middleware(mut request: Request, next: Next) -> Response {
     let bearer_token = match auth_header.to_str() {
         Ok(token) => token,
         Err(err) => {
-            tracing::warn!("Invalid authorization header format: {:?}", err);
+            warn!("Invalid authorization header format: {:?}", err);
             return Response::builder()
                 .status(http::StatusCode::UNAUTHORIZED)
                 .body(axum::body::Body::from(
@@ -122,7 +123,7 @@ pub async fn auth_middleware(mut request: Request, next: Next) -> Response {
     };
 
     if !bearer_token.starts_with("Bearer ") {
-        tracing::warn!("Authorization header doesn't start with 'Bearer '");
+        warn!("Authorization header doesn't start with 'Bearer '");
         return Response::builder()
             .status(http::StatusCode::UNAUTHORIZED)
             .body(axum::body::Body::from(
@@ -132,7 +133,7 @@ pub async fn auth_middleware(mut request: Request, next: Next) -> Response {
     }
 
     let token = &bearer_token[7..]; // Skip "Bearer " prefix
-    tracing::debug!("JWT token length: {}", token.len());
+    debug!("JWT token length: {}", token.len());
 
     // Simple decode without verification - box service approach
     // API Gateway already verified the token
@@ -147,15 +148,15 @@ pub async fn auth_middleware(mut request: Request, next: Next) -> Response {
     };
 
     let user_id = claims.sub;
-    tracing::info!("Authenticated user ID: {}", user_id);
+    info!("Authenticated user ID: {}", user_id);
 
     // Store the user_id in the request extensions for later retrieval
     request.extensions_mut().insert(user_id);
 
     // Continue to the handler
-    tracing::debug!("Forwarding authenticated request to handler");
+    debug!("Forwarding authenticated request to handler");
     let response = next.run(request).await;
-    tracing::info!("Handler response status: {:?}", response.status());
+    info!("Handler response status: {:?}", response.status());
 
     response
 }

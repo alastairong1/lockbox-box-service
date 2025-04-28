@@ -4,6 +4,7 @@ use axum::{
     Json,
 };
 use chrono::{Duration, Utc};
+use log::error;
 use serde_json::json;
 use std::env;
 use std::sync::Arc;
@@ -54,6 +55,11 @@ pub async fn create_invitation<S: InvitationStore + ?Sized>(
         .await
         .map_err(|e| map_dynamo_error("create_invitation", e))?;
 
+    // Publish event to SNS
+    if let Err(err) = publish_invitation_event(&saved_invitation).await {
+        error!("Failed to publish invitation event: {:?}", err);
+    }
+
     // Return the full invitation object
     Ok(Json(saved_invitation))
 }
@@ -86,7 +92,7 @@ pub async fn handle_invitation<S: InvitationStore + ?Sized>(
 
     // Publish event to SNS
     if let Err(err) = publish_invitation_event(&updated_invitation).await {
-        tracing::error!("Failed to publish invitation event: {:?}", err);
+        error!("Failed to publish invitation event: {:?}", err);
     }
 
     // Return response with box_id to help frontend

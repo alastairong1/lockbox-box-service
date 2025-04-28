@@ -22,7 +22,6 @@ tokio = { version = "1.35.1", features = ["rt", "test-util", "macros"] }
 # Auth middleware dependencies
 axum = "0.7.2"
 base64 = "0.21.7"
-tracing = "0.1"
 jsonwebtoken = "9.2.0"
 http = "1.0.0"
 tower = { version = "0.4.13", features = ["util"] }

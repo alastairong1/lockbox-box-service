@@ -2,6 +2,7 @@ use axum::{
     extract::{Extension, Path, State},
     Json,
 };
+use log::{debug, trace, warn};
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -52,10 +53,13 @@ pub async fn get_guardian_box<S>(
 where
     S: BoxStore,
 {
-    println!("HELLO");
+    trace!("Fetching guardian box with id: {}", id);
     // Fetch the box from store
     let box_rec = store.get_box(&id).await?;
-    println!("Box record: {:#?}", box_rec);
+    debug!(
+        "Fetched box record for guardian: box_id={}, box_rec={:?}",
+        id, box_rec
+    );
 
     // TODO: query DB with filters instead
     if let Some(guardian_box) = convert_to_guardian_box(&box_rec, &user_id) {
@@ -88,7 +92,7 @@ where
         .is_some();
 
     if !is_guardian {
-        tracing::warn!("User {} is not a guardian for box {}", user_id, box_id);
+        warn!("User {} is not a guardian for box {}", user_id, box_id);
         return Err(AppError::unauthorized("Not a guardian for this box".into()));
     }
 

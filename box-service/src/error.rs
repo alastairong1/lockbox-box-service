@@ -3,6 +3,7 @@ use axum::{
     response::{IntoResponse, Response},
     Json,
 };
+use log::{error, info, warn};
 use serde_json::json;
 use thiserror::Error;
 
@@ -27,18 +28,22 @@ pub enum AppError {
 // Add back compatibility methods
 impl AppError {
     pub fn unauthorized(msg: String) -> Self {
+        warn!("Unauthorized error: {}", msg);
         AppError::Unauthorized(msg)
     }
 
     pub fn not_found(msg: String) -> Self {
+        warn!("Not found error: {}", msg);
         AppError::NotFound(msg)
     }
 
     pub fn bad_request(msg: String) -> Self {
+        warn!("Bad request error: {}", msg);
         AppError::BadRequest(msg)
     }
 
     pub fn internal_server_error(msg: String) -> Self {
+        error!("Internal server error: {}", msg);
         AppError::InternalServerError(msg)
     }
 
@@ -53,35 +58,35 @@ impl AppError {
 
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
-        let (status, message) = match &self {
+        let (status, error_message) = match self {
             AppError::Unauthorized(msg) => {
-                tracing::warn!("Unauthorized error: {}", msg);
+                warn!("Unauthorized error: {}", msg);
                 (StatusCode::UNAUTHORIZED, msg.clone())
             }
             AppError::NotFound(msg) => {
-                tracing::warn!("Not found error: {}", msg);
+                warn!("Not found error: {}", msg);
                 (StatusCode::NOT_FOUND, msg.clone())
             }
             AppError::BadRequest(msg) => {
-                tracing::warn!("Bad request error: {}", msg);
+                warn!("Bad request error: {}", msg);
                 (StatusCode::BAD_REQUEST, msg.clone())
             }
             AppError::InternalServerError(msg) => {
-                tracing::error!("Internal server error: {}", msg);
+                error!("Internal server error: {}", msg);
                 (StatusCode::INTERNAL_SERVER_ERROR, msg.clone())
             }
             AppError::SerializationError(err) => {
-                tracing::warn!("Serialization error: {}", err);
+                warn!("Serialization error: {}", err);
                 (StatusCode::BAD_REQUEST, err.to_string())
             }
         };
 
-        tracing::info!(
-            "Returning error response: status={}, message={}",
-            status,
-            message
+        let body = Json(json!({ "error": error_message }));
+        info!(
+            "Responding with error: status={}, message={:?}",
+            status, body
         );
-        (status, Json(json!({ "error": message }))).into_response()
+        (status, body).into_response()
     }
 }
 
@@ -92,6 +97,7 @@ impl From<lockbox_shared::error::StoreError> for AppError {
             lockbox_shared::error::StoreError::NotFound(msg) => AppError::NotFound(msg),
             lockbox_shared::error::StoreError::ValidationError(msg) => AppError::BadRequest(msg),
             lockbox_shared::error::StoreError::InternalError(msg) => {
+                error!("Store internal error: {}", msg);
                 AppError::InternalServerError(msg)
             }
             lockbox_shared::error::StoreError::InvitationExpired => {

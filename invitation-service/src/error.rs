@@ -3,6 +3,7 @@ use axum::{
     response::{IntoResponse, Response},
     Json,
 };
+use log::{error, warn};
 use serde_json::json;
 use thiserror::Error;
 
@@ -33,48 +34,64 @@ pub enum AppError {
     BadGateway(String),
 }
 
+impl AppError {
+    pub fn not_found(msg: String) -> Self {
+        warn!("Not found error: {}", msg);
+        Self::NotFound(msg)
+    }
+
+    pub fn unauthorized(msg: String) -> Self {
+        warn!("Unauthorized error: {}", msg);
+        Self::Unauthorized(msg)
+    }
+
+    pub fn bad_request(msg: String) -> Self {
+        warn!("Bad request error: {}", msg);
+        Self::BadRequest(msg)
+    }
+
+    pub fn invitation_expired() -> Self {
+        warn!("Invitation expired");
+        Self::InvitationExpired
+    }
+
+    pub fn internal_server_error(msg: String) -> Self {
+        error!("Internal server error: {}", msg);
+        Self::InternalServerError(msg)
+    }
+
+    pub fn forbidden(msg: String) -> Self {
+        warn!("Forbidden: {}", msg);
+        Self::Forbidden(msg)
+    }
+
+    pub fn bad_gateway(msg: String) -> Self {
+        warn!("Bad gateway error: {}", msg);
+        Self::BadGateway(msg)
+    }
+}
+
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
-        let (status, message) = match self {
-            AppError::NotFound(msg) => {
-                tracing::warn!("Not found error: {}", msg);
-                (StatusCode::NOT_FOUND, msg)
-            }
-            AppError::Unauthorized(msg) => {
-                tracing::warn!("Unauthorized error: {}", msg);
-                (StatusCode::UNAUTHORIZED, msg)
-            }
-            AppError::BadRequest(msg) => {
-                tracing::warn!("Bad request error: {}", msg);
-                (StatusCode::BAD_REQUEST, msg)
-            }
-            AppError::InvitationExpired => {
-                tracing::warn!("Invitation expired");
-                (StatusCode::GONE, "Invitation has expired".to_string())
-            }
-            AppError::InternalServerError(msg) => {
-                tracing::error!("Internal server error: {}", msg);
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    "Internal server error".to_string(),
-                )
-            }
-            AppError::Forbidden(msg) => {
-                tracing::warn!("Forbidden: {}", msg);
-                (StatusCode::FORBIDDEN, msg)
-            }
+        let (status, error_message) = match self {
+            AppError::NotFound(msg) => (StatusCode::NOT_FOUND, msg),
+            AppError::Unauthorized(msg) => (StatusCode::UNAUTHORIZED, msg),
+            AppError::BadRequest(msg) => (StatusCode::BAD_REQUEST, msg),
+            AppError::InvitationExpired => (
+                StatusCode::BAD_REQUEST,
+                "Invitation has expired".to_string(),
+            ),
+            AppError::InternalServerError(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg),
+            AppError::Forbidden(msg) => (StatusCode::FORBIDDEN, msg),
             AppError::SerializationError(err) => {
-                tracing::warn!("Serialization error: {}", err);
-                (StatusCode::BAD_REQUEST, "Invalid data format".to_string())
+                warn!("Serialization error: {}", err);
+                (StatusCode::BAD_REQUEST, err.to_string())
             }
-            AppError::BadGateway(msg) => {
-                tracing::warn!("Bad gateway error: {}", msg);
-                (StatusCode::BAD_GATEWAY, msg)
-            }
+            AppError::BadGateway(msg) => (StatusCode::BAD_GATEWAY, msg),
         };
 
-        // Build the error response
-        (status, Json(json!({ "error": message }))).into_response()
+        let body = Json(json!({ "error": error_message }));
+        (status, body).into_response()
     }
 }
 
@@ -90,6 +107,7 @@ impl From<lockbox_shared::error::StoreError> for AppError {
             lockbox_shared::error::StoreError::NotFound(msg) => AppError::NotFound(msg),
             lockbox_shared::error::StoreError::ValidationError(msg) => AppError::BadRequest(msg),
             lockbox_shared::error::StoreError::InternalError(msg) => {
+                error!("Store internal error: {}", msg);
                 AppError::InternalServerError(msg)
             }
             lockbox_shared::error::StoreError::InvitationExpired => AppError::InvitationExpired,

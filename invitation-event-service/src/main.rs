@@ -1,10 +1,10 @@
 use aws_lambda_events::event::sns::SnsEvent;
+use env_logger;
 use lambda_runtime::{service_fn, Error, LambdaEvent};
 use lockbox_shared::models::events::InvitationEvent;
 use lockbox_shared::store::{dynamo::DynamoBoxStore, BoxStore};
-use std::env;
+use log::{error, info};
 use std::sync::Arc;
-use tracing::{error, info};
 
 // Import the handlers module
 mod handlers;
@@ -16,10 +16,10 @@ mod tests;
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
-    // Initialize logging
-    tracing_subscriber::fmt()
-        .with_env_filter(env::var("RUST_LOG").unwrap_or_else(|_| "info".to_string()))
-        .init();
+    // Initialize env_logger
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
+
+    info!("Logging initialized with env_logger");
 
     info!("Starting Box Invitation Handler Lambda");
 
