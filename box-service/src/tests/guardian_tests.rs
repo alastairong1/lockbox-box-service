@@ -439,7 +439,7 @@ async fn test_lead_guardian_unlock_request() {
         .expect("Box should have unlockRequest field");
     assert_eq!(
         unlock_request.get("status").unwrap().as_str().unwrap(),
-        "requested"
+        "Requested"
     );
     assert_eq!(
         unlock_request.get("message").unwrap().as_str().unwrap(),

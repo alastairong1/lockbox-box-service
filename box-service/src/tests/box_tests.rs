@@ -717,7 +717,7 @@ async fn test_update_box_add_guardians() {
             "id": "test_guardian_1",
             "name": "Test Guardian",
             "leadGuardian": false,
-            "status": "invited",
+            "status": "Invited",
             "addedAt": "2023-01-01T12:00:00Z",
             "invitationId": "inv-test-guardian-1"
         }
@@ -1024,7 +1024,7 @@ async fn test_update_single_guardian() {
             "id": guardian_id,
             "name": "Guardian A",
             "leadGuardian": false,
-            "status": "accepted", // Change status from pending to accepted
+            "status": "Accepted",
             "addedAt": "2023-01-01T12:00:00Z",
             "invitationId": "inv-guardian-a"
         }
