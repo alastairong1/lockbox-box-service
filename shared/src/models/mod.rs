@@ -7,6 +7,7 @@ pub mod events;
 
 // Invitation statuses
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum InvitationStatus {
     Invited,
     Opened,
@@ -42,6 +43,7 @@ impl fmt::Display for InvitationStatus {
 
 // Guardian statuses
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum GuardianStatus {
     Invited,
     Viewed,
@@ -77,6 +79,7 @@ impl fmt::Display for GuardianStatus {
 
 // Unlock request statuses
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum UnlockRequestStatus {
     Requested, // Initial state when request is created (was Invited)
     Approved,  // When enough guardians have approved

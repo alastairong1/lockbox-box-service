@@ -23,6 +23,10 @@ pub enum AppError {
 
     #[error("Serialization error: {0}")]
     SerializationError(#[from] serde_json::Error),
+
+    // Add a specific variant for expired invitations with status 422
+    #[error("Invitation expired: {0}")]
+    InvitationExpired(String),
 }
 
 // Add back compatibility methods
@@ -81,6 +85,10 @@ impl IntoResponse for AppError {
                 warn!("Serialization error: {}", err);
                 (StatusCode::BAD_REQUEST, err.to_string())
             }
+            AppError::InvitationExpired(msg) => {
+                warn!("Invitation expired: {}", msg);
+                (StatusCode::UNPROCESSABLE_ENTITY, msg.clone())
+            }
         };
 
         let body = Json(json!({ "error": error_message }));
@@ -103,7 +111,8 @@ impl From<lockbox_shared::error::StoreError> for AppError {
                 AppError::InternalServerError(msg)
             }
             lockbox_shared::error::StoreError::InvitationExpired => {
-                AppError::BadRequest("Invitation has expired".into())
+                // Map to the specific 422 error variant
+                AppError::InvitationExpired("Invitation has expired".into())
             }
             lockbox_shared::error::StoreError::AuthError(msg) => AppError::Unauthorized(msg),
             lockbox_shared::error::StoreError::VersionConflict(msg) => {

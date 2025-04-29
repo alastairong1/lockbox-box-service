@@ -19,6 +19,7 @@ use crate::models::{now_str, BoxRecord, Invitation};
 const TABLE_NAME: &str = "invitation-table";
 const GSI_BOX_ID: &str = "box_id-index";
 const GSI_INVITE_CODE: &str = "invite_code-index";
+const GSI_CREATOR_ID: &str = "creator_id-index";
 
 // Box Store Constants
 const BOX_TABLE_NAME: &str = "box-table";
@@ -50,6 +51,15 @@ impl DynamoInvitationStore {
     #[allow(dead_code)]
     pub fn with_client_and_table(client: Client, table_name: String) -> Self {
         Self { client, table_name }
+    }
+
+    /// Helper method to check if an invitation has expired
+    fn is_expired(&self, expires_at_str: &str) -> Result<bool> {
+        let expires_at = chrono::DateTime::parse_from_rfc3339(expires_at_str)
+            .map_err(|_| StoreError::InternalError("Invalid expiration date format".to_string()))?
+            .with_timezone(&Utc);
+
+        Ok(Utc::now() > expires_at)
     }
 }
 
@@ -321,11 +331,7 @@ impl super::InvitationStore for DynamoInvitationStore {
         let invitation: Invitation = from_item(item.clone())?;
 
         // Check if the invitation has expired
-        let expires_at = chrono::DateTime::parse_from_rfc3339(&invitation.expires_at)
-            .map_err(|_| StoreError::InternalError("Invalid expiration date format".to_string()))?
-            .with_timezone(&Utc);
-
-        if Utc::now() > expires_at {
+        if self.is_expired(&invitation.expires_at)? {
             return Err(StoreError::InvitationExpired);
         }
 
@@ -362,11 +368,7 @@ impl super::InvitationStore for DynamoInvitationStore {
         let invitation: Invitation = from_item(items[0].clone())?;
 
         // Check if the invitation has expired
-        let expires_at = chrono::DateTime::parse_from_rfc3339(&invitation.expires_at)
-            .map_err(|_| StoreError::InternalError("Invalid expiration date format".to_string()))?
-            .with_timezone(&Utc);
-
-        if Utc::now() > expires_at {
+        if self.is_expired(&invitation.expires_at)? {
             return Err(StoreError::InvitationExpired);
         }
 
@@ -440,13 +442,7 @@ impl super::InvitationStore for DynamoInvitationStore {
         for item in items {
             let invitation: Invitation = from_item(item.clone())?;
             // Filter out expired invitations
-            let expires_at = chrono::DateTime::parse_from_rfc3339(&invitation.expires_at)
-                .map_err(|_| {
-                    StoreError::InternalError("Invalid expiration date format".to_string())
-                })?
-                .with_timezone(&Utc);
-
-            if Utc::now() <= expires_at {
+            if !self.is_expired(&invitation.expires_at)? {
                 invitations.push(invitation);
             }
         }
@@ -455,23 +451,29 @@ impl super::InvitationStore for DynamoInvitationStore {
     }
 
     async fn get_invitations_by_creator_id(&self, creator_id: &str) -> Result<Vec<Invitation>> {
-        // Scan the entire table with strong consistency and parse items
+        // Create expression attribute values
+        let expr_attr_values = HashMap::from([(
+            ":creator_id".to_string(),
+            AttributeValue::S(creator_id.to_string()),
+        )]);
+
         let result = self
             .client
-            .scan()
+            .query()
             .table_name(&self.table_name)
-            .consistent_read(true)
+            .index_name(GSI_CREATOR_ID)
+            .key_condition_expression("creator_id = :creator_id")
+            .set_expression_attribute_values(Some(expr_attr_values))
             .send()
             .await
-            .map_err(|e| map_scan_dynamo_error(e))?;
+            .map_err(|e| map_dynamo_error("query", e))?;
+
         let items = result.items();
+
         let mut invitations = Vec::new();
         for item in items {
             let invitation: Invitation = from_item(item.clone())?;
-            // Only include invitations created by this user
-            if invitation.creator_id == creator_id {
-                invitations.push(invitation);
-            }
+            invitations.push(invitation);
         }
         Ok(invitations)
     }

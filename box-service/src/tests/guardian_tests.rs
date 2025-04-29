@@ -169,7 +169,10 @@ async fn create_test_app() -> (Router, TestStore) {
 
         // Clean the table to start fresh
         debug!("Clearing DynamoDB test table");
-        let _ = clear_dynamo_table(&client, TEST_TABLE_NAME).await;
+        match clear_dynamo_table(&client, TEST_TABLE_NAME).await {
+            Ok(_) => debug!("Table cleared successfully"),
+            Err(e) => panic!("Failed to clear DynamoDB test table: {}", e),
+        };
 
         // Create the DynamoDB store with our test table
         let store = Arc::new(DynamoBoxStore::with_client_and_table(
@@ -439,7 +442,7 @@ async fn test_lead_guardian_unlock_request() {
         .expect("Box should have unlockRequest field");
     assert_eq!(
         unlock_request.get("status").unwrap().as_str().unwrap(),
-        "Requested"
+        "requested"
     );
     assert_eq!(
         unlock_request.get("message").unwrap().as_str().unwrap(),
