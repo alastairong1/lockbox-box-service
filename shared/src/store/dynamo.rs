@@ -171,9 +171,9 @@ impl super::BoxStore for DynamoBoxStore {
 
         // Create a conditional expression to check the version
         let condition_expression = if current_version > 0 {
-            "version = :current_version"
+            "#v = :current_version"
         } else {
-            "attribute_not_exists(version) OR version = :current_version"
+            "attribute_not_exists(#v) OR #v = :current_version"
         };
 
         // Create expression attribute values for version check
@@ -183,6 +183,9 @@ impl super::BoxStore for DynamoBoxStore {
             AttributeValue::N(current_version.to_string()),
         );
 
+        // Create expression attribute names to handle reserved keywords
+        let expr_attr_names = HashMap::from([("#v".to_string(), "version".to_string())]);
+
         // Build the update request with conditional expression
         let request = self
             .client
@@ -190,7 +193,8 @@ impl super::BoxStore for DynamoBoxStore {
             .table_name(&self.table_name)
             .set_item(Some(item))
             .condition_expression(condition_expression)
-            .set_expression_attribute_values(Some(expr_attr_values));
+            .set_expression_attribute_values(Some(expr_attr_values))
+            .set_expression_attribute_names(Some(expr_attr_names));
 
         // Execute the update
         match request.send().await {
@@ -370,6 +374,16 @@ impl super::InvitationStore for DynamoInvitationStore {
     }
 
     async fn update_invitation(&self, invitation: Invitation) -> Result<Invitation> {
+        // VULNERABILITY: Lacks optimistic concurrency control (OCC)
+        // This method unconditionally overwrites the item in DynamoDB,
+        // which could lead to silent lost-update races in concurrent scenarios.
+
+        // RECOMMENDATION: Implement version-based OCC similar to update_box:
+        // 1. Add a version field to Invitation model (default=0, skip_serializing)
+        // 2. Clone invitation and increment its version
+        // 3. Create a conditional expression to check current version
+        // 4. Handle ConditionalCheckFailedException as StoreError::VersionConflict
+
         // Verify invitation exists first
         self.get_invitation(&invitation.id).await?;
 

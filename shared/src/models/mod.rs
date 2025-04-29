@@ -1,7 +1,44 @@
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
+use std::fmt;
+use std::str::FromStr;
 
 pub mod events;
+
+// Invitation statuses
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum InvitationStatus {
+    Invited,
+    Opened,
+    Accepted,
+    Rejected,
+}
+
+impl FromStr for InvitationStatus {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "invited" => Ok(InvitationStatus::Invited),
+            "opened" => Ok(InvitationStatus::Opened),
+            "accepted" => Ok(InvitationStatus::Accepted),
+            "rejected" => Ok(InvitationStatus::Rejected),
+            _ => Err(format!("Unknown invitation status: {}", s)),
+        }
+    }
+}
+
+impl fmt::Display for InvitationStatus {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let status_str = match self {
+            InvitationStatus::Invited => "invited",
+            InvitationStatus::Opened => "opened",
+            InvitationStatus::Accepted => "accepted",
+            InvitationStatus::Rejected => "rejected",
+        };
+        write!(f, "{}", status_str)
+    }
+}
 
 // Invitation-related models
 #[derive(Serialize, Deserialize, Clone, Debug)]

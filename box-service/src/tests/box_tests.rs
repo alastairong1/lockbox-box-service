@@ -550,7 +550,7 @@ async fn test_update_box_not_owned() {
 
     // For some reason, we're getting a 422 error first (validation) before it even checks ownership
     // So we can only test that we don't get a 200 OK
-    assert_ne!(response.status(), StatusCode::OK);
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 
     // Add delay for DynamoDB consistency
     if matches!(store, TestStore::DynamoDB(_)) {

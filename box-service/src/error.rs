@@ -47,10 +47,12 @@ impl AppError {
         AppError::InternalServerError(msg)
     }
 
+    #[allow(dead_code)]
     pub fn internal_error<T: std::fmt::Display>(error: T) -> Self {
         AppError::InternalServerError(error.to_string())
     }
 
+    #[allow(dead_code)]
     pub fn not_found_error(message: String) -> Self {
         AppError::NotFound(message)
     }
@@ -105,7 +107,10 @@ impl From<lockbox_shared::error::StoreError> for AppError {
             }
             lockbox_shared::error::StoreError::AuthError(msg) => AppError::Unauthorized(msg),
             lockbox_shared::error::StoreError::VersionConflict(msg) => {
-                AppError::BadRequest(format!("Concurrent modification detected: {}", msg))
+                warn!("Concurrent modification detected: {}", msg);
+                AppError::BadRequest(
+                    format!("Concurrent modification detected, please retry: {}", msg).into(),
+                )
             }
         }
     }

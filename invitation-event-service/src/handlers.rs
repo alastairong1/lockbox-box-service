@@ -1,8 +1,7 @@
 // Import shared models and store
 use lockbox_shared::models::events::InvitationEvent;
 use lockbox_shared::store::BoxStore;
-use std::error::Error;
-use std::sync::Arc; // Add Arc for shared state // Ensure Error trait is in scope
+use std::sync::Arc; // Add Arc for shared state
 
 // use tracing::{error, info, warn}; // Remove tracing import
 use log::{error, info, warn}; // Add log import
@@ -17,9 +16,22 @@ type SharedBoxStore = Arc<dyn BoxStore + Send + Sync>;
 pub async fn handle_invitation_created(
     _state: SharedBoxStore, // Unused for now, prefixed with underscore
     event: &InvitationEvent,
-) -> Result<(), Box<dyn Error + Send + Sync>> {
+) -> Result<(), AppError> {
     info!(
         "Processing invitation_created event for box_id={}",
+        event.box_id
+    );
+
+    Ok(())
+}
+
+// Handler for invitation_opened events
+pub async fn handle_invitation_opened(
+    _state: SharedBoxStore,
+    event: &InvitationEvent,
+) -> Result<(), AppError> {
+    info!(
+        "Processing invitation_opened event for box_id={}",
         event.box_id
     );
 
@@ -30,11 +42,13 @@ pub async fn handle_invitation_created(
 pub async fn handle_invitation_viewed(
     state: SharedBoxStore,
     event: &InvitationEvent,
-) -> Result<(), Box<dyn Error + Send + Sync>> {
+) -> Result<(), AppError> {
     info!(
-        "Processing invitation_viewed event for box_id={}, user_id={:?}",
-        event.box_id, event.user_id
+        "Processing invitation_viewed event for box_id={}",
+        event.box_id
     );
+
+    // We don't need to extract box_id separately since we use event.box_id directly
 
     // Extract user_id from event
     let user_id = match &event.user_id {
@@ -61,7 +75,7 @@ pub async fn handle_invitation_viewed(
                     warn!("Ignoring event for non-existent box: {}", msg);
                     Ok(())
                 }
-                _ => Err(Box::new(app_error)),
+                _ => Err(app_error),
             }
         }
     }
@@ -213,8 +227,13 @@ async fn update_specific_guardian(
     // Only update if the guardian is still in "invited" state
     if guardian.status == "invited" {
         // Make a minimal update - only update this one guardian
+        let now = chrono::Utc::now().to_rfc3339();
         box_record.guardians[guardian_idx].id = user_id.to_string();
         box_record.guardians[guardian_idx].status = "viewed".to_string();
+        box_record.updated_at = now;
+
+        // Don't increment version - let DynamoDB handle optimistic locking
+        // Just use the version from the box we retrieved
 
         // Update using the store's update_box method
         match store.update_box(box_record).await {

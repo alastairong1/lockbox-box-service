@@ -56,7 +56,7 @@ pub async fn create_invitation<S: InvitationStore + ?Sized>(
         .map_err(|e| map_dynamo_error("create_invitation", e))?;
 
     // Publish event to SNS
-    if let Err(err) = publish_invitation_event(&saved_invitation).await {
+    if let Err(err) = publish_invitation_event(&saved_invitation, "invitation_created").await {
         error!("Failed to publish invitation event: {:?}", err);
     }
 
@@ -91,7 +91,7 @@ pub async fn handle_invitation<S: InvitationStore + ?Sized>(
     let updated_invitation = store.update_invitation(invitation.clone()).await?;
 
     // Publish event to SNS
-    if let Err(err) = publish_invitation_event(&updated_invitation).await {
+    if let Err(err) = publish_invitation_event(&updated_invitation, "invitation_viewed").await {
         error!("Failed to publish invitation event: {:?}", err);
     }
 
@@ -108,7 +108,7 @@ pub async fn handle_invitation<S: InvitationStore + ?Sized>(
 }
 
 // Helper function to publish an invitation event to SNS
-pub async fn publish_invitation_event(invitation: &Invitation) -> Result<()> {
+pub async fn publish_invitation_event(invitation: &Invitation, event_type: &str) -> Result<()> {
     // Get SNS topic ARN from environment variable
     let topic_arn =
         env::var("SNS_TOPIC_ARN").map_err(|e| map_dynamo_error("get_sns_topic_arn", e))?;
@@ -118,7 +118,7 @@ pub async fn publish_invitation_event(invitation: &Invitation) -> Result<()> {
     let sns_client = SnsClient::new(&config);
 
     // Call the internal implementation with the client
-    publish_invitation_event_with_client(invitation, sns_client, &topic_arn).await
+    publish_invitation_event_with_client(invitation, sns_client, &topic_arn, event_type).await
 }
 
 // Internal implementation that can be mocked for testing
@@ -126,10 +126,11 @@ pub async fn publish_invitation_event_with_client(
     invitation: &Invitation,
     sns_client: SnsClient,
     topic_arn: &str,
+    event_type: &str,
 ) -> Result<()> {
     // Create the event payload
     let event_payload = json!({
-        "event_type": "invitation_viewed",
+        "event_type": event_type,
         "invitation_id": invitation.id,
         "box_id": invitation.box_id,
         "user_id": invitation.linked_user_id,
@@ -144,9 +145,13 @@ pub async fn publish_invitation_event_with_client(
     // Create message attribute
     let message_attribute = aws_sdk_sns::types::MessageAttributeValue::builder()
         .data_type("String")
-        .string_value("invitation_viewed")
+        .string_value(event_type)
         .build()
         .map_err(|e| map_dynamo_error("build_message_attribute", e))?;
+
+    // Add to HashMap for message attributes
+    let mut message_attributes = std::collections::HashMap::new();
+    message_attributes.insert("eventType".to_string(), message_attribute);
 
     let mut publish_request = sns_client
         .publish()
@@ -154,8 +159,8 @@ pub async fn publish_invitation_event_with_client(
         .message(message)
         .subject("Invitation Viewed");
 
-    // Add message attribute with the proper method call
-    publish_request = publish_request.message_attributes("eventType", message_attribute);
+    // Add message attributes with the proper method
+    publish_request = publish_request.set_message_attributes(Some(message_attributes));
 
     // Send the request
     publish_request

@@ -65,6 +65,24 @@ impl From<lockbox_shared::error::StoreError> for AppError {
     }
 }
 
+// Convert InvitationEventError to AppError
+impl From<InvitationEventError> for AppError {
+    fn from(err: InvitationEventError) -> Self {
+        match err {
+            InvitationEventError::BoxNotFound(msg) => Self::BoxNotFound(msg),
+            InvitationEventError::MissingField(field) => {
+                Self::InternalError(format!("Missing required field: {}", field))
+            }
+            InvitationEventError::UpdateError(msg) => {
+                Self::InternalError(format!("Update error: {}", msg))
+            }
+            InvitationEventError::StoreError(msg) => {
+                Self::InternalError(format!("Store error: {}", msg))
+            }
+        }
+    }
+}
+
 // Implement conversion from other error types if needed
 impl From<lockbox_shared::error::StoreError> for InvitationEventError {
     fn from(err: lockbox_shared::error::StoreError) -> Self {

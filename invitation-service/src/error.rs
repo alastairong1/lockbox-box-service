@@ -31,40 +31,48 @@ pub enum AppError {
     SerializationError(#[from] serde_json::Error),
 
     #[error("Bad gateway: {0}")]
+    #[allow(dead_code)]
     BadGateway(String),
 }
 
 impl AppError {
+    #[allow(dead_code)]
     pub fn not_found(msg: String) -> Self {
         warn!("Not found error: {}", msg);
         Self::NotFound(msg)
     }
 
+    #[allow(dead_code)]
     pub fn unauthorized(msg: String) -> Self {
         warn!("Unauthorized error: {}", msg);
         Self::Unauthorized(msg)
     }
 
+    #[allow(dead_code)]
     pub fn bad_request(msg: String) -> Self {
         warn!("Bad request error: {}", msg);
         Self::BadRequest(msg)
     }
 
+    #[allow(dead_code)]
     pub fn invitation_expired() -> Self {
         warn!("Invitation expired");
         Self::InvitationExpired
     }
 
+    #[allow(dead_code)]
     pub fn internal_server_error(msg: String) -> Self {
         error!("Internal server error: {}", msg);
         Self::InternalServerError(msg)
     }
 
+    #[allow(dead_code)]
     pub fn forbidden(msg: String) -> Self {
         warn!("Forbidden: {}", msg);
         Self::Forbidden(msg)
     }
 
+    #[allow(dead_code)]
     pub fn bad_gateway(msg: String) -> Self {
         warn!("Bad gateway error: {}", msg);
         Self::BadGateway(msg)
@@ -77,10 +85,7 @@ impl IntoResponse for AppError {
             AppError::NotFound(msg) => (StatusCode::NOT_FOUND, msg),
             AppError::Unauthorized(msg) => (StatusCode::UNAUTHORIZED, msg),
             AppError::BadRequest(msg) => (StatusCode::BAD_REQUEST, msg),
-            AppError::InvitationExpired => (
-                StatusCode::BAD_REQUEST,
-                "Invitation has expired".to_string(),
-            ),
+            AppError::InvitationExpired => (StatusCode::GONE, "Invitation has expired".to_string()),
             AppError::InternalServerError(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg),
             AppError::Forbidden(msg) => (StatusCode::FORBIDDEN, msg),
             AppError::SerializationError(err) => {

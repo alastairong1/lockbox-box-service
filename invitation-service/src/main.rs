@@ -5,15 +5,25 @@ mod routes;
 #[cfg(test)]
 mod tests;
 
-use axum::{body::Body, extract::Request, response::Response};
+use axum::{body::Body, extract::Request, response::Response, Router};
 use env_logger;
+use http_body_util::BodyExt;
 use lambda_http::{
     run, service_fn, Body as LambdaBody, Error, Request as LambdaRequest,
     Response as LambdaResponse,
 };
-use log::{debug, error, info, trace, warn};
+use log::{debug, error, info, trace};
+use once_cell::sync::Lazy;
 use std::net::SocketAddr;
 use tower::ServiceExt;
+
+// Static router initialized once
+static ROUTER: Lazy<Router> = Lazy::new(|| {
+    tokio::runtime::Handle::current().block_on(async {
+        info!("Initializing the Axum router");
+        routes::create_router().await
+    })
+});
 
 // The Lambda handler function
 async fn function_handler(event: LambdaRequest) -> Result<LambdaResponse<LambdaBody>, Error> {
@@ -24,7 +34,7 @@ async fn function_handler(event: LambdaRequest) -> Result<LambdaResponse<LambdaB
         event.uri().query()
     );
 
-    let app = routes::create_router().await;
+    let app = ROUTER.clone();
 
     let (parts, body) = event.into_parts();
     let body = match body {
@@ -78,8 +88,9 @@ async fn response_to_lambda(response: Response) -> Result<LambdaResponse<LambdaB
         parts.status, parts.headers
     );
 
-    let bytes = match axum::body::to_bytes(body, usize::MAX).await {
-        Ok(bytes) => {
+    let bytes = match body.collect().await {
+        Ok(collected) => {
+            let bytes = collected.to_bytes();
             debug!("Response body size: {} bytes", bytes.len());
             bytes
         }
@@ -96,12 +107,7 @@ async fn response_to_lambda(response: Response) -> Result<LambdaResponse<LambdaB
         .iter()
         .fold(builder, |builder, (name, value)| {
             trace!("Adding response header: {}={:?}", name, value);
-            if let Ok(v) = http::HeaderValue::from_bytes(value.as_bytes()) {
-                builder.header(name.as_str(), v)
-            } else {
-                warn!("Skipping invalid header value for key: {}", name);
-                builder
-            }
+            builder.header(name, value)
         });
 
     let lambda_response = if bytes.is_empty() {
