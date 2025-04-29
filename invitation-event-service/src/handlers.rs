@@ -25,26 +25,14 @@ pub async fn handle_invitation_created(
     Ok(())
 }
 
+
 // Handler for invitation_opened events
 pub async fn handle_invitation_opened(
-    _state: SharedBoxStore,
-    event: &InvitationEvent,
-) -> Result<(), AppError> {
-    info!(
-        "Processing invitation_opened event for box_id={}",
-        event.box_id
-    );
-
-    Ok(())
-}
-
-// Handler for invitation_viewed events
-pub async fn handle_invitation_viewed(
     state: SharedBoxStore,
     event: &InvitationEvent,
 ) -> Result<(), AppError> {
     info!(
-        "Processing invitation_viewed event for box_id={}",
+        "Processing invitation_opened event for box_id={}",
         event.box_id
     );
 

@@ -51,7 +51,7 @@ where
                     handlers::handle_invitation_created(store.clone(), &invitation_event).await?
                 }
                 "invitation_viewed" => {
-                    handlers::handle_invitation_viewed(store.clone(), &invitation_event).await?
+                    handlers::handle_invitation_opened(store.clone(), &invitation_event).await?
                 }
                 _ => {
                     error!("Unknown event type: {}", invitation_event.event_type);
