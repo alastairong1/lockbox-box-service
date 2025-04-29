@@ -3,7 +3,6 @@ use lockbox_shared::models::events::InvitationEvent;
 use lockbox_shared::store::BoxStore;
 use std::sync::Arc; // Add Arc for shared state
 
-// use tracing::{error, info, warn}; // Remove tracing import
 use log::{error, info, warn}; // Add log import
 
 // Import our custom error type
@@ -221,8 +220,9 @@ async fn update_specific_guardian(
         box_record.guardians[guardian_idx].status = "viewed".to_string();
         box_record.updated_at = now;
 
-        // Don't increment version - let DynamoDB handle optimistic locking
-        // Just use the version from the box we retrieved
+        // Version bump and optimistic‐locking check occur in
+        // DynamoBoxStore::update_box (shared/src/store/dynamo.rs),
+        // so we pass through the retrieved version here.
 
         // Update using the store's update_box method
         match store.update_box(box_record).await {

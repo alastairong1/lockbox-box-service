@@ -5,12 +5,12 @@ set -euo pipefail
 # Ensure DynamoDB container is cleaned up even when the script aborts
 cleanup() {
   echo "Shutting down DynamoDB Local..."
-  docker-compose -f docker-compose.test.yml down
+  docker compose -f docker-compose.test.yml down
 }
 trap cleanup EXIT
 
 echo "Starting DynamoDB Local..."
-docker-compose -f docker-compose.test.yml up -d
+docker compose -f docker-compose.test.yml up -d
 
 # Wait for DynamoDB to be ready with timeout
 echo "Waiting for DynamoDB Local to be ready..."
