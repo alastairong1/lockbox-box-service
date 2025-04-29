@@ -1,0 +1,31 @@
+[package]
+name = "invitation-event-service"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+chrono = { workspace = true }
+log = { workspace = true }
+env_logger = { workspace = true }
+aws-config = { workspace = true }
+aws-sdk-dynamodb = { workspace = true }
+serde_dynamo = { workspace = true }
+lambda_runtime = "0.8.0"
+thiserror = { workspace = true }
+anyhow = "1.0"
+rand = "0.8.5"
+# Include the shared crate
+lockbox-shared = { path = "../shared", features = ["test_utils"] }
+once_cell = { workspace = true }
+async-trait = { workspace = true }
+
+# For parsing SNS events
+lambda_http = { workspace = true }
+aws_lambda_events = { version = "0.11", default-features = false, features = ["sns"] }
+fastrand = "2.3.0"
+
+[dev-dependencies]
+mockall = "0.12.0" 

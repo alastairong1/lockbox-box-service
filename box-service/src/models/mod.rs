@@ -1,62 +1,183 @@
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
-use std::fmt;
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct Document {
-    pub id: String,
-    pub title: String,
-    pub content: String,
-    #[serde(rename = "createdAt")]
-    pub created_at: String,
-}
+// Import shared models for direct use in response types
+use lockbox_shared::models::{Document, Guardian, UnlockRequest};
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct Guardian {
-    pub id: String,
+// Request DTOs
+#[derive(Deserialize, Debug)]
+pub struct CreateBoxRequest {
     pub name: String,
-    pub email: String,
-    #[serde(rename = "leadGuardian")]
-    pub lead: bool,
-    pub status: String, // "pending", "accepted", "rejected"
-    #[serde(rename = "addedAt")]
-    pub added_at: String,
+    pub description: String,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct UnlockRequest {
-    pub id: String,
-    #[serde(rename = "requestedAt")]
-    pub requested_at: String,
-    pub status: String,
-    pub message: Option<String>,
-    #[serde(rename = "initiatedBy")]
-    pub initiated_by: Option<String>,
-    #[serde(rename = "approvedBy")]
-    pub approved_by: Vec<String>,
-    #[serde(rename = "rejectedBy")]
-    pub rejected_by: Vec<String>,
+#[derive(Deserialize, Debug)]
+pub struct UpdateBoxRequest {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    #[serde(
+        rename = "unlockInstructions",
+        skip_serializing_if = "Option::is_none",
+        default,
+        with = "optional_field_serde"
+    )]
+    pub unlock_instructions: Option<OptionalField<String>>,
+    #[serde(rename = "isLocked", skip_serializing_if = "Option::is_none")]
+    pub is_locked: Option<bool>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct BoxRecord {
+#[derive(Deserialize, Debug)]
+pub struct DocumentUpdateRequest {
+    pub document: Document,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct GuardianUpdateRequest {
+    pub guardian: Guardian,
+}
+
+// Response DTOs
+#[derive(Serialize, Debug)]
+pub struct BoxResponse {
     pub id: String,
     pub name: String,
     pub description: String,
-    pub is_locked: bool,
+    #[serde(rename = "createdAt")]
     pub created_at: String,
+    #[serde(rename = "updatedAt")]
     pub updated_at: String,
-    pub owner_id: String,
-    pub owner_name: Option<String>,
+    #[serde(rename = "unlockInstructions")]
+    pub unlock_instructions: Option<String>,
+    #[serde(rename = "isLocked")]
+    pub is_locked: bool,
     pub documents: Vec<Document>,
     pub guardians: Vec<Guardian>,
-    pub lead_guardians: Vec<Guardian>,
-    pub unlock_instructions: Option<String>,
+    #[serde(rename = "ownerId")]
+    pub owner_id: String,
+    #[serde(rename = "ownerName")]
+    pub owner_name: Option<String>,
+    #[serde(rename = "unlockRequest")]
     pub unlock_request: Option<UnlockRequest>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-pub struct GuardianBox {
+impl From<lockbox_shared::models::BoxRecord> for BoxResponse {
+    fn from(box_rec: lockbox_shared::models::BoxRecord) -> Self {
+        Self {
+            id: box_rec.id,
+            name: box_rec.name,
+            description: box_rec.description,
+            created_at: box_rec.created_at,
+            updated_at: box_rec.updated_at,
+            unlock_instructions: box_rec.unlock_instructions,
+            is_locked: box_rec.is_locked,
+            documents: box_rec.documents,
+            guardians: box_rec.guardians,
+            owner_id: box_rec.owner_id,
+            owner_name: box_rec.owner_name,
+            unlock_request: box_rec.unlock_request,
+        }
+    }
+}
+
+#[derive(Serialize, Debug)]
+pub struct DocumentUpdateResponse {
+    pub documents: Vec<Document>,
+    #[serde(rename = "updatedAt")]
+    pub updated_at: String,
+}
+
+#[derive(Serialize, Debug)]
+pub struct GuardianUpdateResponse {
+    pub id: String,
+    pub name: String,
+    pub status: String,
+    #[serde(rename = "leadGuardian")]
+    pub lead_guardian: bool,
+    #[serde(rename = "addedAt")]
+    pub added_at: String,
+    #[serde(rename = "invitationId")]
+    pub invitation_id: String,
+    #[serde(rename = "allGuardians")]
+    pub all_guardians: Vec<Guardian>,
+    #[serde(rename = "updatedAt")]
+    pub updated_at: String,
+}
+
+// Helper for null vs. not-present in JSON
+// Custom wrapper type to differentiate between field not present and field present but null
+#[derive(Debug)]
+pub enum OptionalField<T> {
+    Value(T),
+    Null,
+}
+
+// Custom serde module for optional fields that need to distinguish between null and absent
+mod optional_field_serde {
+    use super::OptionalField;
+    use serde::{Deserialize, Deserializer};
+
+    pub fn deserialize<'de, D, T>(deserializer: D) -> Result<Option<OptionalField<T>>, D::Error>
+    where
+        D: Deserializer<'de>,
+        T: Deserialize<'de>,
+    {
+        let option = Option::<T>::deserialize(deserializer)?;
+        match option {
+            Some(val) => Ok(Some(OptionalField::Value(val))),
+            None => Ok(Some(OptionalField::Null)), // null was explicitly provided
+        }
+    }
+
+    // pub fn serialize<S, T>(
+    //     value: &Option<OptionalField<T>>,
+    //     serializer: S,
+    // ) -> Result<S::Ok, S::Error>
+    // where
+    //     S: Serializer,
+    //     T: serde::Serialize,
+    // {
+    //     match value {
+    //         Some(OptionalField::Value(val)) => serializer.serialize_some(val),
+    //         Some(OptionalField::Null) => serializer.serialize_none(),
+    //         None => serializer.serialize_none(),
+    //     }
+    // }
+}
+
+// Additional request/response types
+#[derive(Deserialize, Debug)]
+pub struct LeadGuardianUpdateRequest {
+    pub message: String,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct GuardianResponseRequest {
+    pub approve: Option<bool>,
+    pub reject: Option<bool>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct GuardianInvitationResponse {
+    pub accept: bool,
+}
+
+#[derive(Serialize)]
+pub struct ErrorResponse {
+    pub error: String,
+}
+
+#[derive(Serialize)]
+pub struct MessageResponse {
+    pub message: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub box_id: Option<String>,
+}
+
+// GuardianBox DTO to exclude version
+#[derive(Serialize, Debug)]
+pub struct GuardianBoxResponse {
     pub id: String,
     pub name: String,
     pub description: String,
@@ -80,157 +201,30 @@ pub struct GuardianBox {
     pub guardians_count: usize,
     #[serde(rename = "isLeadGuardian")]
     pub is_lead_guardian: bool,
-    // TODO we probably shouldn't be just returning them all for privacy reasons
     pub documents: Vec<Document>,
     pub guardians: Vec<Guardian>,
-    #[serde(rename = "leadGuardians")]
-    pub lead_guardians: Vec<Guardian>,
 }
 
-// Request DTOs
-#[derive(Deserialize, Debug)]
-pub struct CreateBoxRequest {
-    pub name: String,
-    pub description: String,
-}
-
-// Add this custom struct for handling nullable fields
-#[derive(Debug, Clone, Default)]
-pub struct NullableField<T> {
-    value: Option<T>,
-    present_in_request: bool,
-}
-
-impl<T> NullableField<T> {
-    // pub fn value(&self) -> Option<&T> {
-    //     self.value.as_ref()
-    // }
-
-    pub fn was_present(&self) -> bool {
-        self.present_in_request
+impl From<lockbox_shared::models::GuardianBox> for GuardianBoxResponse {
+    fn from(guard_box: lockbox_shared::models::GuardianBox) -> Self {
+        Self {
+            id: guard_box.id,
+            name: guard_box.name,
+            description: guard_box.description,
+            is_locked: guard_box.is_locked,
+            created_at: guard_box.created_at,
+            updated_at: guard_box.updated_at,
+            owner_id: guard_box.owner_id,
+            owner_name: guard_box.owner_name,
+            unlock_instructions: guard_box.unlock_instructions,
+            unlock_request: guard_box.unlock_request,
+            pending_guardian_approval: guard_box.pending_guardian_approval,
+            guardians_count: guard_box.guardians_count,
+            is_lead_guardian: guard_box.is_lead_guardian,
+            documents: guard_box.documents,
+            guardians: guard_box.guardians,
+        }
     }
-
-    pub fn into_option(self) -> Option<T> {
-        self.value
-    }
-}
-
-// Add custom Deserialize implementation
-impl<'de, T> Deserialize<'de> for NullableField<T>
-where
-    T: Deserialize<'de>,
-{
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        // This helps us track whether the field was present
-        Ok(NullableField {
-            value: Option::<T>::deserialize(deserializer)?,
-            present_in_request: true,
-        })
-    }
-}
-
-impl<T: fmt::Debug> fmt::Display for NullableField<T> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "NullableField({:?}, present={})",
-            self.value, self.present_in_request
-        )
-    }
-}
-
-// Update the UpdateBoxRequest struct to use NullableField instead of Option<Option<>>
-#[derive(Deserialize, Debug)]
-pub struct UpdateBoxRequest {
-    pub name: Option<String>,
-    pub description: Option<String>,
-    #[serde(rename = "unlockInstructions")]
-    #[serde(default)]
-    pub unlock_instructions: NullableField<String>,
-    #[serde(rename = "isLocked")]
-    pub is_locked: Option<bool>,
-}
-
-#[derive(Deserialize, Debug)]
-pub struct LeadGuardianUpdateRequest {
-    pub message: String,
-}
-
-#[derive(Deserialize, Debug)]
-pub struct GuardianResponseRequest {
-    pub approve: Option<bool>,
-    pub reject: Option<bool>,
-}
-
-#[derive(Deserialize, Debug)]
-pub struct GuardianInvitationResponse {
-    pub accept: bool,
-}
-
-#[derive(Deserialize, Debug)]
-pub struct DocumentUpdateRequest {
-    pub document: Document,
-}
-
-#[derive(Serialize, Debug)]
-pub struct DocumentUpdateResponse {
-    pub documents: Vec<Document>,
-    #[serde(rename = "updatedAt")]
-    pub updated_at: String,
-}
-
-#[derive(Deserialize, Debug)]
-pub struct GuardianUpdateRequest {
-    pub guardian: Guardian,
-}
-
-#[derive(Serialize, Debug)]
-pub struct GuardianUpdateResponse {
-    pub guardians: Vec<Guardian>,
-    #[serde(rename = "updatedAt")]
-    pub updated_at: String,
-}
-
-// Response DTOs
-#[derive(Serialize, Debug)]
-pub struct BoxResponse {
-    pub id: String,
-    pub name: String,
-    pub description: String,
-    #[serde(rename = "createdAt")]
-    pub created_at: String,
-    #[serde(rename = "updatedAt")]
-    pub updated_at: String,
-    #[serde(rename = "unlockInstructions")]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub unlock_instructions: Option<String>,
-    #[serde(rename = "isLocked")]
-    pub is_locked: bool,
-    pub documents: Vec<Document>,
-    pub guardians: Vec<Guardian>,
-    #[serde(rename = "leadGuardians")]
-    pub lead_guardians: Vec<Guardian>,
-    #[serde(rename = "ownerId")]
-    pub owner_id: String,
-    #[serde(rename = "ownerName")]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub owner_name: Option<String>,
-    #[serde(rename = "unlockRequest")]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub unlock_request: Option<UnlockRequest>,
-}
-
-#[derive(Serialize)]
-pub struct ErrorResponse {
-    pub error: String,
-}
-
-#[derive(Serialize)]
-pub struct MessageResponse {
-    pub message: String,
 }
 
 // Utility functions

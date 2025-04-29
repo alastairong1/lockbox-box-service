@@ -3,17 +3,18 @@ use axum::{
     http::StatusCode,
     Json,
 };
+use lockbox_shared::store::BoxStore;
+use serde_json;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use crate::{
-    error::{AppError, Result},
-    models::{
-        now_str, BoxRecord, BoxResponse, CreateBoxRequest, Document, DocumentUpdateRequest,
-        DocumentUpdateResponse, Guardian, GuardianUpdateRequest, GuardianUpdateResponse,
-        UpdateBoxRequest,
-    },
-    store::BoxStore,
+use crate::error::{AppError, Result};
+// Import models from shared crate
+use lockbox_shared::models::{now_str, BoxRecord, Document, Guardian};
+// Import request/response types from local models
+use crate::models::{
+    BoxResponse, CreateBoxRequest, DocumentUpdateRequest, DocumentUpdateResponse,
+    GuardianUpdateRequest, GuardianUpdateResponse, OptionalField, UpdateBoxRequest,
 };
 
 // GET /boxes
@@ -27,24 +28,7 @@ where
     // Get boxes from store
     let boxes = store.get_boxes_by_owner(&user_id).await?;
 
-    let my_boxes: Vec<_> = boxes
-        .iter()
-        .map(|b| BoxResponse {
-            id: b.id.clone(),
-            name: b.name.clone(),
-            description: b.description.clone(),
-            created_at: b.created_at.clone(),
-            updated_at: b.updated_at.clone(),
-            unlock_instructions: b.unlock_instructions.clone(),
-            is_locked: b.is_locked,
-            documents: b.documents.clone(),
-            guardians: b.guardians.clone(),
-            lead_guardians: b.lead_guardians.clone(),
-            owner_id: b.owner_id.clone(),
-            owner_name: b.owner_name.clone(),
-            unlock_request: b.unlock_request.clone(),
-        })
-        .collect();
+    let my_boxes: Vec<_> = boxes.into_iter().map(BoxResponse::from).collect();
 
     Ok(Json(serde_json::json!({ "boxes": my_boxes })))
 }
@@ -63,28 +47,14 @@ where
 
     // TODO: Is it safe to check here or should we do filter in the db query?
     if box_rec.owner_id != user_id {
-        return Err(AppError::Unauthorized(
+        return Err(AppError::unauthorized(
             "You don't have permission to view this box".into(),
         ));
     }
 
     // Return full box info for owner
     Ok(Json(serde_json::json!({
-        "box": BoxResponse {
-            id: box_rec.id.clone(),
-            name: box_rec.name.clone(),
-            description: box_rec.description.clone(),
-            created_at: box_rec.created_at.clone(),
-            updated_at: box_rec.updated_at.clone(),
-            unlock_instructions: box_rec.unlock_instructions.clone(),
-            is_locked: box_rec.is_locked,
-            documents: box_rec.documents.clone(),
-            guardians: box_rec.guardians.clone(),
-            lead_guardians: box_rec.lead_guardians.clone(),
-            owner_id: box_rec.owner_id.clone(),
-            owner_name: box_rec.owner_name.clone(),
-            unlock_request: box_rec.unlock_request.clone(),
-        }
+        "box": BoxResponse::from(box_rec)
     })))
 }
 
@@ -109,33 +79,17 @@ where
         owner_name: None,
         documents: vec![],
         guardians: vec![],
-        lead_guardians: vec![],
         unlock_instructions: None,
         unlock_request: None,
+        version: 0,
     };
 
     // Create the box in store
     let created_box = store.create_box(new_box).await?;
 
-    let response = BoxResponse {
-        id: created_box.id.clone(),
-        name: created_box.name.clone(),
-        description: created_box.description.clone(),
-        created_at: created_box.created_at.clone(),
-        updated_at: created_box.updated_at.clone(),
-        unlock_instructions: created_box.unlock_instructions.clone(),
-        is_locked: created_box.is_locked,
-        documents: created_box.documents.clone(),
-        guardians: created_box.guardians.clone(),
-        lead_guardians: created_box.lead_guardians.clone(),
-        owner_id: created_box.owner_id.clone(),
-        owner_name: created_box.owner_name.clone(),
-        unlock_request: created_box.unlock_request.clone(),
-    };
-
     Ok((
         StatusCode::CREATED,
-        Json(serde_json::json!({ "box": response })),
+        Json(serde_json::json!({ "box": BoxResponse::from(created_box) })),
     ))
 }
 
@@ -154,7 +108,7 @@ where
 
     // Check if the user is the owner
     if box_rec.owner_id != user_id {
-        return Err(AppError::Unauthorized(
+        return Err(AppError::unauthorized(
             "You don't have permission to update this box".into(),
         ));
     }
@@ -168,14 +122,13 @@ where
         box_rec.description = description;
     }
 
-    // Handle unlock_instructions with our new NullableField
-    // If the field was present in the request, update it (even if null)
-    if payload.unlock_instructions.was_present() {
-        println!(
-            "unlockInstructions was present in request: {:?}",
-            payload.unlock_instructions
-        );
-        box_rec.unlock_instructions = payload.unlock_instructions.into_option();
+    // For unlock_instructions, we need to handle both the case of setting it to a value
+    // or explicitly clearing it by setting it to None
+    if let Some(field) = &payload.unlock_instructions {
+        match field {
+            OptionalField::Value(val) => box_rec.unlock_instructions = Some(val.clone()),
+            OptionalField::Null => box_rec.unlock_instructions = None,
+        }
     }
 
     if let Some(is_locked) = payload.is_locked {
@@ -187,23 +140,9 @@ where
     // Save the updated box
     let updated_box = store.update_box(box_rec).await?;
 
-    let response = BoxResponse {
-        id: updated_box.id.clone(),
-        name: updated_box.name.clone(),
-        description: updated_box.description.clone(),
-        created_at: updated_box.created_at.clone(),
-        updated_at: updated_box.updated_at.clone(),
-        unlock_instructions: updated_box.unlock_instructions.clone(),
-        is_locked: updated_box.is_locked,
-        documents: updated_box.documents.clone(),
-        guardians: updated_box.guardians.clone(),
-        lead_guardians: updated_box.lead_guardians.clone(),
-        owner_id: updated_box.owner_id.clone(),
-        owner_name: updated_box.owner_name.clone(),
-        unlock_request: updated_box.unlock_request.clone(),
-    };
-
-    Ok(Json(serde_json::json!({ "box": response })))
+    Ok(Json(
+        serde_json::json!({ "box": BoxResponse::from(updated_box) }),
+    ))
 }
 
 // DELETE /boxes/:id
@@ -220,7 +159,7 @@ where
 
     // Check if the user is the owner
     if box_rec.owner_id != user_id {
-        return Err(AppError::Unauthorized(
+        return Err(AppError::unauthorized(
             "You don't have permission to delete this box".into(),
         ));
     }
@@ -249,7 +188,7 @@ where
 
     // Check if the user is the owner
     if box_rec.owner_id != owner_id {
-        return Err(AppError::Unauthorized(
+        return Err(AppError::unauthorized(
             "You don't have permission to update this box".into(),
         ));
     }
@@ -260,25 +199,10 @@ where
     let was_updated = if let Some(index) = guardian_index {
         // Update existing guardian
         box_rec.guardians[index] = guardian.clone();
-
-        // Update lead_guardians array if needed
-        if guardian.lead {
-            if !box_rec.lead_guardians.iter().any(|g| g.id == guardian.id) {
-                box_rec.lead_guardians.push(guardian.clone());
-            }
-        } else {
-            // Remove from lead guardians if needed
-            box_rec.lead_guardians.retain(|g| g.id != guardian.id);
-        }
         true
     } else {
         // Add new guardian
         box_rec.guardians.push(guardian.clone());
-
-        // Add to lead_guardians if needed
-        if guardian.lead {
-            box_rec.lead_guardians.push(guardian.clone());
-        }
         true
     };
 
@@ -305,10 +229,25 @@ where
     let (updated_box, _) =
         update_or_add_guardian(&*store, &box_id, &user_id, &payload.guardian).await?;
 
-    // Create a specialized response with all guardians
+    // Find the updated guardian in the updated box
+    let updated_guardian = updated_box
+        .guardians
+        .iter()
+        .find(|g| g.id == payload.guardian.id)
+        .ok_or_else(|| {
+            AppError::internal_server_error("Updated guardian not found in response".into())
+        })?;
+
+    // Create a specialized response with the updated guardian and all guardians
     let response = GuardianUpdateResponse {
-        guardians: updated_box.guardians,
-        updated_at: updated_box.updated_at,
+        id: updated_guardian.id.clone(),
+        name: updated_guardian.name.clone(),
+        status: updated_guardian.status.to_string(),
+        lead_guardian: updated_guardian.lead_guardian,
+        added_at: updated_guardian.added_at.clone(),
+        invitation_id: updated_guardian.invitation_id.clone(),
+        all_guardians: updated_box.guardians.clone(),
+        updated_at: updated_box.updated_at.clone(),
     };
 
     Ok(Json(serde_json::json!({ "guardian": response })))
@@ -330,7 +269,7 @@ where
 
     // Check if the user is the owner
     if box_rec.owner_id != owner_id {
-        return Err(AppError::Unauthorized(
+        return Err(AppError::unauthorized(
             "You don't have permission to update this box".into(),
         ));
     }
@@ -396,7 +335,7 @@ where
 
     // Check if the user is the owner
     if box_rec.owner_id != owner_id {
-        return Err(AppError::Unauthorized(
+        return Err(AppError::unauthorized(
             "You don't have permission to delete documents from this box".into(),
         ));
     }
@@ -406,7 +345,7 @@ where
 
     // Return not found if document doesn't exist
     if document_index.is_none() {
-        return Err(AppError::NotFound(format!(
+        return Err(AppError::not_found(format!(
             "Document with ID {} not found in box {}",
             document_id, box_id
         )));
@@ -463,7 +402,7 @@ where
 
     // Check if the user is the owner
     if box_rec.owner_id != owner_id {
-        return Err(AppError::Unauthorized(
+        return Err(AppError::unauthorized(
             "You don't have permission to delete guardians from this box".into(),
         ));
     }
@@ -473,16 +412,10 @@ where
 
     // Return not found if guardian doesn't exist
     if guardian_index.is_none() {
-        return Err(AppError::NotFound(format!(
+        return Err(AppError::not_found(format!(
             "Guardian with ID {} not found in box {}",
             guardian_id, box_id
         )));
-    }
-
-    // Check if guardian is also a lead guardian and remove from lead_guardians if needed
-    let is_lead = box_rec.guardians[guardian_index.unwrap()].lead;
-    if is_lead {
-        box_rec.lead_guardians.retain(|g| g.id != guardian_id);
     }
 
     // Remove the guardian
@@ -505,12 +438,27 @@ pub async fn delete_guardian<S>(
 where
     S: BoxStore,
 {
+    // Get the guardian details before deletion
+    let box_rec_before = store.get_box(&box_id).await?;
+    let guardian_before = box_rec_before
+        .guardians
+        .iter()
+        .find(|g| g.id == guardian_id)
+        .ok_or_else(|| AppError::not_found(format!("Guardian with ID {} not found", guardian_id)))?
+        .clone();
+
     // Use the helper function to delete the guardian
     let updated_box = delete_guardian_from_box(&*store, &box_id, &user_id, &guardian_id).await?;
 
-    // Create a response with all remaining guardians
+    // Create a response with the deleted guardian info and remaining guardians
     let response = GuardianUpdateResponse {
-        guardians: updated_box.guardians,
+        id: guardian_before.id,
+        name: guardian_before.name,
+        status: guardian_before.status.to_string(),
+        lead_guardian: guardian_before.lead_guardian,
+        added_at: guardian_before.added_at,
+        invitation_id: guardian_before.invitation_id,
+        all_guardians: updated_box.guardians,
         updated_at: updated_box.updated_at,
     };
 

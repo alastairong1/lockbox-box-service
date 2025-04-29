@@ -44,18 +44,7 @@ Returns all boxes owned by the user, including complete details such as document
         {
           "id": "guardian_id",
           "name": "Guardian Name",
-          "email": "guardian@example.com",
           "leadGuardian": false,
-          "status": "accepted",
-          "addedAt": "timestamp"
-        }
-      ],
-      "leadGuardians": [
-        {
-          "id": "lead_guardian_id",
-          "name": "Lead Guardian",
-          "email": "lead@example.com",
-          "leadGuardian": true,
           "status": "accepted",
           "addedAt": "timestamp"
         }
@@ -119,18 +108,7 @@ Returns complete details of a specific box owned by the user, including all docu
       {
         "id": "guardian_id",
         "name": "Guardian Name",
-        "email": "guardian@example.com",
         "leadGuardian": false,
-        "status": "accepted",
-        "addedAt": "timestamp"
-      }
-    ],
-    "leadGuardians": [
-      {
-        "id": "lead_guardian_id",
-        "name": "Lead Guardian",
-        "email": "lead@example.com",
-        "leadGuardian": true,
         "status": "accepted",
         "addedAt": "timestamp"
       }
@@ -201,7 +179,6 @@ Allows box owners to add or update a guardian for their box. This is the dedicat
   "guardian": {
     "id": "guardian_id",
     "name": "Guardian Name",
-    "email": "guardian@example.com",
     "leadGuardian": true,
     "status": "pending",
     "addedAt": "2023-05-25T12:00:00Z"
@@ -217,15 +194,13 @@ Allows box owners to add or update a guardian for their box. This is the dedicat
       {
         "id": "guardian_id",
         "name": "Guardian Name",
-        "email": "guardian@example.com",
-        "leadGuardian": true,
-        "status": "pending",
-        "addedAt": "2023-05-25T12:00:00Z"
+        "leadGuardian": false,
+        "status": "accepted",
+        "addedAt": "timestamp"
       },
       {
         "id": "guardian_id_2",
         "name": "Guardian Two",
-        "email": "guardian2@example.com",
         "leadGuardian": false,
         "status": "accepted",
         "addedAt": "2023-05-20T11:30:00Z"
@@ -261,7 +236,6 @@ Allows box owners to delete a specific guardian from their box. This is a dedica
       {
         "id": "guardian_id_2",
         "name": "Guardian Two",
-        "email": "guardian2@example.com",
         "leadGuardian": false,
         "status": "accepted",
         "addedAt": "2023-05-20T11:30:00Z"
@@ -399,18 +373,7 @@ Returns all boxes where the authenticated user is a guardian (excluding rejected
         {
           "id": "guardian_id",
           "name": "Guardian Name",
-          "email": "guardian@example.com",
           "leadGuardian": false,
-          "status": "accepted",
-          "addedAt": "timestamp"
-        }
-      ],
-      "leadGuardians": [
-        {
-          "id": "lead_guardian_id",
-          "name": "Lead Guardian",
-          "email": "lead@example.com",
-          "leadGuardian": true,
           "status": "accepted",
           "addedAt": "timestamp"
         }
@@ -467,18 +430,7 @@ Get a specific box where you are a guardian, including complete details of docum
       {
         "id": "guardian_id",
         "name": "Guardian Name",
-        "email": "guardian@example.com",
         "leadGuardian": false,
-        "status": "accepted",
-        "addedAt": "timestamp"
-      }
-    ],
-    "leadGuardians": [
-      {
-        "id": "lead_guardian_id",
-        "name": "Lead Guardian",
-        "email": "lead@example.com",
-        "leadGuardian": true,
         "status": "accepted",
         "addedAt": "timestamp"
       }
@@ -581,6 +533,149 @@ Allows users to accept or reject an invitation to be a guardian for a box. The e
 - **400 Bad Request:** No pending invitation found for this box.
 - **404 Not Found:** Box not found.
 - **500 Internal Server Error:** An error occurred processing the response.
+
+## Invitation Service
+
+The lockbox-box-service includes an invitation service that allows users to create and manage invitations to boxes. This service facilitates the process of adding guardians to boxes through a user-friendly invitation flow.
+
+### Invitation Endpoints
+
+#### 1. Create Invitation
+
+**Endpoint:** `POST /invitation`
+
+**Headers:**
+- `Authorization`: Bearer token with valid JWT
+
+**Description:**
+Creates a new invitation for a specific box. The creator becomes the owner of the invitation.
+
+**Payload Example:**
+```json
+{
+  "invited_name": "John Doe",
+  "box_id": "box_id_to_invite_to"
+}
+```
+
+**Response Example:**
+```json
+{
+  "invite_code": "ABCDEFGH",
+  "expires_at": "2023-06-01T14:30:00Z"
+}
+```
+
+**Response Codes:**
+- **200 OK:** Invitation created successfully.
+- **400 Bad Request:** Invalid request payload.
+- **401 Unauthorized:** User is not authenticated.
+
+#### 2. Handle Invitation
+
+**Endpoint:** `PUT /invitation/handle`
+
+**Headers:**
+- `Authorization`: Bearer token with valid JWT
+
+**Description:**
+Allows a user to accept an invitation and connect it to their account.
+
+**Payload Example:**
+```json
+{
+  "invite_code": "ABCDEFGH",
+  "user_id": "accepting_user_id"
+}
+```
+
+**Response Example:**
+```json
+{
+  "message": "User successfully connected to invitation"
+}
+```
+
+**Response Codes:**
+- **200 OK:** Invitation handled successfully.
+- **400 Bad Request:** Invalid request payload or expired invitation.
+- **401 Unauthorized:** User is not authenticated.
+- **404 Not Found:** Invitation not found.
+
+#### 3. Refresh Invitation
+
+**Endpoint:** `POST /invitations/:inviteId/refresh`
+
+**Headers:**
+- `Authorization`: Bearer token with valid JWT
+
+**Description:**
+Refreshes an existing invitation, generating a new code and extending the expiration time.
+
+**Response Example:**
+```json
+{
+  "invite_code": "NEWABCDE",
+  "expires_at": "2023-06-03T14:30:00Z"
+}
+```
+
+**Response Codes:**
+- **200 OK:** Invitation refreshed successfully.
+- **401 Unauthorized:** User is not authorized to refresh this invitation.
+- **404 Not Found:** Invitation not found.
+
+#### 4. Get My Invitations
+
+**Endpoint:** `GET /invitations/me`
+
+**Headers:**
+- `Authorization`: Bearer token with valid JWT
+
+**Description:**
+Returns all invitations created by the authenticated user.
+
+**Response Example:**
+```json
+[
+  {
+    "id": "invitation_id",
+    "invite_code": "ABCDEFGH",
+    "invited_name": "John Doe",
+    "box_id": "box_id",
+    "created_at": "2023-05-30T14:30:00Z",
+    "expires_at": "2023-06-01T14:30:00Z",
+    "opened": false,
+    "linked_user_id": null,
+    "creator_id": "creator_user_id"
+  }
+]
+```
+
+**Response Codes:**
+- **200 OK:** Invitations retrieved successfully.
+- **401 Unauthorized:** User is not authenticated.
+
+## Project Architecture
+
+The lockbox-box-service is built as a multi-service AWS Serverless application with the following components:
+
+1. **Box Service**: Core service for managing boxes, documents, guardians, and unlock requests
+2. **Invitation Service**: Service for handling the invitation process for adding guardians
+3. **Shared Library**: Common code shared between services including models, authentication, and database access
+
+### Technology Stack
+
+- **Backend**: Rust with Axum web framework
+- **Deployment**: AWS Lambda and API Gateway via SAM
+- **Database**: Amazon DynamoDB
+- **Authentication**: Amazon Cognito
+- **CI/CD**: GitHub Actions
+
+### Data Model
+
+- **Boxes**: Contains documents and guardian relationships
+- **Invitations**: Temporary invitations to become a guardian for a box, with user-friendly codes
 
 ## Running the Service
 

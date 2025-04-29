@@ -1,12 +1,35 @@
 use async_trait::async_trait;
 
 use crate::error::Result;
-use crate::models::{BoxRecord, GuardianBox};
+use crate::models::{BoxRecord, GuardianStatus, Invitation};
 
 // Expose the DynamoDB store module
 pub mod dynamo;
-// Add the memory store implementation
-pub mod memory;
+
+/// InvitationStore trait defining the interface for invitation storage implementations
+#[async_trait]
+pub trait InvitationStore: Send + Sync + 'static {
+    /// Creates a new invitation
+    async fn create_invitation(&self, invitation: Invitation) -> Result<Invitation>;
+
+    /// Gets an invitation by ID
+    async fn get_invitation(&self, id: &str) -> Result<Invitation>;
+
+    /// Gets an invitation by invite code
+    async fn get_invitation_by_code(&self, invite_code: &str) -> Result<Invitation>;
+
+    /// Updates an invitation
+    async fn update_invitation(&self, invitation: Invitation) -> Result<Invitation>;
+
+    /// Deletes an invitation
+    async fn delete_invitation(&self, id: &str) -> Result<()>;
+
+    /// Gets all invitations for a box
+    async fn get_invitations_by_box_id(&self, box_id: &str) -> Result<Vec<Invitation>>;
+
+    /// Gets all invitations created by a specific user
+    async fn get_invitations_by_creator_id(&self, creator_id: &str) -> Result<Vec<Invitation>>;
+}
 
 /// BoxStore trait defining the interface for box storage implementations
 #[async_trait]
@@ -30,16 +53,22 @@ pub trait BoxStore: Send + Sync + 'static {
     async fn delete_box(&self, id: &str) -> Result<()>;
 }
 
-// Store utility functions
-pub fn convert_to_guardian_box(box_rec: &BoxRecord, user_id: &str) -> Option<GuardianBox> {
+// Box store utility functions
+pub fn convert_to_guardian_box(
+    box_rec: &BoxRecord,
+    user_id: &str,
+) -> Option<crate::models::GuardianBox> {
     if let Some(guardian) = box_rec
         .guardians
         .iter()
-        .find(|g| g.id == user_id && g.status != "rejected")
+        .find(|g| g.id == user_id && g.status != GuardianStatus::Rejected)
     {
-        let pending = guardian.status == "pending";
-        let is_lead = box_rec.lead_guardians.iter().any(|g| g.id == user_id);
-        Some(GuardianBox {
+        let pending = matches!(
+            guardian.status,
+            GuardianStatus::Invited | GuardianStatus::Viewed
+        );
+        let is_lead = guardian.lead_guardian;
+        Some(crate::models::GuardianBox {
             id: box_rec.id.clone(),
             name: box_rec.name.clone(),
             description: box_rec.description.clone(),
@@ -55,7 +84,6 @@ pub fn convert_to_guardian_box(box_rec: &BoxRecord, user_id: &str) -> Option<Gua
             is_lead_guardian: is_lead,
             documents: box_rec.documents.clone(),
             guardians: box_rec.guardians.clone(),
-            lead_guardians: box_rec.lead_guardians.clone(),
         })
     } else {
         None

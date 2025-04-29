@@ -1,9 +1,7 @@
 mod error;
 mod handlers;
-// Keep models for request/response types
 mod models;
 mod routes;
-
 #[cfg(test)]
 mod tests;
 
@@ -16,7 +14,6 @@ use lambda_http::{
 };
 use log::{debug, error, info, trace};
 use once_cell::sync::Lazy;
-use routes::create_router;
 use std::net::SocketAddr;
 use tower::ServiceExt;
 
@@ -24,13 +21,12 @@ use tower::ServiceExt;
 static ROUTER: Lazy<Router> = Lazy::new(|| {
     tokio::runtime::Handle::current().block_on(async {
         info!("Initializing the Axum router");
-        create_router().await
+        routes::create_router().await
     })
 });
 
 // The Lambda handler function
 async fn function_handler(event: LambdaRequest) -> Result<LambdaResponse<LambdaBody>, Error> {
-    // Log request details
     info!(
         "Received Lambda request: method={:?}, path={:?}, query_params={:?}",
         event.method(),
@@ -38,10 +34,8 @@ async fn function_handler(event: LambdaRequest) -> Result<LambdaResponse<LambdaB
         event.uri().query()
     );
 
-    // Use the static router instead of creating a new one
     let app = ROUTER.clone();
 
-    // Convert the Lambda event to an HTTP request for Axum
     let (parts, body) = event.into_parts();
     let body = match body {
         LambdaBody::Empty => Body::empty(),
@@ -62,7 +56,6 @@ async fn function_handler(event: LambdaRequest) -> Result<LambdaResponse<LambdaB
     let http_request = Request::from_parts(parts, body);
     debug!("Created HTTP request: {:?}", http_request);
 
-    // Process the request through Axum
     info!("Passing request to Axum router");
     let response = match app.oneshot(http_request).await {
         Ok(response) => {
@@ -78,7 +71,6 @@ async fn function_handler(event: LambdaRequest) -> Result<LambdaResponse<LambdaB
         }
     };
 
-    // Convert Axum's response to Lambda's response
     let lambda_response = response_to_lambda(response).await?;
     info!(
         "Returning Lambda response: status={}",
@@ -139,24 +131,22 @@ async fn response_to_lambda(response: Response) -> Result<LambdaResponse<LambdaB
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
-    // Initialize env_logger instead of tracing_subscriber
+    // Initialize env_logger
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
     info!("Logging initialized with env_logger");
 
-    let app = create_router().await;
+    let app = routes::create_router().await;
 
-    // Check if running in Lambda environment
     if let Ok(function_name) = std::env::var("AWS_LAMBDA_FUNCTION_NAME") {
         info!(
             "Running in AWS Lambda environment: {} (version: {})",
             function_name,
             std::env::var("AWS_LAMBDA_FUNCTION_VERSION").unwrap_or_else(|_| "unknown".into())
         );
-        // Use the function_handler defined above for lambda_http
         run(service_fn(function_handler)).await?;
     } else {
         info!("Starting service in non-Lambda environment");
-        let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
+        let addr = SocketAddr::from(([127, 0, 0, 1], 3001));
         info!("listening on {}", addr);
 
         let listener = tokio::net::TcpListener::bind(&addr).await?;

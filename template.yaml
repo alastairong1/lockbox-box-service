@@ -1,7 +1,7 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: >
-  Lockbox Box Service - Manages digital lockboxes
+  Lockbox Services - Box and Invitation Services
 
 Parameters:
   UserPoolId:
@@ -45,6 +45,22 @@ Resources:
         RefreshToken: days
         AccessToken: hours
         IdToken: hours
+      # Add OAuth settings for Google and Apple sign-in
+      AllowedOAuthFlows:
+        - code
+      AllowedOAuthFlowsUserPoolClient: true
+      AllowedOAuthScopes:
+        - email
+        - profile
+        - openid
+      CallbackURLs:
+        - "com.alastairong.lockbox://callback/"
+      LogoutURLs:
+        - "com.alastairong.lockbox://signout/"
+      SupportedIdentityProviders:
+        - COGNITO
+        - Google
+        - SignInWithApple
 
   # Add a domain for the user pool
   UserPoolDomain:
@@ -53,20 +69,36 @@ Resources:
       Domain: !Sub "lockbox-${AWS::AccountId}"
       UserPoolId: !Ref UserPoolId
 
-  LockboxFunction:
+  BoxServiceFunction:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: function.zip
+      CodeUri: box-service.zip
       Handler: bootstrap
       Runtime: provided.al2
       Architectures:
         - x86_64
       Events:
-        ApiEvent:
+        ApiEventRoot:
           Type: Api
           Properties:
             RestApiId: !Ref ApiGatewayApi
-            Path: /{proxy+}
+            Path: /boxes
+            Method: ANY
+            Auth:
+              Authorizer: CognitoAuthorizer
+        ApiEventWithId:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGatewayApi
+            Path: /boxes/{id}
+            Method: ANY
+            Auth:
+              Authorizer: CognitoAuthorizer
+        ApiEventWithSubpaths:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGatewayApi
+            Path: /boxes/{proxy+}
             Method: ANY
             Auth:
               Authorizer: CognitoAuthorizer
@@ -79,6 +111,61 @@ Resources:
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref BoxesTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref InvitationsTable
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - cognito-idp:AdminGetUser
+                - cognito-idp:ListUsers
+              Resource: !Sub arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${UserPoolId}
+
+  InvitationServiceFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: invitation-service.zip
+      Handler: bootstrap
+      Runtime: provided.al2
+      Architectures:
+        - x86_64
+      Events:
+        ApiEventRoot:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGatewayApi
+            Path: /invitations
+            Method: ANY
+            Auth:
+              Authorizer: CognitoAuthorizer
+        ApiEventWithId:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGatewayApi
+            Path: /invitations/{id}
+            Method: ANY
+            Auth:
+              Authorizer: CognitoAuthorizer
+        ApiEventWithSubpaths:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGatewayApi
+            Path: /invitations/{proxy+}
+            Method: ANY
+            Auth:
+              Authorizer: CognitoAuthorizer
+      Environment:
+        Variables:
+          DYNAMODB_INVITATION_TABLE: !Ref InvitationsTable
+          RUST_LOG: info
+          COGNITO_USER_POOL_ID: !Ref UserPoolId
+          COGNITO_APP_CLIENT_ID: !Ref UserPoolClient
+          SNS_TOPIC_ARN: !Ref LockboxEventsTopic
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref InvitationsTable
+        - SNSPublishMessagePolicy:
+            TopicName: !GetAtt LockboxEventsTopic.TopicName
         - Version: '2012-10-17'
           Statement:
             - Effect: Allow
@@ -117,6 +204,83 @@ Resources:
       # Enable point-in-time recovery for continuous backup
       PointInTimeRecoverySpecification:
         PointInTimeRecoveryEnabled: true
+
+  InvitationsTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: invitation-table
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+        - AttributeName: invite_code
+          AttributeType: S
+        - AttributeName: box_id
+          AttributeType: S
+        - AttributeName: creator_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: invite_code-index
+          KeySchema:
+            - AttributeName: invite_code
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+        - IndexName: box_id-index
+          KeySchema:
+            - AttributeName: box_id
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+        - IndexName: creator_id-index
+          KeySchema:
+            - AttributeName: creator_id
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+      # Enable point-in-time recovery for continuous backup
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+
+  # SNS Topic for Lockbox Events
+  LockboxEventsTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: lockbox-events
+      DisplayName: Lockbox Events
+      KmsMasterKeyId: alias/aws/sns # Enable server-side encryption
+      
+  # Lambda function to process invitation events and update box records
+  InvitationEventHandlerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: invitation-event-handler
+      CodeUri: invitation-event-handler.zip
+      Handler: bootstrap
+      Runtime: provided.al2
+      Architectures:
+        - x86_64
+      Events:
+        InvitationEvents:
+          Type: SNS
+          Properties:
+            Topic: !Ref LockboxEventsTopic
+            FilterPolicy:
+              eventType:
+                - invitation_created
+                - invitation_viewed
+      Environment:
+        Variables:
+          DYNAMODB_TABLE: !Ref BoxesTable
+          RUST_LOG: info
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref BoxesTable
 
   # Setup daily backups using AWS Backup
   BoxesTableBackupPlan:
@@ -160,17 +324,27 @@ Resources:
         IamRoleArn: !GetAtt BackupRole.Arn
         Resources:
           - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/box-table"
+          - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/invitation-table"
 
 Outputs:
-  LockboxFunction:
-    Description: "Lockbox Function ARN"
-    Value: !GetAtt LockboxFunction.Arn
+  BoxServiceFunction:
+    Description: "Box Service Function ARN"
+    Value: !GetAtt BoxServiceFunction.Arn
+  InvitationServiceFunction:
+    Description: "Invitation Service Function ARN"
+    Value: !GetAtt InvitationServiceFunction.Arn
+  InvitationEventHandlerFunction:
+    Description: "Invitation Event Handler Function ARN"
+    Value: !GetAtt InvitationEventHandlerFunction.Arn
   ApiURL:
     Description: "API Gateway endpoint URL for Prod stage"
     Value: !Sub "https://${ApiGatewayApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/"
   BoxesTableName:
-    Description: "DynamoDB Table Name"
+    Description: "Box DynamoDB Table Name"
     Value: !Ref BoxesTable
+  InvitationsTableName:
+    Description: "Invitation DynamoDB Table Name"
+    Value: !Ref InvitationsTable
   UserPoolId:
     Description: "Cognito User Pool ID"
     Value: !Ref UserPoolId
@@ -180,3 +354,6 @@ Outputs:
   UserPoolDomain:
     Description: "Cognito User Pool Domain"
     Value: !Sub "https://${UserPoolDomain}.auth.${AWS::Region}.amazoncognito.com"
+  LockboxEventsTopicArn:
+    Description: "Lockbox Events SNS Topic ARN"
+    Value: !Ref LockboxEventsTopic

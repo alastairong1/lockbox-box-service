@@ -4,11 +4,11 @@ use axum::{
     routing::{get, patch},
     Router,
 };
+use log::{info, warn};
 use std::sync::Arc;
 use tower_http::cors::{Any, CorsLayer};
 
 use crate::handlers::{
-    auth_middleware,
     box_handlers::{
         create_box, delete_box, delete_document, delete_guardian, get_box, get_boxes, update_box,
         update_document, update_guardian,
@@ -18,17 +18,26 @@ use crate::handlers::{
         respond_to_unlock_request,
     },
 };
-use crate::store::{dynamo::DynamoBoxStore, BoxStore};
+use lockbox_shared::store::{dynamo::DynamoBoxStore, BoxStore};
+
+// Import shared auth middleware
+use lockbox_shared::auth::auth_middleware;
 
 /// Creates a router with the default store
 pub async fn create_router() -> Router {
-    tracing::info!("Creating router with DynamoDB store");
+    info!("Creating router with DynamoDB store");
 
     // Create the DynamoDB store
     let dynamo_store = Arc::new(DynamoBoxStore::new().await);
 
-    // Hardcode the prefix as "/Prod"
-    let prefix = "/Prod";
+    // Check if we should remove the base path prefix
+    let remove_base_path = std::env::var("REMOVE_BASE_PATH")
+        .map(|v| v.to_lowercase() == "true")
+        .unwrap_or(false);
+
+    // If REMOVE_BASE_PATH is set to true, don't add the /Prod prefix
+    let prefix = if remove_base_path { "" } else { "/Prod" };
+    info!("Using API route prefix: {}", prefix);
 
     create_router_with_store(dynamo_store, prefix)
 }
@@ -38,7 +47,7 @@ pub fn create_router_with_store<S>(store: Arc<S>, prefix: &str) -> Router
 where
     S: BoxStore + 'static,
 {
-    tracing::info!("Setting up API routes with prefix: {}", prefix);
+    info!("Setting up API routes with prefix: '{}'", prefix);
 
     // Configure CORS
     let cors = CorsLayer::new()
@@ -46,16 +55,14 @@ where
         .allow_methods(Any)
         .allow_headers(Any);
 
-    tracing::debug!("CORS configured for all origins, methods and headers");
+    info!("CORS configured for all origins, methods and headers");
 
     // Logging middleware to trace all requests
     async fn logging_middleware(
         req: Request,
         next: axum::middleware::Next,
     ) -> impl axum::response::IntoResponse {
-        tracing::info!("Logging request: {:?}", req);
-
-        tracing::info!(
+        info!(
             "Router received request: method={}, uri={}",
             req.method(),
             req.uri()
@@ -94,20 +101,28 @@ where
         .layer(middleware::from_fn(auth_middleware))
         .with_state(store);
 
-    // Create the main router with the prefix
-    let router = Router::new()
-        .nest(prefix, api_routes)
-        .layer(cors)
-        .layer(middleware::from_fn(logging_middleware));
+    // Create the main router
+    let router = if prefix.is_empty() {
+        // For tests or when no prefix is needed, don't nest the routes
+        api_routes
+            .layer(cors)
+            .layer(middleware::from_fn(logging_middleware))
+    } else {
+        // For production, nest the routes under the prefix
+        Router::new()
+            .nest(prefix, api_routes)
+            .layer(cors)
+            .layer(middleware::from_fn(logging_middleware))
+    };
 
-    tracing::info!(
-        "Router configured with all routes and middleware under prefix: {}",
+    info!(
+        "Router configured with all routes and middleware under prefix: '{}'",
         prefix
     );
 
     // Add a fallback handler for 404s
     router.fallback(|req: Request| async move {
-        tracing::warn!("No route matched for: {} {}", req.method(), req.uri());
+        warn!("No route matched for: {} {}", req.method(), req.uri());
         (
             axum::http::StatusCode::NOT_FOUND,
             "The requested resource was not found".to_string(),

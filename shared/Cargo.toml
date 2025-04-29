@@ -1,0 +1,31 @@
+[package]
+name = "lockbox-shared"
+version = "0.1.0"
+edition = "2021"
+
+# Define features
+[features]
+default = []
+test_utils = []
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+chrono = { workspace = true }
+uuid = { workspace = true }
+thiserror = { workspace = true }
+aws-config = { workspace = true }
+aws-sdk-dynamodb = { workspace = true }
+serde_dynamo = { workspace = true }
+async-trait = { workspace = true }
+tokio = { version = "1.35.1", features = ["rt", "test-util", "macros"] }
+# Auth middleware dependencies
+axum = { workspace = true }
+base64 = { workspace = true }
+jsonwebtoken = { workspace = true }
+http = { workspace = true }
+tower = { version = "0.4.13", features = ["util"] }
+tower-http = { workspace = true }
+# Logging
+log = { workspace = true }
+env_logger = { workspace = true } 
