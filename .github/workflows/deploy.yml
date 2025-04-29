@@ -42,9 +42,20 @@ jobs:
 
       - name: Build Lambda Package
         run: |
+          # Build the main application with the release profile
           cargo build --release --target x86_64-unknown-linux-musl
-          cp target/x86_64-unknown-linux-musl/release/lockbox-box-service bootstrap
-          zip function.zip bootstrap
+          
+          # Box Service
+          cp target/x86_64-unknown-linux-musl/release/box-service bootstrap
+          zip box-service.zip bootstrap
+          
+          # Invitation Service
+          cp target/x86_64-unknown-linux-musl/release/invitation-service bootstrap
+          zip invitation-service.zip bootstrap
+          
+          # Invitation Event Handler
+          cp target/x86_64-unknown-linux-musl/release/invitation-event-service bootstrap
+          zip invitation-event-handler.zip bootstrap
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v3
