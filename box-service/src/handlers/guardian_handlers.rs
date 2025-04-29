@@ -39,6 +39,7 @@ where
     let guardian_boxes: Vec<_> = guardian_boxes
         .iter()
         .filter_map(|b| convert_to_guardian_box(b, &user_id))
+        .map(crate::models::GuardianBoxResponse::from)
         .collect();
 
     Ok(Json(serde_json::json!({ "boxes": guardian_boxes })))
@@ -63,7 +64,9 @@ where
 
     // TODO: query DB with filters instead
     if let Some(guardian_box) = convert_to_guardian_box(&box_rec, &user_id) {
-        return Ok(Json(serde_json::json!({ "box": guardian_box })));
+        return Ok(Json(
+            serde_json::json!({ "box": crate::models::GuardianBoxResponse::from(guardian_box) }),
+        ));
     }
 
     Err(AppError::unauthorized(
@@ -121,7 +124,9 @@ where
         let updated_box = store.update_box(box_record).await?;
 
         if let Some(guard_box) = convert_to_guardian_box(&updated_box, &user_id) {
-            return Ok(Json(serde_json::json!({ "box": guard_box })));
+            return Ok(Json(
+                serde_json::json!({ "box": crate::models::GuardianBoxResponse::from(guard_box) }),
+            ));
         } else {
             return Err(AppError::internal_server_error(
                 "Failed to render guardian box".into(),
@@ -194,7 +199,9 @@ where
     let updated_box = store.update_box(box_record).await?;
 
     if let Some(guard_box) = convert_to_guardian_box(&updated_box, &user_id) {
-        return Ok(Json(serde_json::json!({ "box": guard_box })));
+        return Ok(Json(
+            serde_json::json!({ "box": crate::models::GuardianBoxResponse::from(guard_box) }),
+        ));
     } else {
         return Err(AppError::internal_server_error(
             "Failed to render guardian box".into(),
@@ -233,7 +240,7 @@ where
             if let Some(guard_box) = convert_to_guardian_box(&updated_box, &user_id) {
                 return Ok(Json(serde_json::json!({
                     "message": "Guardian invitation accepted successfully",
-                    "box": guard_box
+                    "box": crate::models::GuardianBoxResponse::from(guard_box)
                 })));
             } else {
                 return Err(AppError::internal_server_error(
@@ -254,8 +261,7 @@ where
         }
     }
 
-    // If we get here, the user isn't a pending guardian for this box
     Err(AppError::bad_request(
-        "No pending invitation found for this box".into(),
+        "No pending invitation found for this user".into(),
     ))
 }

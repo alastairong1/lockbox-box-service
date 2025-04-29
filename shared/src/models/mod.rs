@@ -6,7 +6,7 @@ use std::str::FromStr;
 pub mod events;
 
 // Invitation statuses
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum InvitationStatus {
     Invited,
     Opened,
@@ -119,8 +119,8 @@ pub struct BoxRecord {
     pub unlock_instructions: Option<String>,
     #[serde(rename = "unlockRequest")]
     pub unlock_request: Option<UnlockRequest>,
-    #[serde(default, skip_serializing)]
-    pub version: u64, // Version for optimistic concurrency control, hidden from clients
+    #[serde(default)]
+    pub version: u64, // Version for optimistic concurrency control
 }
 
 #[derive(Serialize, Deserialize, Debug)]

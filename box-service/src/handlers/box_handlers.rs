@@ -28,23 +28,7 @@ where
     // Get boxes from store
     let boxes = store.get_boxes_by_owner(&user_id).await?;
 
-    let my_boxes: Vec<_> = boxes
-        .iter()
-        .map(|b| BoxResponse {
-            id: b.id.clone(),
-            name: b.name.clone(),
-            description: b.description.clone(),
-            created_at: b.created_at.clone(),
-            updated_at: b.updated_at.clone(),
-            unlock_instructions: b.unlock_instructions.clone(),
-            is_locked: b.is_locked,
-            documents: b.documents.clone(),
-            guardians: b.guardians.clone(),
-            owner_id: b.owner_id.clone(),
-            owner_name: b.owner_name.clone(),
-            unlock_request: b.unlock_request.clone(),
-        })
-        .collect();
+    let my_boxes: Vec<_> = boxes.into_iter().map(BoxResponse::from).collect();
 
     Ok(Json(serde_json::json!({ "boxes": my_boxes })))
 }
@@ -70,20 +54,7 @@ where
 
     // Return full box info for owner
     Ok(Json(serde_json::json!({
-        "box": BoxResponse {
-            id: box_rec.id.clone(),
-            name: box_rec.name.clone(),
-            description: box_rec.description.clone(),
-            created_at: box_rec.created_at.clone(),
-            updated_at: box_rec.updated_at.clone(),
-            unlock_instructions: box_rec.unlock_instructions.clone(),
-            is_locked: box_rec.is_locked,
-            documents: box_rec.documents.clone(),
-            guardians: box_rec.guardians.clone(),
-            owner_id: box_rec.owner_id.clone(),
-            owner_name: box_rec.owner_name.clone(),
-            unlock_request: box_rec.unlock_request.clone(),
-        }
+        "box": BoxResponse::from(box_rec)
     })))
 }
 
@@ -116,24 +87,9 @@ where
     // Create the box in store
     let created_box = store.create_box(new_box).await?;
 
-    let response = BoxResponse {
-        id: created_box.id.clone(),
-        name: created_box.name.clone(),
-        description: created_box.description.clone(),
-        created_at: created_box.created_at.clone(),
-        updated_at: created_box.updated_at.clone(),
-        unlock_instructions: created_box.unlock_instructions.clone(),
-        is_locked: created_box.is_locked,
-        documents: created_box.documents.clone(),
-        guardians: created_box.guardians.clone(),
-        owner_id: created_box.owner_id.clone(),
-        owner_name: created_box.owner_name.clone(),
-        unlock_request: created_box.unlock_request.clone(),
-    };
-
     Ok((
         StatusCode::CREATED,
-        Json(serde_json::json!({ "box": response })),
+        Json(serde_json::json!({ "box": BoxResponse::from(created_box) })),
     ))
 }
 
@@ -184,22 +140,9 @@ where
     // Save the updated box
     let updated_box = store.update_box(box_rec).await?;
 
-    let response = BoxResponse {
-        id: updated_box.id.clone(),
-        name: updated_box.name.clone(),
-        description: updated_box.description.clone(),
-        created_at: updated_box.created_at.clone(),
-        updated_at: updated_box.updated_at.clone(),
-        unlock_instructions: updated_box.unlock_instructions.clone(),
-        is_locked: updated_box.is_locked,
-        documents: updated_box.documents.clone(),
-        guardians: updated_box.guardians.clone(),
-        owner_id: updated_box.owner_id.clone(),
-        owner_name: updated_box.owner_name.clone(),
-        unlock_request: updated_box.unlock_request.clone(),
-    };
-
-    Ok(Json(serde_json::json!({ "box": response })))
+    Ok(Json(
+        serde_json::json!({ "box": BoxResponse::from(updated_box) }),
+    ))
 }
 
 // DELETE /boxes/:id
@@ -286,10 +229,25 @@ where
     let (updated_box, _) =
         update_or_add_guardian(&*store, &box_id, &user_id, &payload.guardian).await?;
 
-    // Create a specialized response with all guardians
+    // Find the updated guardian in the updated box
+    let updated_guardian = updated_box
+        .guardians
+        .iter()
+        .find(|g| g.id == payload.guardian.id)
+        .ok_or_else(|| {
+            AppError::internal_server_error("Updated guardian not found in response".into())
+        })?;
+
+    // Create a specialized response with the updated guardian and all guardians
     let response = GuardianUpdateResponse {
-        guardians: updated_box.guardians,
-        updated_at: updated_box.updated_at,
+        id: updated_guardian.id.clone(),
+        name: updated_guardian.name.clone(),
+        status: updated_guardian.status.clone(),
+        lead_guardian: updated_guardian.lead_guardian,
+        added_at: updated_guardian.added_at.clone(),
+        invitation_id: updated_guardian.invitation_id.clone(),
+        all_guardians: updated_box.guardians.clone(),
+        updated_at: updated_box.updated_at.clone(),
     };
 
     Ok(Json(serde_json::json!({ "guardian": response })))
@@ -480,12 +438,27 @@ pub async fn delete_guardian<S>(
 where
     S: BoxStore,
 {
+    // Get the guardian details before deletion
+    let box_rec_before = store.get_box(&box_id).await?;
+    let guardian_before = box_rec_before
+        .guardians
+        .iter()
+        .find(|g| g.id == guardian_id)
+        .ok_or_else(|| AppError::not_found(format!("Guardian with ID {} not found", guardian_id)))?
+        .clone();
+
     // Use the helper function to delete the guardian
     let updated_box = delete_guardian_from_box(&*store, &box_id, &user_id, &guardian_id).await?;
 
-    // Create a response with all remaining guardians
+    // Create a response with the deleted guardian info and remaining guardians
     let response = GuardianUpdateResponse {
-        guardians: updated_box.guardians,
+        id: guardian_before.id,
+        name: guardian_before.name,
+        status: guardian_before.status,
+        lead_guardian: guardian_before.lead_guardian,
+        added_at: guardian_before.added_at,
+        invitation_id: guardian_before.invitation_id,
+        all_guardians: updated_box.guardians,
         updated_at: updated_box.updated_at,
     };
 

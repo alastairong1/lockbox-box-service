@@ -1055,8 +1055,12 @@ async fn test_update_single_guardian() {
     // Check the guardian details in response
     let guardian_response = json_response["guardian"].as_object().unwrap();
     assert!(
-        guardian_response.contains_key("guardians"),
-        "Guardian response should contain guardians array"
+        guardian_response.contains_key("id"),
+        "Guardian response should contain id field"
+    );
+    assert!(
+        guardian_response.contains_key("status"),
+        "Guardian response should contain status field"
     );
 
     // Add delay for DynamoDB consistency

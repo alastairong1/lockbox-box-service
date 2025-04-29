@@ -62,6 +62,25 @@ pub struct BoxResponse {
     pub unlock_request: Option<UnlockRequest>,
 }
 
+impl From<lockbox_shared::models::BoxRecord> for BoxResponse {
+    fn from(box_rec: lockbox_shared::models::BoxRecord) -> Self {
+        Self {
+            id: box_rec.id,
+            name: box_rec.name,
+            description: box_rec.description,
+            created_at: box_rec.created_at,
+            updated_at: box_rec.updated_at,
+            unlock_instructions: box_rec.unlock_instructions,
+            is_locked: box_rec.is_locked,
+            documents: box_rec.documents,
+            guardians: box_rec.guardians,
+            owner_id: box_rec.owner_id,
+            owner_name: box_rec.owner_name,
+            unlock_request: box_rec.unlock_request,
+        }
+    }
+}
+
 #[derive(Serialize, Debug)]
 pub struct DocumentUpdateResponse {
     pub documents: Vec<Document>,
@@ -71,7 +90,17 @@ pub struct DocumentUpdateResponse {
 
 #[derive(Serialize, Debug)]
 pub struct GuardianUpdateResponse {
-    pub guardians: Vec<Guardian>,
+    pub id: String,
+    pub name: String,
+    pub status: String,
+    #[serde(rename = "leadGuardian")]
+    pub lead_guardian: bool,
+    #[serde(rename = "addedAt")]
+    pub added_at: String,
+    #[serde(rename = "invitationId")]
+    pub invitation_id: String,
+    #[serde(rename = "allGuardians")]
+    pub all_guardians: Vec<Guardian>,
     #[serde(rename = "updatedAt")]
     pub updated_at: String,
 }
@@ -144,6 +173,58 @@ pub struct MessageResponse {
     pub message: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub box_id: Option<String>,
+}
+
+// GuardianBox DTO to exclude version
+#[derive(Serialize, Debug)]
+pub struct GuardianBoxResponse {
+    pub id: String,
+    pub name: String,
+    pub description: String,
+    #[serde(rename = "isLocked")]
+    pub is_locked: bool,
+    #[serde(rename = "createdAt")]
+    pub created_at: String,
+    #[serde(rename = "updatedAt")]
+    pub updated_at: String,
+    #[serde(rename = "ownerId")]
+    pub owner_id: String,
+    #[serde(rename = "ownerName")]
+    pub owner_name: Option<String>,
+    #[serde(rename = "unlockInstructions")]
+    pub unlock_instructions: Option<String>,
+    #[serde(rename = "unlockRequest")]
+    pub unlock_request: Option<UnlockRequest>,
+    #[serde(rename = "pendingGuardianApproval")]
+    pub pending_guardian_approval: Option<bool>,
+    #[serde(rename = "guardiansCount")]
+    pub guardians_count: usize,
+    #[serde(rename = "isLeadGuardian")]
+    pub is_lead_guardian: bool,
+    pub documents: Vec<Document>,
+    pub guardians: Vec<Guardian>,
+}
+
+impl From<lockbox_shared::models::GuardianBox> for GuardianBoxResponse {
+    fn from(guard_box: lockbox_shared::models::GuardianBox) -> Self {
+        Self {
+            id: guard_box.id,
+            name: guard_box.name,
+            description: guard_box.description,
+            is_locked: guard_box.is_locked,
+            created_at: guard_box.created_at,
+            updated_at: guard_box.updated_at,
+            owner_id: guard_box.owner_id,
+            owner_name: guard_box.owner_name,
+            unlock_instructions: guard_box.unlock_instructions,
+            unlock_request: guard_box.unlock_request,
+            pending_guardian_approval: guard_box.pending_guardian_approval,
+            guardians_count: guard_box.guardians_count,
+            is_lead_guardian: guard_box.is_lead_guardian,
+            documents: guard_box.documents,
+            guardians: guard_box.guardians,
+        }
+    }
 }
 
 // Utility functions

@@ -22,9 +22,10 @@ pub async fn handle_invitation_created(
         event.box_id
     );
 
+    // TODO: implement invitation‐created business logic here
+
     Ok(())
 }
-
 
 // Handler for invitation_opened events
 pub async fn handle_invitation_opened(
