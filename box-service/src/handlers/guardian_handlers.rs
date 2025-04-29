@@ -14,7 +14,7 @@ use crate::{
 };
 
 use lockbox_shared::{
-    models::UnlockRequest,
+    models::{GuardianStatus, UnlockRequest, UnlockRequestStatus},
     store::{convert_to_guardian_box, BoxStore},
 };
 
@@ -91,7 +91,7 @@ where
     let is_guardian = box_record
         .guardians
         .iter()
-        .find(|g| g.id == user_id && g.status != "rejected")
+        .find(|g| g.id == user_id && g.status != GuardianStatus::Rejected)
         .is_some();
 
     if !is_guardian {
@@ -110,7 +110,7 @@ where
         let new_unlock = UnlockRequest {
             id: Uuid::new_v4().to_string(),
             requested_at: now_str(),
-            status: "invited".into(),
+            status: UnlockRequestStatus::Requested,
             message: Some(payload.message),
             initiated_by: Some(user_id.clone()),
             approved_by: vec![],
@@ -156,7 +156,7 @@ where
     if box_record
         .guardians
         .iter()
-        .find(|g| g.id == user_id && g.status != "rejected")
+        .find(|g| g.id == user_id && g.status != GuardianStatus::Rejected)
         .is_none()
     {
         return Err(AppError::unauthorized("Not a guardian for this box".into()));
@@ -226,12 +226,12 @@ where
     let guardian_index = box_record
         .guardians
         .iter()
-        .position(|g| g.id == user_id && g.status == "invited");
+        .position(|g| g.id == user_id && g.status == GuardianStatus::Invited);
 
     if let Some(index) = guardian_index {
         // Update the guardian status based on the acceptance
         if payload.accept {
-            box_record.guardians[index].status = "accepted".to_string();
+            box_record.guardians[index].status = GuardianStatus::Accepted;
             box_record.updated_at = now_str();
 
             // Update the box in store
@@ -249,7 +249,7 @@ where
             }
         } else {
             // User is rejecting the invitation
-            box_record.guardians[index].status = "rejected".to_string();
+            box_record.guardians[index].status = GuardianStatus::Rejected;
             box_record.updated_at = now_str();
 
             // Update the box in store

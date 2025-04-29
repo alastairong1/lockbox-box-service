@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 
 use crate::error::Result;
-use crate::models::{BoxRecord, Invitation, InvitationStatus};
+use crate::models::{BoxRecord, GuardianStatus, Invitation};
 
 // Expose the DynamoDB store module
 pub mod dynamo;
@@ -61,11 +61,11 @@ pub fn convert_to_guardian_box(
     if let Some(guardian) = box_rec
         .guardians
         .iter()
-        .find(|g| g.id == user_id && g.status != "rejected")
+        .find(|g| g.id == user_id && g.status != GuardianStatus::Rejected)
     {
         let pending = matches!(
-            guardian.status.parse::<InvitationStatus>(),
-            Ok(InvitationStatus::Invited | InvitationStatus::Opened)
+            guardian.status,
+            GuardianStatus::Invited | GuardianStatus::Viewed
         );
         let is_lead = guardian.lead_guardian;
         Some(crate::models::GuardianBox {

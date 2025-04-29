@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 
 use crate::error::{Result, StoreError};
-use crate::models::BoxRecord;
+use crate::models::{BoxRecord, GuardianStatus};
 use crate::store::BoxStore;
 use async_trait::async_trait;
 
@@ -109,9 +109,9 @@ impl BoxStore for MockBoxStore {
         let guardian_boxes: Vec<BoxRecord> = boxes
             .values()
             .filter(|b| {
-                b.guardians
-                    .iter()
-                    .any(|guardian| guardian.id == guardian_id && guardian.status != "rejected")
+                b.guardians.iter().any(|guardian| {
+                    guardian.id == guardian_id && guardian.status != GuardianStatus::Rejected
+                })
             })
             .cloned()
             .collect();

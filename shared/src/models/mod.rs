@@ -40,6 +40,77 @@ impl fmt::Display for InvitationStatus {
     }
 }
 
+// Guardian statuses
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum GuardianStatus {
+    Invited,
+    Viewed,
+    Accepted,
+    Rejected,
+}
+
+impl FromStr for GuardianStatus {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "invited" => Ok(GuardianStatus::Invited),
+            "viewed" => Ok(GuardianStatus::Viewed),
+            "accepted" => Ok(GuardianStatus::Accepted),
+            "rejected" => Ok(GuardianStatus::Rejected),
+            _ => Err(format!("Unknown guardian status: {}", s)),
+        }
+    }
+}
+
+impl fmt::Display for GuardianStatus {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let status_str = match self {
+            GuardianStatus::Invited => "invited",
+            GuardianStatus::Viewed => "viewed",
+            GuardianStatus::Accepted => "accepted",
+            GuardianStatus::Rejected => "rejected",
+        };
+        write!(f, "{}", status_str)
+    }
+}
+
+// Unlock request statuses
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum UnlockRequestStatus {
+    Requested, // Initial state when request is created (was Invited)
+    Approved,  // When enough guardians have approved
+    Rejected,  // When request has been rejected
+    Completed, // When box has been unlocked
+}
+
+impl FromStr for UnlockRequestStatus {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "requested" => Ok(UnlockRequestStatus::Requested),
+            "invited" => Ok(UnlockRequestStatus::Requested), // Keep backward compatibility
+            "approved" => Ok(UnlockRequestStatus::Approved),
+            "rejected" => Ok(UnlockRequestStatus::Rejected),
+            "completed" => Ok(UnlockRequestStatus::Completed),
+            _ => Err(format!("Unknown unlock request status: {}", s)),
+        }
+    }
+}
+
+impl fmt::Display for UnlockRequestStatus {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let status_str = match self {
+            UnlockRequestStatus::Requested => "requested",
+            UnlockRequestStatus::Approved => "approved",
+            UnlockRequestStatus::Rejected => "rejected",
+            UnlockRequestStatus::Completed => "completed",
+        };
+        write!(f, "{}", status_str)
+    }
+}
+
 // Invitation-related models
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Invitation {
@@ -76,7 +147,7 @@ pub struct Guardian {
     pub name: String,
     #[serde(rename = "leadGuardian")]
     pub lead_guardian: bool,
-    pub status: String, // "invited", "viewed", "accepted", "rejected"
+    pub status: GuardianStatus,
     #[serde(rename = "addedAt")]
     pub added_at: String,
     #[serde(rename = "invitationId")]
@@ -88,7 +159,7 @@ pub struct UnlockRequest {
     pub id: String,
     #[serde(rename = "requestedAt")]
     pub requested_at: String,
-    pub status: String,
+    pub status: UnlockRequestStatus,
     pub message: Option<String>,
     #[serde(rename = "initiatedBy")]
     pub initiated_by: Option<String>,

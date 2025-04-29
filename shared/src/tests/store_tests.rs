@@ -1,6 +1,7 @@
 #[cfg(test)]
 mod dynamo_tests {
     use crate::models::BoxRecord;
+    use crate::models::GuardianStatus;
     use crate::store::{dynamo::DynamoBoxStore, BoxStore};
     use crate::test_utils::test_logging::init_test_logging;
     use aws_sdk_dynamodb::Client;
@@ -376,7 +377,7 @@ mod dynamo_tests {
         test_box1.guardians.push(crate::models::Guardian {
             id: guardian_id.to_string(),
             name: "Test Guardian".to_string(),
-            status: "accepted".to_string(),
+            status: GuardianStatus::Accepted,
             lead_guardian: false,
             added_at: crate::models::now_str(),
             invitation_id: Uuid::new_v4().to_string(),
@@ -387,7 +388,7 @@ mod dynamo_tests {
         test_box2.guardians.push(crate::models::Guardian {
             id: guardian_id.to_string(),
             name: "Test Guardian".to_string(),
-            status: "rejected".to_string(),
+            status: GuardianStatus::Rejected,
             lead_guardian: false,
             added_at: crate::models::now_str(),
             invitation_id: Uuid::new_v4().to_string(),
@@ -398,7 +399,7 @@ mod dynamo_tests {
         test_box3.guardians.push(crate::models::Guardian {
             id: "other_guardian".to_string(),
             name: "Other Guardian".to_string(),
-            status: "accepted".to_string(),
+            status: GuardianStatus::Accepted,
             lead_guardian: false,
             added_at: crate::models::now_str(),
             invitation_id: Uuid::new_v4().to_string(),

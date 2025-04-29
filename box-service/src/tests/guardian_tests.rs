@@ -15,7 +15,9 @@ use std::sync::Arc;
 use tower::ServiceExt;
 
 use crate::{models::now_str, routes};
-use lockbox_shared::models::{BoxRecord, Guardian, UnlockRequest};
+use lockbox_shared::models::{
+    BoxRecord, Guardian, GuardianStatus, UnlockRequest, UnlockRequestStatus,
+};
 
 // Constants for DynamoDB tests
 const TEST_TABLE_NAME: &str = "guardian-test-table";
@@ -39,7 +41,7 @@ fn create_test_data(now: &str) -> Vec<BoxRecord> {
                 id: "guardian_1".into(),
                 name: "Guardian One".into(),
                 lead_guardian: false,
-                status: "accepted".into(),
+                status: GuardianStatus::Accepted,
                 added_at: now.to_string(),
                 invitation_id: "invitation_1".into(),
             },
@@ -47,7 +49,7 @@ fn create_test_data(now: &str) -> Vec<BoxRecord> {
                 id: "guardian_2".into(),
                 name: "Guardian Two".into(),
                 lead_guardian: false,
-                status: "accepted".into(),
+                status: GuardianStatus::Accepted,
                 added_at: now.to_string(),
                 invitation_id: "invitation_2".into(),
             },
@@ -55,7 +57,7 @@ fn create_test_data(now: &str) -> Vec<BoxRecord> {
                 id: "lead_guardian_1".into(),
                 name: "Lead Guardian One".into(),
                 lead_guardian: true,
-                status: "accepted".into(),
+                status: GuardianStatus::Accepted,
                 added_at: now.to_string(),
                 invitation_id: "invitation_3".into(),
             },
@@ -70,7 +72,7 @@ fn create_test_data(now: &str) -> Vec<BoxRecord> {
     let unlock_request = UnlockRequest {
         id: "unlock-111".into(),
         requested_at: now.to_string(),
-        status: "invited".into(),
+        status: UnlockRequestStatus::Requested,
         message: Some("Emergency access needed".into()),
         initiated_by: Some("lead_guardian_1".into()),
         approved_by: vec![],
@@ -92,7 +94,7 @@ fn create_test_data(now: &str) -> Vec<BoxRecord> {
                 id: "guardian_1".into(),
                 name: "Guardian One".into(),
                 lead_guardian: false,
-                status: "accepted".into(),
+                status: GuardianStatus::Accepted,
                 added_at: now.to_string(),
                 invitation_id: "invitation_5".into(),
             },
@@ -100,7 +102,7 @@ fn create_test_data(now: &str) -> Vec<BoxRecord> {
                 id: "guardian_3".into(),
                 name: "Guardian Three".into(),
                 lead_guardian: false,
-                status: "accepted".into(),
+                status: GuardianStatus::Accepted,
                 added_at: now.to_string(),
                 invitation_id: "invitation_6".into(),
             },
@@ -108,7 +110,7 @@ fn create_test_data(now: &str) -> Vec<BoxRecord> {
                 id: "lead_guardian_1".into(),
                 name: "Lead Guardian One".into(),
                 lead_guardian: true,
-                status: "accepted".into(),
+                status: GuardianStatus::Accepted,
                 added_at: now.to_string(),
                 invitation_id: "invitation_7".into(),
             },
@@ -134,7 +136,7 @@ fn create_test_data(now: &str) -> Vec<BoxRecord> {
             id: "guardian_2".into(),
             name: "Guardian Two".into(),
             lead_guardian: false,
-            status: "accepted".into(),
+            status: GuardianStatus::Accepted,
             added_at: now.to_string(),
             invitation_id: "invitation_9".into(),
         }],
@@ -437,7 +439,7 @@ async fn test_lead_guardian_unlock_request() {
         .expect("Box should have unlockRequest field");
     assert_eq!(
         unlock_request.get("status").unwrap().as_str().unwrap(),
-        "invited"
+        "requested"
     );
     assert_eq!(
         unlock_request.get("message").unwrap().as_str().unwrap(),
@@ -465,7 +467,7 @@ async fn test_lead_guardian_unlock_request() {
         "Box should have unlock request in store"
     );
     let store_unlock_request = updated_box.unlock_request.unwrap();
-    assert_eq!(store_unlock_request.status, "invited");
+    assert_eq!(store_unlock_request.status, UnlockRequestStatus::Requested);
     assert_eq!(
         store_unlock_request.message,
         Some("Emergency access needed for testing".to_string())

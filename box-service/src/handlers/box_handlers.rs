@@ -242,7 +242,7 @@ where
     let response = GuardianUpdateResponse {
         id: updated_guardian.id.clone(),
         name: updated_guardian.name.clone(),
-        status: updated_guardian.status.clone(),
+        status: updated_guardian.status.to_string(),
         lead_guardian: updated_guardian.lead_guardian,
         added_at: updated_guardian.added_at.clone(),
         invitation_id: updated_guardian.invitation_id.clone(),
@@ -454,7 +454,7 @@ where
     let response = GuardianUpdateResponse {
         id: guardian_before.id,
         name: guardian_before.name,
-        status: guardian_before.status,
+        status: guardian_before.status.to_string(),
         lead_guardian: guardian_before.lead_guardian,
         added_at: guardian_before.added_at,
         invitation_id: guardian_before.invitation_id,

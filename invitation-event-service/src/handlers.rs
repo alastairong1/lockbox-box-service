@@ -1,5 +1,6 @@
 // Import shared models and store
 use lockbox_shared::models::events::InvitationEvent;
+use lockbox_shared::models::GuardianStatus;
 use lockbox_shared::store::BoxStore;
 use std::sync::Arc; // Add Arc for shared state
 
@@ -112,8 +113,9 @@ pub async fn process_invitation_viewing(
                 retries += 1;
                 last_error = Some(err);
 
-                // Simple backoff with minimal jitter
-                let delay_ms = 50 + (retries as u64 * 20);
+                let base_delay_ms = 50 * (1 << retries); // 50, 100, 200, 400, 800
+                let jitter = ((retries as f64 * 0.1) * base_delay_ms as f64) as u64;
+                let delay_ms = base_delay_ms + fastrand::u64(0..=jitter);
 
                 info!(
                     "Error updating guardian (retry {}/{}): box_id={}, invitation_id={}, waiting {}ms",
@@ -142,7 +144,7 @@ pub async fn process_invitation_viewing(
                     .find(|g| g.invitation_id == invitation_id);
                 match guardian {
                     Some(g) => {
-                        if g.id == user_id && g.status == "viewed" {
+                        if g.id == user_id && g.status == GuardianStatus::Viewed {
                             info!(
                                 "Guardian was actually updated by another process: box_id={}, invitation_id={}, user_id={}",
                                 box_id, invitation_id, user_id
@@ -202,7 +204,7 @@ async fn update_specific_guardian(
     let guardian = &box_record.guardians[guardian_idx];
 
     // Skip if already updated to viewed status with correct user ID
-    if guardian.status == "viewed" && guardian.id == user_id {
+    if guardian.status == GuardianStatus::Viewed && guardian.id == user_id {
         log::info!(
             "Guardian already updated, skipping: box_id={}, invitation_id={}, user_id={}",
             box_id,
@@ -213,11 +215,11 @@ async fn update_specific_guardian(
     }
 
     // Only update if the guardian is still in "invited" state
-    if guardian.status == "invited" {
+    if guardian.status == GuardianStatus::Invited {
         // Make a minimal update - only update this one guardian
         let now = chrono::Utc::now().to_rfc3339();
         box_record.guardians[guardian_idx].id = user_id.to_string();
-        box_record.guardians[guardian_idx].status = "viewed".to_string();
+        box_record.guardians[guardian_idx].status = GuardianStatus::Viewed;
         box_record.updated_at = now;
 
         // Version bump and optimistic‐locking check occur in

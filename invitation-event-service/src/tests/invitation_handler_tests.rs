@@ -6,6 +6,7 @@ use std::sync::Arc;
 
 use lockbox_shared::error::Result as StoreResult;
 use lockbox_shared::models::events::InvitationEvent;
+use lockbox_shared::models::GuardianStatus;
 use lockbox_shared::store::dynamo::DynamoBoxStore;
 use lockbox_shared::store::BoxStore;
 use lockbox_shared::test_utils::dynamo_test_utils::{
@@ -179,7 +180,7 @@ async fn test_invitation_viewed_handler() {
         id: "placeholder_id".to_string(),
         name: "Test Guardian".to_string(),
         lead_guardian: false,
-        status: "invited".to_string(), // Initially status is "invited"
+        status: GuardianStatus::Invited,
         added_at: "2023-01-01T00:00:00Z".to_string(),
         invitation_id: invitation_id.to_string(), // Use the same invitation_id as in the event
     };
@@ -219,7 +220,8 @@ async fn test_invitation_viewed_handler() {
 
     // Verify that the status has been updated to "viewed"
     assert_eq!(
-        guardian.status, "viewed",
+        guardian.status,
+        GuardianStatus::Viewed,
         "Guardian status should be updated to 'viewed'"
     );
 }
@@ -249,7 +251,7 @@ async fn test_no_matching_guardian() {
             id: "placeholder_id".to_string(),
             name: "Existing Guardian".to_string(),
             lead_guardian: false,
-            status: "invited".to_string(),
+            status: GuardianStatus::Invited,
             added_at: "2023-01-01T00:00:00Z".to_string(),
             invitation_id: "different_invitation_id".to_string(),
         }],
@@ -281,7 +283,7 @@ async fn test_no_matching_guardian() {
     let guardian = &box_record.guardians[0];
     assert_eq!(guardian.invitation_id, "different_invitation_id");
     assert_eq!(guardian.id, "placeholder_id");
-    assert_eq!(guardian.status, "invited");
+    assert_eq!(guardian.status, GuardianStatus::Invited);
 }
 
 #[tokio::test]
@@ -325,7 +327,7 @@ async fn test_concurrent_updates() {
         id: "placeholder_id_1".to_string(),
         name: "Test Guardian 1".to_string(),
         lead_guardian: false,
-        status: "invited".to_string(),
+        status: GuardianStatus::Invited,
         added_at: "2023-01-01T00:00:00Z".to_string(),
         invitation_id: invitation_id1.to_string(),
     };
@@ -334,7 +336,7 @@ async fn test_concurrent_updates() {
         id: "placeholder_id_2".to_string(),
         name: "Test Guardian 2".to_string(),
         lead_guardian: false,
-        status: "invited".to_string(),
+        status: GuardianStatus::Invited,
         added_at: "2023-01-01T00:00:00Z".to_string(),
         invitation_id: invitation_id2.to_string(),
     };
@@ -343,7 +345,7 @@ async fn test_concurrent_updates() {
         id: "placeholder_id_3".to_string(),
         name: "Test Guardian 3".to_string(),
         lead_guardian: false,
-        status: "invited".to_string(),
+        status: GuardianStatus::Invited,
         added_at: "2023-01-01T00:00:00Z".to_string(),
         invitation_id: invitation_id3.to_string(),
     };
@@ -409,13 +411,13 @@ async fn test_concurrent_updates() {
         .find(|g| g.invitation_id == invitation_id3)
         .expect("Guardian with invitation_id3 should exist");
 
-    assert_eq!(guardian1.status, "viewed");
+    assert_eq!(guardian1.status, GuardianStatus::Viewed);
     assert_eq!(guardian1.id, "test_user_1");
 
-    assert_eq!(guardian2.status, "viewed");
+    assert_eq!(guardian2.status, GuardianStatus::Viewed);
     assert_eq!(guardian2.id, "test_user_2");
 
-    assert_eq!(guardian3.status, "viewed");
+    assert_eq!(guardian3.status, GuardianStatus::Viewed);
     assert_eq!(guardian3.id, "test_user_3");
 }
 
@@ -443,7 +445,7 @@ async fn test_malformed_event() {
             id: "placeholder_id".to_string(),
             name: "Test Guardian".to_string(),
             lead_guardian: false,
-            status: "invited".to_string(),
+            status: GuardianStatus::Invited,
             added_at: "2023-01-01T00:00:00Z".to_string(),
             invitation_id: invitation_id.to_string(),
         }],
@@ -514,7 +516,7 @@ async fn test_malformed_event() {
     let guardian = &box_record.guardians[0];
     assert_eq!(guardian.invitation_id, invitation_id);
     assert_eq!(guardian.id, "placeholder_id");
-    assert_eq!(guardian.status, "invited");
+    assert_eq!(guardian.status, GuardianStatus::Invited);
 
     // Verify no other fields were changed
     assert_eq!(box_record.id, original_box.id);

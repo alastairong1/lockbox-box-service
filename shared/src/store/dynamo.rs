@@ -260,10 +260,10 @@ impl super::BoxStore for DynamoBoxStore {
             let box_record: BoxRecord = from_item(item.clone())?;
 
             // Check if the user is a guardian for this box
-            let is_guardian = box_record
-                .guardians
-                .iter()
-                .any(|guardian| guardian.id == guardian_id && guardian.status != "rejected");
+            let is_guardian = box_record.guardians.iter().any(|guardian| {
+                guardian.id == guardian_id
+                    && guardian.status != crate::models::GuardianStatus::Rejected
+            });
 
             if is_guardian {
                 boxes.push(box_record);

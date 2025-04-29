@@ -17,7 +17,7 @@ use std::sync::Arc;
 use tower::ServiceExt;
 
 use crate::routes;
-use lockbox_shared::models::{now_str, BoxRecord, Guardian};
+use lockbox_shared::models::{now_str, BoxRecord, Guardian, GuardianStatus};
 
 // Constants for DynamoDB tests
 const TEST_TABLE_NAME: &str = "box-test-table";
@@ -766,7 +766,7 @@ async fn test_update_box_add_guardians() {
     if let Some(guardian) = added_guardian {
         assert_eq!(guardian.name, "Test Guardian");
         assert_eq!(guardian.lead_guardian, false);
-        assert_eq!(guardian.status, "invited");
+        assert_eq!(guardian.status, GuardianStatus::Invited);
     }
 }
 
@@ -985,7 +985,7 @@ async fn test_update_single_guardian() {
         id: guardian_id.to_string(),
         name: "Guardian A".to_string(),
         lead_guardian: false,
-        status: "invited".to_string(),
+        status: GuardianStatus::Invited,
         added_at: "2023-01-01T12:00:00Z".to_string(),
         invitation_id: "inv-guardian-a".to_string(),
     };
@@ -1016,7 +1016,7 @@ async fn test_update_single_guardian() {
         .find(|g| g.id == guardian_id)
         .expect("Guardian should be found in the box");
 
-    assert_eq!(initial_guardian.status, "invited");
+    assert_eq!(initial_guardian.status, GuardianStatus::Invited);
 
     // Now use the API to update the guardian's status
     let updated_guardian = json!({
@@ -1085,10 +1085,7 @@ async fn test_update_single_guardian() {
     // Verify the status was updated but other fields remain the same
     assert_eq!(updated_guardian.name, "Guardian A");
     assert_eq!(updated_guardian.lead_guardian, false);
-    assert_eq!(
-        updated_guardian.status, "accepted",
-        "Guardian status should have been updated to 'accepted'"
-    );
+    assert_eq!(updated_guardian.status, GuardianStatus::Accepted);
 }
 
 #[tokio::test]
