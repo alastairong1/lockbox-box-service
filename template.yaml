@@ -86,14 +86,6 @@ Resources:
             Method: ANY
             Auth:
               Authorizer: CognitoAuthorizer
-        ApiEventWithId:
-          Type: Api
-          Properties:
-            RestApiId: !Ref ApiGatewayApi
-            Path: /boxes/{id}
-            Method: ANY
-            Auth:
-              Authorizer: CognitoAuthorizer
         ApiEventWithSubpaths:
           Type: Api
           Properties:
@@ -135,14 +127,6 @@ Resources:
           Properties:
             RestApiId: !Ref ApiGatewayApi
             Path: /invitations
-            Method: ANY
-            Auth:
-              Authorizer: CognitoAuthorizer
-        ApiEventWithId:
-          Type: Api
-          Properties:
-            RestApiId: !Ref ApiGatewayApi
-            Path: /invitations/{id}
             Method: ANY
             Auth:
               Authorizer: CognitoAuthorizer
