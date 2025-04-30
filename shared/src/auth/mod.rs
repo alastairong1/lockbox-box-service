@@ -176,7 +176,7 @@ pub fn create_jwt_token(user_id: &str) -> String {
     let claims = Claims {
         sub: user_id.to_string(),
         email_verified: Some(true),
-        iss: "https://cognito-idp.eu-west-2.amazonaws.com/eu-west-2_SnyjSmOpW".to_string(),
+        iss: "https://cognito-idp.eu-west-2.amazonaws.com/eu-west-2_rdkfPgGg4".to_string(),
         cognito_username: Some(user_id.to_string()),
         origin_jti: Some("2961a64b-e7ec-4885-994a-d650cc7a7c2d".to_string()),
         aud: "5pgt5gkfulqs0tkdi279c895gp".to_string(),

@@ -63,11 +63,11 @@ Resources:
         - SignInWithApple
 
   # Add a domain for the user pool
-  UserPoolDomain:
-    Type: AWS::Cognito::UserPoolDomain
-    Properties:
-      Domain: !Sub "lockbox-${AWS::AccountId}"
-      UserPoolId: !Ref UserPoolId
+  # UserPoolDomain:
+  #   Type: AWS::Cognito::UserPoolDomain
+  #   Properties:
+  #     Domain: !Sub "lockbox-${AWS::AccountId}"
+  #     UserPoolId: !Ref UserPoolId
 
   BoxServiceFunction:
     Type: AWS::Serverless::Function

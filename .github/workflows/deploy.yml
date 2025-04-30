@@ -62,7 +62,7 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-1
+          aws-region: eu-west-2
           
       - name: Install AWS SAM CLI
         run: |
@@ -72,7 +72,7 @@ jobs:
         run: |
           # Set AWS region from secrets or default to us-east-1
           AWS_REGION="${{ secrets.AWS_REGION }}"
-          AWS_REGION="${AWS_REGION:-us-east-1}"
+          AWS_REGION="${AWS_REGION:-eu-west-2}"
           echo "Using AWS region: $AWS_REGION"
           
           # Create S3 bucket for deployment if it doesn't exist
@@ -93,7 +93,7 @@ jobs:
         run: |
           # Get and display the Cognito User Pool ID and Client ID
           AWS_REGION="${{ secrets.AWS_REGION }}"
-          AWS_REGION="${AWS_REGION:-us-east-1}"
+          AWS_REGION="${AWS_REGION:-eu-west-2}"
           
           echo "Getting stack outputs..."
           aws cloudformation describe-stacks --stack-name lockbox-box-service --region "$AWS_REGION" --query "Stacks[0].Outputs" --output table
