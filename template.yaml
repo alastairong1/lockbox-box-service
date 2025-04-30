@@ -351,9 +351,9 @@ Outputs:
   UserPoolClientId:
     Description: "Cognito User Pool Client ID"
     Value: !Ref UserPoolClient
-  UserPoolDomain:
-    Description: "Cognito User Pool Domain"
-    Value: !Sub "https://${UserPoolDomain}.auth.${AWS::Region}.amazoncognito.com"
+  # UserPoolDomain:
+  #   Description: "Cognito User Pool Domain"
+  #   Value: !Sub "https://${UserPoolDomain}.auth.${AWS::Region}.amazoncognito.com"
   LockboxEventsTopicArn:
     Description: "Lockbox Events SNS Topic ARN"
     Value: !Ref LockboxEventsTopic
