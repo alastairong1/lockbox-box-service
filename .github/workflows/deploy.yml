@@ -46,11 +46,11 @@ jobs:
           cargo build --release --target x86_64-unknown-linux-musl
           
           # Box Service
-          cp target/x86_64-unknown-linux-musl/release/box-service bootstrap
+          cp target/x86_64-unknown-linux-musl/release/lockbox-box-service bootstrap
           zip box-service.zip bootstrap
           
           # Invitation Service
-          cp target/x86_64-unknown-linux-musl/release/invitation-service bootstrap
+          cp target/x86_64-unknown-linux-musl/release/lockbox-invitation-service bootstrap
           zip invitation-service.zip bootstrap
           
           # Invitation Event Handler
