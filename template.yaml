@@ -6,7 +6,7 @@ Description: >
 Parameters:
   UserPoolId:
     Type: String
-    Default: eu-west-2_SnyjSmOpW
+    Default: eu-west-2_rdkfPgGg4
     Description: Existing Cognito User Pool ID to use
 
 Resources:
