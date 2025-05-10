@@ -1,1 +1,1 @@
-pub mod invitation_handler_tests;
+pub mod invitation_event_service_tests;
