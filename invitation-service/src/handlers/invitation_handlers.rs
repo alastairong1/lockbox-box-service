@@ -4,7 +4,7 @@ use axum::{
     Json,
 };
 use chrono::{Duration, Utc};
-use log::error;
+use log::{debug, error};
 use serde_json::json;
 use std::env;
 use std::sync::Arc;
@@ -109,6 +109,19 @@ pub async fn handle_invitation<S: InvitationStore + ?Sized>(
 
 // Helper function to publish an invitation event to SNS
 pub async fn publish_invitation_event(invitation: &Invitation, event_type: &str) -> Result<()> {
+    debug!("publish_invitation_event called for event_type={}, invitation_id={}", 
+           event_type, invitation.id);
+           
+    // Check if we're in test mode
+    if let Ok(test_sns) = env::var("TEST_SNS") {
+        if test_sns == "true" {
+            // Skip actual SNS publishing in test mode
+            debug!("Test mode: Skipping SNS publishing for event_type={}, invitation_id={}", 
+                   event_type, invitation.id);
+            return Ok(());
+        }
+    }
+
     // Get SNS topic ARN from environment variable
     let topic_arn =
         env::var("SNS_TOPIC_ARN").map_err(|e| map_dynamo_error("get_sns_topic_arn", e))?;
