@@ -13,13 +13,12 @@ use lambda_http::{
     Response as LambdaResponse,
 };
 use log::{debug, error, info, trace};
-use once_cell::sync::OnceCell;
 use std::net::SocketAddr;
-use tokio::sync::Mutex;
+use tokio::sync::OnceCell;
 use tower::ServiceExt;
 
 // Router instance that will be initialized once
-static ROUTER: OnceCell<Mutex<Option<Router>>> = OnceCell::new();
+static ROUTER: OnceCell<Router> = OnceCell::const_new();
 
 // The Lambda handler function
 async fn function_handler(event: LambdaRequest) -> Result<LambdaResponse<LambdaBody>, Error> {
@@ -30,22 +29,11 @@ async fn function_handler(event: LambdaRequest) -> Result<LambdaResponse<LambdaB
         event.uri().query()
     );
 
-    // Initialize the OnceCell if needed
-    if ROUTER.get().is_none() {
-        let _ = ROUTER.set(Mutex::new(None));
-    }
-
-    // Initialize the router if it hasn't been initialized yet
-    let mutex = ROUTER.get().unwrap();
-    let mut router_option = mutex.lock().await;
-
-    if router_option.is_none() {
-        info!("Initializing the Axum router");
-        *router_option = Some(routes::create_router().await);
-    }
-
-    let app = router_option.as_ref().unwrap().clone();
-    drop(router_option); // Release lock as soon as possible
+    // Get or initialize the router
+    let app = ROUTER
+        .get_or_init(|| async { routes::create_router().await })
+        .await
+        .clone();
 
     let (parts, body) = event.into_parts();
     let body = match body {
