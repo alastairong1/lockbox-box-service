@@ -15,10 +15,10 @@ use lambda_http::{
     Response as LambdaResponse,
 };
 use log::{debug, error, info, trace};
+use once_cell::sync::OnceCell;
 use routes::create_router;
 use std::net::SocketAddr;
 use tokio::sync::Mutex;
-use once_cell::sync::OnceCell;
 use tower::ServiceExt;
 
 // Router instance that will be initialized once
@@ -38,18 +38,18 @@ async fn function_handler(event: LambdaRequest) -> Result<LambdaResponse<LambdaB
     if ROUTER.get().is_none() {
         let _ = ROUTER.set(Mutex::new(None));
     }
-    
+
     // Initialize the router if it hasn't been initialized yet
     let mutex = ROUTER.get().unwrap();
     let mut router_option = mutex.lock().await;
-    
+
     if router_option.is_none() {
         info!("Initializing the Axum router");
         *router_option = Some(create_router().await);
     }
-    
+
     let app = router_option.as_ref().unwrap().clone();
-    drop(router_option);  // Release lock as soon as possible
+    drop(router_option); // Release lock as soon as possible
 
     // Convert the Lambda event to an HTTP request for Axum
     let (parts, body) = event.into_parts();

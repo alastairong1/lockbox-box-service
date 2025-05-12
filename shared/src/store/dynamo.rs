@@ -395,9 +395,6 @@ impl super::InvitationStore for DynamoInvitationStore {
         // 3. Create a conditional expression to check current version
         // 4. Handle ConditionalCheckFailedException as StoreError::VersionConflict
 
-        // Verify invitation exists first
-        self.get_invitation(&invitation.id).await?;
-
         // Convert to DynamoDB item
         let item = to_item(invitation.clone())?;
 
@@ -465,7 +462,7 @@ impl super::InvitationStore for DynamoInvitationStore {
             self.table_name,
             creator_id
         );
-        
+
         // Create expression attribute values
         let expr_attr_values = HashMap::from([(
             ":creator_id".to_string(),

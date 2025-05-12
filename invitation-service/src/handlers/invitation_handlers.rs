@@ -109,15 +109,19 @@ pub async fn handle_invitation<S: InvitationStore + ?Sized>(
 
 // Helper function to publish an invitation event to SNS
 pub async fn publish_invitation_event(invitation: &Invitation, event_type: &str) -> Result<()> {
-    debug!("publish_invitation_event called for event_type={}, invitation_id={}", 
-           event_type, invitation.id);
-           
+    debug!(
+        "publish_invitation_event called for event_type={}, invitation_id={}",
+        event_type, invitation.id
+    );
+
     // Check if we're in test mode
     if let Ok(test_sns) = env::var("TEST_SNS") {
         if test_sns == "true" {
             // Skip actual SNS publishing in test mode
-            debug!("Test mode: Skipping SNS publishing for event_type={}, invitation_id={}", 
-                   event_type, invitation.id);
+            debug!(
+                "Test mode: Skipping SNS publishing for event_type={}, invitation_id={}",
+                event_type, invitation.id
+            );
             return Ok(());
         }
     }
@@ -190,18 +194,16 @@ pub async fn refresh_invitation<S: InvitationStore + ?Sized>(
     Extension(user_id): Extension<String>,
     Path(invite_id): Path<String>,
 ) -> Result<Json<Invitation>> {
-    // Fetch invitations for this user (bypass expiry)
-    let invitations = store.get_invitations_by_creator_id(&user_id).await?;
-    // Only allow refresh if this user is the creator
-    let mut invitation = if let Some(inv) = invitations.into_iter().find(|inv| inv.id == invite_id)
-    {
-        inv
-    } else {
+    // Directly fetch the invitation by ID
+    let mut invitation = store.get_invitation(&invite_id).await?;
+
+    // Verify that the current user is the creator of this invitation
+    if invitation.creator_id != user_id {
         return Err(AppError::Forbidden(format!(
             "Invitation {} is not owned by user",
             invite_id
         )));
-    };
+    }
 
     // Check if the invitation has already been opened or linked
     if invitation.opened || invitation.linked_user_id.is_some() {

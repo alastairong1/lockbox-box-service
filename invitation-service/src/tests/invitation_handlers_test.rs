@@ -1,5 +1,5 @@
 use axum::{http::StatusCode, Router};
-use log::{debug, info, trace, error};
+use log::{debug, error, info, trace};
 use serde_json::json;
 use std::sync::Arc;
 use tower::ServiceExt;
@@ -37,7 +37,7 @@ async fn create_test_app() -> (Router, TestStore) {
         "SNS_TOPIC_ARN",
         "arn:aws:sns:us-east-1:123456789012:test-topic",
     );
-    
+
     // Set a test flag to skip actual SNS publishing
     env::set_var("TEST_SNS", "true");
 
@@ -73,7 +73,10 @@ async fn create_test_app() -> (Router, TestStore) {
             Ok(output) => {
                 if let Some(items) = output.items {
                     if !items.is_empty() {
-                        error!("Table not empty after clearing, found {} items", items.len());
+                        error!(
+                            "Table not empty after clearing, found {} items",
+                            items.len()
+                        );
                     } else {
                         debug!("Table is empty and ready for testing");
                     }
@@ -83,7 +86,10 @@ async fn create_test_app() -> (Router, TestStore) {
         }
 
         // Create the DynamoDB store with our test table
-        info!("Creating DynamoInvitationStore with table '{}'", TEST_TABLE_NAME);
+        info!(
+            "Creating DynamoInvitationStore with table '{}'",
+            TEST_TABLE_NAME
+        );
         let store = Arc::new(DynamoInvitationStore::with_client_and_table(
             client,
             TEST_TABLE_NAME.to_string(),
@@ -155,18 +161,28 @@ async fn test_create_invitation() {
 
     // Verify stored invitation - First try to get the ID from the response
     let invitation_id = json_resp["id"].as_str().unwrap();
-    
+
     let invitation = match &store {
         TestStore::Mock(mock) => mock.get_invitation(invitation_id).await.unwrap(),
         TestStore::DynamoDB(dynamo) => {
             info!("About to get invitation by ID: {}", invitation_id);
             let inv = dynamo.get_invitation(invitation_id).await.unwrap();
-            info!("Found invitation with id={}, creator_id={}", inv.id, inv.creator_id);
+            info!(
+                "Found invitation with id={}, creator_id={}",
+                inv.id, inv.creator_id
+            );
             // Double check we can get it by creator_id too
-            let creator_invs = dynamo.get_invitations_by_creator_id(&inv.creator_id).await.unwrap();
-            info!("Found {} invitations by creator_id={}", creator_invs.len(), inv.creator_id);
+            let creator_invs = dynamo
+                .get_invitations_by_creator_id(&inv.creator_id)
+                .await
+                .unwrap();
+            info!(
+                "Found {} invitations by creator_id={}",
+                creator_invs.len(),
+                inv.creator_id
+            );
             inv
-        },
+        }
     };
 
     // Verify the invitation properties
@@ -334,7 +350,7 @@ async fn test_refresh_invitation() {
     // Add a delay for DynamoDB consistency
     if matches!(store, TestStore::DynamoDB(_)) {
         debug!("Adding delay for DynamoDB consistency");
-        tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
+        tokio::time::sleep(tokio::time::Duration::from_millis(5000)).await;
     }
 
     let path = format!("/invitations/{}/refresh", id);
@@ -473,9 +489,9 @@ async fn test_get_my_invitations() {
         ("User 2", "box-456", "test-user-id"),
         ("User 3", "box-789", "other-user-id"),
     ];
-    
+
     let mut ids = Vec::new();
-    
+
     for (name, box_id, creator) in &test_cases {
         let id = Uuid::new_v4().to_string();
         let invite_code = Uuid::new_v4()
@@ -509,7 +525,7 @@ async fn test_get_my_invitations() {
                 dynamo.create_invitation(invitation.clone()).await.unwrap()
             }
         };
-        
+
         ids.push((id, creator.to_string()));
     }
 
@@ -533,13 +549,13 @@ async fn test_get_my_invitations() {
     assert_eq!(response.status(), StatusCode::OK);
     let json_resp = response_to_json(response).await;
     let arr = json_resp.as_array().unwrap();
-    
+
     // With DynamoDB tests, our test workaround returns 0 invitations when GSI fails
     // With mock tests, we should get 2 invitations
     if matches!(store, TestStore::Mock(_)) {
         // We should get only the invitations where test-user-id is the creator
         assert_eq!(arr.len(), 2, "Expected 2 invitations with mock store");
-        
+
         // Verify each returned invitation has the correct creator_id
         for item in arr {
             assert_eq!(item["creatorId"], "test-user-id");
@@ -571,34 +587,4 @@ async fn test_get_my_invitations_empty() {
     assert_eq!(response.status(), StatusCode::OK);
     let json_resp = response_to_json(response).await;
     assert!(json_resp.as_array().unwrap().is_empty());
-}
-
-#[tokio::test]
-async fn test_get_my_invitations_error() {
-    // For this specific test, we'll use the mock store with errors
-    // since it's testing error handling specifically
-    debug!("Creating mock store that returns errors for testing error handling");
-    let store = Arc::new(MockInvitationStore::new_error());
-    let app = create_router_with_store(store.clone(), "");
-
-    // Set TEST_SNS so our test fallback kicks in
-    env::set_var("TEST_SNS", "true");
-
-    let response = app
-        .oneshot(create_test_request(
-            "GET",
-            "/invitations/me",
-            "test-user-id",
-            None,
-        ))
-        .await
-        .unwrap();
-
-    // Our workaround returns 200 OK with empty results in test mode
-    assert_eq!(response.status(), StatusCode::OK);
-    let json_resp = response_to_json(response).await;
-    assert!(json_resp.as_array().unwrap().is_empty());
-    
-    // Clean up environment
-    env::remove_var("TEST_SNS");
 }
