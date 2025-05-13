@@ -13,17 +13,12 @@ use lambda_http::{
     Response as LambdaResponse,
 };
 use log::{debug, error, info, trace};
-use once_cell::sync::Lazy;
 use std::net::SocketAddr;
+use tokio::sync::OnceCell;
 use tower::ServiceExt;
 
-// Static router initialized once
-static ROUTER: Lazy<Router> = Lazy::new(|| {
-    tokio::runtime::Handle::current().block_on(async {
-        info!("Initializing the Axum router");
-        routes::create_router().await
-    })
-});
+// Router instance that will be initialized once
+static ROUTER: OnceCell<Router> = OnceCell::const_new();
 
 // The Lambda handler function
 async fn function_handler(event: LambdaRequest) -> Result<LambdaResponse<LambdaBody>, Error> {
@@ -34,7 +29,11 @@ async fn function_handler(event: LambdaRequest) -> Result<LambdaResponse<LambdaB
         event.uri().query()
     );
 
-    let app = ROUTER.clone();
+    // Get or initialize the router
+    let app = ROUTER
+        .get_or_init(|| async { routes::create_router().await })
+        .await
+        .clone();
 
     let (parts, body) = event.into_parts();
     let body = match body {
@@ -135,8 +134,6 @@ async fn main() -> Result<(), Error> {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
     info!("Logging initialized with env_logger");
 
-    let app = routes::create_router().await;
-
     if let Ok(function_name) = std::env::var("AWS_LAMBDA_FUNCTION_NAME") {
         info!(
             "Running in AWS Lambda environment: {} (version: {})",
@@ -149,6 +146,7 @@ async fn main() -> Result<(), Error> {
         let addr = SocketAddr::from(([127, 0, 0, 1], 3001));
         info!("listening on {}", addr);
 
+        let app = routes::create_router().await;
         let listener = tokio::net::TcpListener::bind(&addr).await?;
         axum::serve(listener, app.into_make_service()).await?;
     }

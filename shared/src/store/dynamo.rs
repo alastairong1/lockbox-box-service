@@ -298,6 +298,14 @@ impl super::InvitationStore for DynamoInvitationStore {
             invitation.expires_at = (Utc::now() + Duration::hours(48)).to_rfc3339();
         }
 
+        log::debug!(
+            "Storing invitation id={}, creator_id={}, invite_code={}, to table={}",
+            invitation.id,
+            invitation.creator_id,
+            invitation.invite_code,
+            self.table_name
+        );
+
         // Convert to DynamoDB item
         let item = to_item(invitation.clone())?;
 
@@ -309,6 +317,7 @@ impl super::InvitationStore for DynamoInvitationStore {
             .await
             .map_err(|e| map_dynamo_error("put_item", e))?;
 
+        log::debug!("Successfully stored invitation {}", invitation.id);
         Ok(invitation)
     }
 
@@ -386,9 +395,6 @@ impl super::InvitationStore for DynamoInvitationStore {
         // 3. Create a conditional expression to check current version
         // 4. Handle ConditionalCheckFailedException as StoreError::VersionConflict
 
-        // Verify invitation exists first
-        self.get_invitation(&invitation.id).await?;
-
         // Convert to DynamoDB item
         let item = to_item(invitation.clone())?;
 
@@ -451,6 +457,12 @@ impl super::InvitationStore for DynamoInvitationStore {
     }
 
     async fn get_invitations_by_creator_id(&self, creator_id: &str) -> Result<Vec<Invitation>> {
+        log::debug!(
+            "Querying table {} for invitations with creator_id={}",
+            self.table_name,
+            creator_id
+        );
+
         // Create expression attribute values
         let expr_attr_values = HashMap::from([(
             ":creator_id".to_string(),
@@ -469,6 +481,7 @@ impl super::InvitationStore for DynamoInvitationStore {
             .map_err(|e| map_dynamo_error("query", e))?;
 
         let items = result.items();
+        log::debug!("Found {} items for creator_id={}", items.len(), creator_id);
 
         let mut invitations = Vec::new();
         for item in items {

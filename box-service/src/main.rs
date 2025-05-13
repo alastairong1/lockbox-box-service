@@ -15,18 +15,14 @@ use lambda_http::{
     Response as LambdaResponse,
 };
 use log::{debug, error, info, trace};
-use once_cell::sync::Lazy;
+use once_cell::sync::OnceCell;
 use routes::create_router;
 use std::net::SocketAddr;
+use tokio::sync::Mutex;
 use tower::ServiceExt;
 
-// Static router initialized once
-static ROUTER: Lazy<Router> = Lazy::new(|| {
-    tokio::runtime::Handle::current().block_on(async {
-        info!("Initializing the Axum router");
-        create_router().await
-    })
-});
+// Router instance that will be initialized once
+static ROUTER: OnceCell<Mutex<Option<Router>>> = OnceCell::new();
 
 // The Lambda handler function
 async fn function_handler(event: LambdaRequest) -> Result<LambdaResponse<LambdaBody>, Error> {
@@ -38,8 +34,22 @@ async fn function_handler(event: LambdaRequest) -> Result<LambdaResponse<LambdaB
         event.uri().query()
     );
 
-    // Use the static router instead of creating a new one
-    let app = ROUTER.clone();
+    // Initialize the OnceCell if needed
+    if ROUTER.get().is_none() {
+        let _ = ROUTER.set(Mutex::new(None));
+    }
+
+    // Initialize the router if it hasn't been initialized yet
+    let mutex = ROUTER.get().unwrap();
+    let mut router_option = mutex.lock().await;
+
+    if router_option.is_none() {
+        info!("Initializing the Axum router");
+        *router_option = Some(create_router().await);
+    }
+
+    let app = router_option.as_ref().unwrap().clone();
+    drop(router_option); // Release lock as soon as possible
 
     // Convert the Lambda event to an HTTP request for Axum
     let (parts, body) = event.into_parts();
@@ -143,8 +153,6 @@ async fn main() -> Result<(), Error> {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
     info!("Logging initialized with env_logger");
 
-    let app = create_router().await;
-
     // Check if running in Lambda environment
     if let Ok(function_name) = std::env::var("AWS_LAMBDA_FUNCTION_NAME") {
         info!(
@@ -159,6 +167,7 @@ async fn main() -> Result<(), Error> {
         let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
         info!("listening on {}", addr);
 
+        let app = create_router().await;
         let listener = tokio::net::TcpListener::bind(&addr).await?;
         axum::serve(listener, app.into_make_service()).await?;
     }
