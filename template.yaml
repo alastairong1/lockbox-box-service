@@ -168,7 +168,7 @@ Resources:
       AttributeDefinitions:
         - AttributeName: id
           AttributeType: S
-        - AttributeName: owner_id
+        - AttributeName: ownerId
           AttributeType: S
         # Note: We can't directly create a GSI for guardian IDs because they're stored
         # in a nested array within the item. Options for production scaling:
@@ -181,7 +181,7 @@ Resources:
       GlobalSecondaryIndexes:
         - IndexName: owner_id-index
           KeySchema:
-            - AttributeName: owner_id
+            - AttributeName: ownerId
               KeyType: HASH
           Projection:
             ProjectionType: ALL
