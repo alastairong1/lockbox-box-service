@@ -78,14 +78,6 @@ Resources:
       Architectures:
         - x86_64
       Events:
-        ApiEventRoot:
-          Type: Api
-          Properties:
-            RestApiId: !Ref ApiGatewayApi
-            Path: /boxes
-            Method: ANY
-            Auth:
-              Authorizer: CognitoAuthorizer
         ApiEventWithSubpaths:
           Type: Api
           Properties:
@@ -122,14 +114,6 @@ Resources:
       Architectures:
         - x86_64
       Events:
-        ApiEventRoot:
-          Type: Api
-          Properties:
-            RestApiId: !Ref ApiGatewayApi
-            Path: /invitations
-            Method: ANY
-            Auth:
-              Authorizer: CognitoAuthorizer
         ApiEventWithSubpaths:
           Type: Api
           Properties:
