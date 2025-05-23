@@ -149,9 +149,11 @@ pub async fn auth_middleware(mut request: Request, next: Next) -> Response {
 
     let user_id = claims.sub;
     info!("Authenticated user ID: {}", user_id);
+    info!("JWT claims: sub={}, email={:?}, aud={}", user_id, claims.email, claims.aud);
 
     // Store the user_id in the request extensions for later retrieval
-    request.extensions_mut().insert(user_id);
+    request.extensions_mut().insert(user_id.clone());
+    info!("Stored user_id in request extensions: {}", user_id);
 
     // Continue to the handler
     debug!("Forwarding authenticated request to handler");

@@ -457,7 +457,7 @@ impl super::InvitationStore for DynamoInvitationStore {
     }
 
     async fn get_invitations_by_creator_id(&self, creator_id: &str) -> Result<Vec<Invitation>> {
-        log::debug!(
+        log::info!(
             "Querying table {} for invitations with creator_id={}",
             self.table_name,
             creator_id
@@ -481,7 +481,7 @@ impl super::InvitationStore for DynamoInvitationStore {
             .map_err(|e| map_dynamo_error("query", e))?;
 
         let items = result.items();
-        log::debug!("Found {} items for creator_id={}", items.len(), creator_id);
+        log::info!("Found {} items for creator_id={}", items.len(), creator_id);
 
         let mut invitations = Vec::new();
         for item in items {

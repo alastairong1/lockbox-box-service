@@ -4,7 +4,7 @@ use axum::{
     Json,
 };
 use chrono::{Duration, Utc};
-use log::{debug, error};
+use log::{debug, error, info};
 use serde_json::json;
 use std::env;
 use std::sync::Arc;
@@ -231,11 +231,15 @@ pub async fn get_my_invitations<S: InvitationStore + ?Sized>(
     State(store): State<Arc<S>>,
     Extension(user_id): Extension<String>,
 ) -> Result<Json<Vec<Invitation>>> {
+    info!("get_my_invitations called with user_id: {}", user_id);
+    
     // Fetch all invitations created by this user
     let invitations = store
         .get_invitations_by_creator_id(&user_id)
         .await
         .map_err(|e| map_dynamo_error("get_invitations_by_creator_id", e))?;
 
+    info!("get_my_invitations returning {} invitations for user_id: {}", invitations.len(), user_id);
+    
     Ok(Json(invitations))
 }
