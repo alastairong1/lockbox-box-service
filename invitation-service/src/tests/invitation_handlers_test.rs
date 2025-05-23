@@ -119,7 +119,7 @@ async fn test_create_invitation() {
         .clone()
         .oneshot(create_test_request(
             "POST",
-            "/invitation",
+            "/invitations/new",
             "test-user-id",
             Some(payload),
         ))
@@ -131,7 +131,7 @@ async fn test_create_invitation() {
     let json_resp = response_to_json(response).await;
 
     // Verify the fields of the Invitation object
-    let invite_code = json_resp["invite_code"].as_str().unwrap();
+    let invite_code = json_resp["inviteCode"].as_str().unwrap();
     let expires_at = json_resp["expiresAt"].as_str().unwrap();
     assert_eq!(invite_code.len(), 8);
     assert!(!expires_at.is_empty());
@@ -227,7 +227,7 @@ async fn test_handle_invitation() {
         .clone()
         .oneshot(create_test_request(
             "PUT",
-            "/invitation/handle",
+            "/invitations/handle",
             "user-456",
             Some(handle_payload),
         ))
@@ -303,7 +303,7 @@ async fn test_handle_invitation_expired_code() {
         .clone()
         .oneshot(create_test_request(
             "PUT",
-            "/invitation/handle",
+            "/invitations/handle",
             "user-456",
             Some(bad_payload),
         ))
@@ -362,7 +362,7 @@ async fn test_refresh_invitation() {
 
     assert_eq!(response.status(), StatusCode::OK);
     let json_resp = response_to_json(response).await;
-    let new_code = json_resp["invite_code"].as_str().unwrap();
+    let new_code = json_resp["inviteCode"].as_str().unwrap();
     assert_ne!(new_code, old_code);
 
     let expires_at = json_resp["expiresAt"].as_str().unwrap();
@@ -467,7 +467,7 @@ async fn test_handle_invitation_invalid_code() {
         .clone()
         .oneshot(create_test_request(
             "PUT",
-            "/invitation/handle",
+            "/invitations/handle",
             "user-456",
             Some(bad_payload),
         ))

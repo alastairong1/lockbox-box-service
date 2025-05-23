@@ -118,6 +118,7 @@ impl fmt::Display for UnlockRequestStatus {
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Invitation {
     pub id: String,
+    #[serde(rename = "inviteCode")]
     pub invite_code: String, // Unique code for the deep link
     #[serde(rename = "invitedName")]
     pub invited_name: String,
@@ -243,4 +244,40 @@ pub struct MessageResponse {
 // Helper function to get current timestamp as string
 pub fn now_str() -> String {
     Utc::now().to_rfc3339()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json;
+
+    #[test]
+    fn test_invitation_serialization() {
+        let invitation = Invitation {
+            id: "test-id".to_string(),
+            invite_code: "TESTCODE".to_string(),
+            invited_name: "Test User".to_string(),
+            box_id: "box-123".to_string(),
+            created_at: "2024-01-01T00:00:00Z".to_string(),
+            expires_at: "2024-01-02T00:00:00Z".to_string(),
+            opened: false,
+            linked_user_id: None,
+            creator_id: "creator-123".to_string(),
+        };
+        
+        let json = serde_json::to_value(&invitation).unwrap();
+        
+        // Verify that invite_code is serialized as inviteCode in camelCase
+        assert!(json.get("inviteCode").is_some());
+        assert!(json.get("invite_code").is_none());
+        assert_eq!(json["inviteCode"].as_str().unwrap(), "TESTCODE");
+        
+        // Verify other camelCase fields are working too
+        assert!(json.get("invitedName").is_some());
+        assert!(json.get("boxId").is_some());
+        assert!(json.get("createdAt").is_some());
+        assert!(json.get("expiresAt").is_some());
+        assert!(json.get("linkedUserId").is_some());
+        assert!(json.get("creatorId").is_some());
+    }
 }
