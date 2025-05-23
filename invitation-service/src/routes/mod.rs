@@ -67,7 +67,7 @@ where
 
     // Create the API routes
     let api_routes = Router::new()
-        .route("/invitations", post(create_invitation))
+        .route("/invitations/new", post(create_invitation))
         .route("/invitations/handle", put(handle_invitation))
         .route("/invitations/:inviteId/refresh", patch(refresh_invitation))
         .route("/invitations/me", get(get_my_invitations))
