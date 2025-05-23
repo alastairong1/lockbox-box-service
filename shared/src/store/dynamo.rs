@@ -19,7 +19,7 @@ use crate::models::{now_str, BoxRecord, Invitation};
 const TABLE_NAME: &str = "invitation-table";
 const GSI_BOX_ID: &str = "box_id-index";
 const GSI_INVITE_CODE: &str = "invite_code-index";
-const GSI_CREATOR_ID: &str = "creator_id-index";
+const GSI_CREATOR_ID: &str = "creatorId-index";
 
 // Box Store Constants
 const BOX_TABLE_NAME: &str = "box-table";
@@ -458,23 +458,27 @@ impl super::InvitationStore for DynamoInvitationStore {
 
     async fn get_invitations_by_creator_id(&self, creator_id: &str) -> Result<Vec<Invitation>> {
         log::info!(
-            "Querying table {} for invitations with creator_id={}",
+            "Querying table {} for invitations with creator_id={}, using GSI: {}",
             self.table_name,
-            creator_id
+            creator_id,
+            GSI_CREATOR_ID
         );
 
         // Create expression attribute values
         let expr_attr_values = HashMap::from([(
-            ":creator_id".to_string(),
+            ":creatorId".to_string(),
             AttributeValue::S(creator_id.to_string()),
         )]);
+
+        log::info!("Query parameters: table={}, index={}, expression=creatorId = :creatorId, values={:?}", 
+                  self.table_name, GSI_CREATOR_ID, expr_attr_values);
 
         let result = self
             .client
             .query()
             .table_name(&self.table_name)
             .index_name(GSI_CREATOR_ID)
-            .key_condition_expression("creator_id = :creator_id")
+            .key_condition_expression("creatorId = :creatorId")
             .set_expression_attribute_values(Some(expr_attr_values))
             .send()
             .await
@@ -482,6 +486,29 @@ impl super::InvitationStore for DynamoInvitationStore {
 
         let items = result.items();
         log::info!("Found {} items for creator_id={}", items.len(), creator_id);
+
+        if items.is_empty() {
+            log::info!("No items found. Checking if this is a case sensitivity issue or wrong attribute name...");
+            // Let's try to scan a few items to see what creator_id values actually exist
+            let scan_result = self
+                .client
+                .scan()
+                .table_name(&self.table_name)
+                .limit(5)
+                .send()
+                .await
+                .map_err(|e| map_dynamo_error("scan", e))?;
+            
+            let scan_items = scan_result.items();
+            log::info!("Sample scan found {} items in table", scan_items.len());
+            for (i, item) in scan_items.iter().enumerate() {
+                if let Some(creator_attr) = item.get("creatorId") {
+                    log::info!("Sample item {}: creatorId = {:?}", i, creator_attr);
+                } else {
+                    log::info!("Sample item {}: no creatorId attribute found, available attributes: {:?}", i, item.keys().collect::<Vec<_>>());
+                }
+            }
+        }
 
         let mut invitations = Vec::new();
         for item in items {
