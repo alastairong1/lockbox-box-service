@@ -67,8 +67,8 @@ where
 
     // Create the API routes
     let api_routes = Router::new()
-        .route("/invitation", post(create_invitation))
-        .route("/invitation/handle", put(handle_invitation))
+        .route("/invitations", post(create_invitation))
+        .route("/invitations/handle", put(handle_invitation))
         .route("/invitations/:inviteId/refresh", patch(refresh_invitation))
         .route("/invitations/me", get(get_my_invitations))
         .layer(middleware::from_fn(auth_middleware))
