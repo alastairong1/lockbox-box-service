@@ -178,7 +178,7 @@ Resources:
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
     Properties:
-      TableName: invitation-table
+      TableName: invitations-table
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: id
@@ -292,7 +292,7 @@ Resources:
         IamRoleArn: !GetAtt BackupRole.Arn
         Resources:
           - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/box-table"
-          - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/invitation-table"
+          - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/invitations-table"
 
 Outputs:
   BoxServiceFunction:
