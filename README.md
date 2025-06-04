@@ -542,7 +542,7 @@ The lockbox-box-service includes an invitation service that allows users to crea
 
 #### 1. Create Invitation
 
-**Endpoint:** `POST /invitation`
+**Endpoint:** `POST /invitations/new`
 
 **Headers:**
 - `Authorization`: Bearer token with valid JWT
@@ -604,7 +604,7 @@ Allows a user to accept an invitation and connect it to their account.
 
 #### 3. Refresh Invitation
 
-**Endpoint:** `POST /invitations/:inviteId/refresh`
+**Endpoint:** `PATCH /invitations/:inviteId/refresh`
 
 **Headers:**
 - `Authorization`: Bearer token with valid JWT

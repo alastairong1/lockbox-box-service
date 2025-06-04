@@ -23,7 +23,7 @@ const CODE_ALPHABET: [char; 26] = [
     'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
 ];
 
-// POST /invitation - Create a new invitation
+// POST /invitations/new - Create a new invitation
 pub async fn create_invitation<S: InvitationStore + ?Sized>(
     State(store): State<Arc<S>>,
     Extension(user_id): Extension<String>,
@@ -188,7 +188,7 @@ pub async fn publish_invitation_event_with_client(
     Ok(())
 }
 
-// POST /invitations/:inviteId/refresh - Refresh the invitation
+// PATCH /invitations/:inviteId/refresh - Refresh the invitation
 pub async fn refresh_invitation<S: InvitationStore + ?Sized>(
     State(store): State<Arc<S>>,
     Extension(user_id): Extension<String>,
